@@ -76,9 +76,9 @@ export function TelaEntradaCliente({ onNovo, onCadastrado, onBack, dark }) {
         textAlign: 'center',
       }}>
         <img
-          src="/logo-amaral.jpg"
+          src="/logo-amaral.png"
           alt="Amaral Barbearia"
-          style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '20px', marginBottom: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}
+          style={{ width: '120px', height: '120px', objectFit: 'contain', filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.5))', marginBottom: '12px' }}
         />
         <div style={{
           fontFamily: "'Playfair Display', serif",
@@ -564,9 +564,9 @@ export function TelaLoginCliente({ onSucesso, onRecuperar, onBack, dark }) {
       <div style={{ padding: '32px 20px 0' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <img
-            src="/logo-amaral.jpg"
+            src="/logo-amaral.png"
             alt="Amaral Barbearia"
-            style={{ width: '72px', height: '72px', objectFit: 'cover', borderRadius: '18px', marginBottom: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}
+            style={{ width: '100px', height: '100px', objectFit: 'contain', filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.5))', marginBottom: '8px' }}
           />
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '18px', color: '#C9A84C' }}>
             Amaral Barbearia
