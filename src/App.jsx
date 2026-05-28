@@ -65,18 +65,19 @@ class ErrorBoundary extends React.Component {
 // COMPONENTES UTILITÁRIOS
 // ─────────────────────────────────────────────────────────────
 
-// Logo mark — imagem da Amaral Barbearia (PNG com transparência)
+// Logo mark — imagem da Amaral Barbearia
 function LogoMark({ size = 48 }) {
   return (
     <img
       src="/logo-amaral.png"
       alt="Amaral Barbearia"
       style={{
-        width: size,
-        height: size,
+        width: size * 1.8,
+        height: size * 1.8,
         objectFit: 'contain',
-        filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.5))',
+        filter: 'drop-shadow(0 6px 20px rgba(0,0,0,0.6))',
         flexShrink: 0,
+        display: 'block',
       }}
     />
   );
@@ -130,7 +131,7 @@ function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark }) {
         {/* Círculo decorativo */}
         <div style={{ position:'absolute', top:'-30px', right:'-30px', width:'100px', height:'100px', background:'rgba(255,255,255,0.1)', borderRadius:'50%' }} />
 
-        <LogoMark size={64} />
+        <LogoMark size={80} />
         <div style={{ marginTop: '12px', fontFamily:"'Playfair Display',serif", fontSize:'26px', fontWeight:'900', color:'#0A0A0A' }}>
           Amaral <span style={{ fontWeight:'300' }}>Barbearia</span>
         </div>
@@ -239,7 +240,7 @@ function StaffLoginScreen({ onBack, onSuccess, dark }) {
       </button>
 
       <div style={{ textAlign:'center', marginBottom:'32px' }}>
-        <LogoMark size={56} />
+        <LogoMark size={60} />
         <div style={{ marginTop:'12px', fontFamily:"'Playfair Display',serif", fontSize:'20px', color:'#C9A84C' }}>
           Acesso da equipe
         </div>
