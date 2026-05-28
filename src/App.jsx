@@ -75,7 +75,7 @@ function LogoMark({ size = 48 }) {
         width: size * 1.8,
         height: size * 1.8,
         objectFit: 'contain',
-        filter: 'drop-shadow(0 6px 20px rgba(0,0,0,0.6))',
+        filter: 'drop-shadow(0 6px 20px rgba(0,0,0,0.5))',
         flexShrink: 0,
         display: 'block',
       }}
