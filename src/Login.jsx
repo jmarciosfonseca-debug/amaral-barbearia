@@ -155,17 +155,20 @@ export function TelaCadastro({ onProximo, onBack, dark }) {
 
     setLoading(true);
     try {
-      // Verifica se CPF já existe
-      const ref = doc(db, 'clientes', limparCPF(form.cpf));
+      const cpfLimpo = limparCPF(form.cpf);
+      console.log('Tentando verificar CPF:', cpfLimpo);
+      const ref = doc(db, 'clientes', cpfLimpo);
       const snap = await getDoc(ref);
+      console.log('Snap recebido:', snap.exists());
       if (snap.exists()) {
         setErro('Este CPF já está cadastrado. Use "Já tenho cadastro".');
         setLoading(false);
         return;
       }
-      onProximo({ ...form, cpf: limparCPF(form.cpf) });
+      onProximo({ ...form, cpf: cpfLimpo });
     } catch (e) {
-      setErro('Erro ao verificar CPF. Tente novamente.');
+      console.error('Erro Firebase detalhado:', e.code, e.message, e);
+      setErro('Erro: ' + (e.message || e.code || 'Tente novamente.'));
     }
     setLoading(false);
   }
