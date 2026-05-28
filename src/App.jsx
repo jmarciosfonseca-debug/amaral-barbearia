@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import React from 'react';
-import { getStyles, APP_CONFIG, PERFIL } from './getStyles';
+import { getStyles, PERFIL } from './getStyles';
 
 // ─────────────────────────────────────────────────────────────
 // ERROR BOUNDARY — igual MokLog, protege contra crash
