@@ -65,22 +65,20 @@ class ErrorBoundary extends React.Component {
 // COMPONENTES UTILITÁRIOS
 // ─────────────────────────────────────────────────────────────
 
-// Logo mark — imagem da Amaral Barbearia
+// Logo mark — imagem da Amaral Barbearia (PNG com transparência)
 function LogoMark({ size = 48 }) {
   return (
-    <div style={{
-      width: size, height: size,
-      borderRadius: size * 0.22,
-      overflow: 'hidden',
-      boxShadow: '0 4px 16px rgba(201,168,76,0.3)',
-      flexShrink: 0,
-    }}>
-      <img
-        src="/logo-amaral.jpg"
-        alt="Amaral Barbearia"
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-      />
-    </div>
+    <img
+      src="/logo-amaral.png"
+      alt="Amaral Barbearia"
+      style={{
+        width: size,
+        height: size,
+        objectFit: 'contain',
+        filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.5))',
+        flexShrink: 0,
+      }}
+    />
   );
 }
 
