@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { getStyles, PERFIL } from './getStyles';
+import LoginFlow from './Login';
 
 // ─────────────────────────────────────────────────────────────
 // ERROR BOUNDARY — igual MokLog, protege contra crash
@@ -64,18 +65,21 @@ class ErrorBoundary extends React.Component {
 // COMPONENTES UTILITÁRIOS
 // ─────────────────────────────────────────────────────────────
 
-// Logo mark — ícone ✂️ dourado
+// Logo mark — imagem da Amaral Barbearia
 function LogoMark({ size = 48 }) {
   return (
     <div style={{
       width: size, height: size,
-      background: '#C9A84C',
       borderRadius: size * 0.22,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.5,
+      overflow: 'hidden',
       boxShadow: '0 4px 16px rgba(201,168,76,0.3)',
+      flexShrink: 0,
     }}>
-      ✂️
+      <img
+        src="/logo-amaral.jpg"
+        alt="Amaral Barbearia"
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      />
     </div>
   );
 }
@@ -304,6 +308,79 @@ function EmBreve({ titulo, descricao, passo, onBack, dark }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// TELA: HOME CLIENTE — após login bem sucedido
+// Será expandido no Passo 6 (agendamento)
+// ─────────────────────────────────────────────────────────────
+function HomeCliente({ cliente, onLogout, dark }) {
+  const s = getStyles(dark);
+  return (
+    <div style={{ ...s.app, paddingBottom: '80px' }}>
+      <div style={{ ...s.header }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ ...s.avatar, width: '40px', height: '40px', fontSize: '16px', overflow: 'hidden' }}>
+            {cliente.foto
+              ? <img src={cliente.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : cliente.nome[0].toUpperCase()
+            }
+          </div>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: '600' }}>Olá, {cliente.nome.split(' ')[0]}! 👋</div>
+            <div style={{ fontSize: '11px', color: s.textSub }}>Amaral Barbearia</div>
+          </div>
+        </div>
+        <button onClick={onLogout} style={{ background: '#2A2A2A', border: 'none', borderRadius: '8px', padding: '6px 12px', fontSize: '12px', color: '#888', cursor: 'pointer' }}>
+          Sair
+        </button>
+      </div>
+
+      <div style={{ padding: '20px' }}>
+        {/* Boas vindas */}
+        <div style={{
+          background: 'linear-gradient(135deg, #A07830, #C9A84C)',
+          borderRadius: '18px', padding: '20px', marginBottom: '20px',
+        }}>
+          <div style={{ fontSize: '12px', color: 'rgba(0,0,0,0.6)', marginBottom: '4px', fontWeight: '600' }}>
+            BEM-VINDO DE VOLTA!
+          </div>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', color: '#0A0A0A', fontWeight: '700' }}>
+            {cliente.nome.split(' ')[0]}
+          </div>
+          <div style={{ fontSize: '12px', color: 'rgba(0,0,0,0.6)', marginTop: '4px' }}>
+            Cadastro ativo ✅
+          </div>
+        </div>
+
+        {/* Próximos módulos */}
+        <div style={{ fontSize: '11px', color: '#C9A84C', fontWeight: '600', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '12px' }}>
+          O que deseja fazer?
+        </div>
+
+        {[
+          { icon: '📅', label: 'Fazer Agendamento',  sub: 'Escolha barbeiro, dia e horário', passo: 6  },
+          { icon: '📋', label: 'Minhas Reservas',    sub: 'Ver, cancelar ou reagendar',      passo: 6  },
+          { icon: '💳', label: 'Pagamento via Pix',  sub: 'Pagar adiantado com Pix',         passo: 13 },
+          { icon: '🔔', label: 'Notificações',       sub: 'Avisos e confirmações',            passo: 11 },
+        ].map(item => (
+          <div key={item.label} style={{
+            display: 'flex', alignItems: 'center', gap: '14px',
+            padding: '14px', background: s.cardBg,
+            borderRadius: '14px', border: `1px solid ${s.border}`,
+            marginBottom: '10px',
+          }}>
+            <div style={{ fontSize: '24px' }}>{item.icon}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: '600', fontSize: '14px' }}>{item.label}</div>
+              <div style={{ fontSize: '11px', color: s.textSub }}>{item.sub}</div>
+            </div>
+            <div style={{ fontSize: '11px', color: '#444' }}>Passo {item.passo}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // TELA: HOME GERENTE — painel rápido
 // Será expandido no Passo 9
 // ─────────────────────────────────────────────────────────────
@@ -427,12 +504,15 @@ export default function App() {
   const [dark, setDark] = React.useState(true);
 
   // Estado de navegação
-  // tela: 'splash' | 'staff_login' | 'cliente_novo' | 'cliente_login' |
-  //       'home_gerente' | 'home_barbeiro' | 'em_breve'
+  // tela: 'splash' | 'login_cliente' | 'staff_login' | 'cliente_novo' | 'cliente_login' |
+  //       'home_gerente' | 'home_barbeiro' | 'home_cliente' | 'em_breve'
   const [tela, setTela] = React.useState('splash');
 
   // Usuário logado (staff)
   const [usuario, setUsuario] = React.useState(null);
+
+  // Cliente logado
+  const [cliente, setCliente] = React.useState(null);
 
   // Para tela em_breve
   const [emBreveInfo, setEmBreveInfo] = React.useState(null);
@@ -440,21 +520,16 @@ export default function App() {
   // ── Handlers de navegação ──────────────────────────────────
 
   function handleClienteNovo() {
-    setEmBreveInfo({
-      titulo: 'Cadastro de Cliente',
-      descricao: 'Formulário completo com CPF, senha e preferências.',
-      passo: 3,
-    });
-    setTela('em_breve');
+    setTela('login_cliente');
   }
 
   function handleClienteCadastrado() {
-    setEmBreveInfo({
-      titulo: 'Login do Cliente',
-      descricao: 'Acesso via CPF + senha (5 últimos dígitos do CPF).',
-      passo: 3,
-    });
-    setTela('em_breve');
+    setTela('login_cliente');
+  }
+
+  function handleLoginClienteSucesso(clienteLogado) {
+    setCliente(clienteLogado);
+    setTela('home_cliente');
   }
 
   function handleStaffLogin(usuarioLogado) {
@@ -525,6 +600,26 @@ export default function App() {
       {toggleTema}
 
       <ErrorBoundary modulo="App">
+
+        {tela === 'login_cliente' && (
+          <ErrorBoundary modulo="LoginCliente">
+            <LoginFlow
+              onSucesso={handleLoginClienteSucesso}
+              onBack={() => setTela('splash')}
+              dark={dark}
+            />
+          </ErrorBoundary>
+        )}
+
+        {tela === 'home_cliente' && cliente && (
+          <ErrorBoundary modulo="HomeCliente">
+            <HomeCliente
+              cliente={cliente}
+              onLogout={() => { setCliente(null); setTela('splash'); }}
+              dark={dark}
+            />
+          </ErrorBoundary>
+        )}
 
         {tela === 'splash' && (
           <SplashScreen
