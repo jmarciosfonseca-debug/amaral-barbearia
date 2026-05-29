@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import React from 'react';
+import { db } from './firebase';
 import { getStyles, PERFIL, APP_CONFIG, COLORS } from './getStyles';
 import LoginFlow from './Login';
 import ConfigBarbearia from './ConfigBarbearia';
@@ -111,11 +112,24 @@ function Divider({ style }) {
 function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark }) {
   const s = getStyles(dark);
 
-  const barbeiros = [
-    { id: '1', nome: 'Amaral', cargo: '👑 Gerente · Barbeiro', disponivel: true  },
-    { id: '2', nome: 'Jotace', cargo: '✂️ Barbeiro',            disponivel: true  },
-    { id: '3', nome: 'Júnior', cargo: '✂️ Barbeiro',            disponivel: false },
-  ];
+  const [barbeiros, setBarbeiros] = React.useState([
+    { id: 'b1', nome: 'Amaral', cargo: '👑 Gerente · Barbeiro', disponivel: true  },
+    { id: 'b2', nome: 'Jotace', cargo: '✂️ Barbeiro',            disponivel: true  },
+    { id: 'b3', nome: 'Júnior', cargo: '✂️ Barbeiro',            disponivel: false },
+  ]);
+
+  // Busca barbeiros do Firestore em tempo real
+  React.useEffect(() => {
+    import('firebase/firestore').then(({ collection, onSnapshot, query, where }) => {
+      const q = query(collection(db, 'barbeiros'), where('ativo', '==', true));
+      const unsub = onSnapshot(q, snap => {
+        if (!snap.empty) {
+          setBarbeiros(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }
+      });
+      return () => unsub();
+    }).catch(console.error);
+  }, []);
 
   return (
     <div style={{ ...s.app, paddingBottom: '80px' }}>
