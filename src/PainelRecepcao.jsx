@@ -198,17 +198,31 @@ function ModalPagamento({ agendamento, onConfirmar, onFechar }) {
 function ModalNovoAgendamento({ agendamentosHoje, onSalvar, onFechar }) {
   const [barbeiros, setBarbeiros] = React.useState([]);
   const [servicos, setServicos]   = React.useState([]);
+  // ✅ Múltiplos serviços selecionados
+  const [servicosSel, setServicosSel] = React.useState([]);
   const [form, setForm] = React.useState({
     clienteNome: '', clienteTel: '', clienteCpf: 'manual',
     barbeiroId: '', barbeiroNome: '',
-    servico: '', valor: 0,
     data: hoje(), hora: '09:00',
     pagamento: 'local', observacao: '',
   });
   const [salvando, setSalvando]   = React.useState(false);
   const [erro, setErro]           = React.useState('');
-  // Horários bloqueados para o barbeiro+data selecionado
   const [horariosOcupados, setHorariosOcupados] = React.useState([]);
+
+  // Totais calculados dos serviços selecionados
+  const totalValor   = servicosSel.reduce((acc, s) => acc + (s.valor || 0), 0);
+  const totalDuracao = servicosSel.reduce((acc, s) => acc + (s.duracao || 0), 0);
+  const nomeServicos = servicosSel.map(s => s.nome).join(' + ');
+
+  function toggleServico(sv) {
+    setServicosSel(prev => {
+      const jatem = prev.find(s => s.id === sv.id);
+      if (jatem) return prev.filter(s => s.id !== sv.id);
+      return [...prev, sv];
+    });
+    setErro('');
+  }
 
   React.useEffect(() => {
     getDocs(collection(db, 'barbeiros')).then(snap => {
@@ -271,22 +285,13 @@ function ModalNovoAgendamento({ agendamentosHoje, onSalvar, onFechar }) {
     setField('barbeiroNome', b?.nome || '');
   }
 
-  function handleServicoChange(nome) {
-    const sv = servicos.find(s => s.nome === nome);
-    setField('servico', nome);
-    setField('valor', sv?.valor || 0);
-  }
-
   // ✅ Gera lista de horários com status (livre/ocupado)
   function gerarHorarios() {
     const slots = [];
     for (let h = 8; h <= 20; h++) {
       for (let m of [0, 30]) {
         const hora = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-        slots.push({
-          hora,
-          ocupado: horariosOcupados.includes(hora),
-        });
+        slots.push({ hora, ocupado: horariosOcupados.includes(hora) });
       }
     }
     return slots;
@@ -295,9 +300,8 @@ function ModalNovoAgendamento({ agendamentosHoje, onSalvar, onFechar }) {
   async function handleSalvar() {
     if (!form.clienteNome.trim()) { setErro('Nome do cliente obrigatório'); return; }
     if (!form.barbeiroId)         { setErro('Selecione o barbeiro'); return; }
-    if (!form.servico)            { setErro('Selecione o serviço'); return; }
+    if (servicosSel.length === 0) { setErro('Selecione ao menos um serviço'); return; }
 
-    // ✅ Valida conflito de horário
     if (horariosOcupados.includes(form.hora)) {
       setErro(`⚠️ Horário ${form.hora} já está ocupado para este barbeiro!`);
       return;
@@ -308,12 +312,16 @@ function ModalNovoAgendamento({ agendamentosHoje, onSalvar, onFechar }) {
     try {
       await addDoc(collection(db, 'agendamentos'), {
         ...form,
+        servico:     nomeServicos,
+        valor:       totalValor,
+        duracao:     totalDuracao,
+        servicoIds:  servicosSel.map(s => s.id).filter(Boolean),
         status:      'confirmado',
         agendadoPor: 'recepcao',
         sinal:       0,
         criadoEm:    serverTimestamp(),
       });
-      onSalvar(); // ✅ dispara toast + fecha modal
+      onSalvar();
     } catch (e) {
       setErro('Erro ao salvar. Tente novamente.');
       console.error(e);
@@ -371,22 +379,83 @@ function ModalNovoAgendamento({ agendamentosHoje, onSalvar, onFechar }) {
           </select>
         </div>
 
-        {/* Serviço */}
-        <div style={{ marginBottom: '12px' }}>
-          <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '5px' }}>Serviço *</label>
-          <select style={inputStyle} value={form.servico} onChange={e => handleServicoChange(e.target.value)}>
-            <option value="">Selecione...</option>
-            {servicos.map(s => (
-              <option key={s.id} value={s.nome}>{s.nome} — R$ {s.valor.toFixed(2).replace('.', ',')}</option>
-            ))}
-          </select>
+        {/* ✅ Serviços — seleção múltipla com total */}
+        <div style={{ marginBottom: '14px' }}>
+          <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '8px' }}>
+            Serviços * <span style={{ color: '#555' }}>(selecione um ou mais)</span>
+          </label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {servicos.map(sv => {
+              const sel = !!servicosSel.find(s => s.id === sv.id);
+              return (
+                <div
+                  key={sv.id}
+                  onClick={() => toggleServico(sv)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '10px 12px', borderRadius: '10px', cursor: 'pointer',
+                    background: sel ? '#2E1A14' : '#1A0F0D',
+                    border: sel ? '1.5px solid #8B3A2A' : '1px solid #3A2018',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      width: '18px', height: '18px', borderRadius: '5px', flexShrink: 0,
+                      border: `2px solid ${sel ? '#8B3A2A' : '#3A2018'}`,
+                      background: sel ? '#8B3A2A' : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '11px', color: '#F5EFE6',
+                    }}>
+                      {sel ? '✓' : ''}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: sel ? '700' : '400', color: sel ? '#F5EFE6' : '#9A8880' }}>
+                        {sv.nome}
+                      </div>
+                      {sv.duracao && (
+                        <div style={{ fontSize: '10px', color: '#555' }}>⏱ {sv.duracao} min</div>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: sel ? '#E8C96A' : '#9A8880' }}>
+                    R$ {sv.valor.toFixed(2).replace('.', ',')}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ✅ Total calculado */}
+          {servicosSel.length > 0 && (
+            <div style={{
+              marginTop: '10px', padding: '10px 14px', borderRadius: '10px',
+              background: 'rgba(232,201,106,0.08)', border: '1px solid rgba(232,201,106,0.2)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <div>
+                <div style={{ fontSize: '11px', color: '#9A8880' }}>
+                  {servicosSel.length} serviço(s){totalDuracao > 0 ? ` · ${totalDuracao} min` : ''}
+                </div>
+                <div style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>
+                  {nomeServicos}
+                </div>
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: '700', color: '#E8C96A' }}>
+                R$ {totalValor.toFixed(2).replace('.', ',')}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Valor */}
+        {/* Valor manual (editável) */}
         <div style={{ marginBottom: '12px' }}>
-          <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '5px' }}>Valor (R$)</label>
-          <input type="number" style={inputStyle} value={form.valor}
-            onChange={e => setField('valor', parseFloat(e.target.value) || 0)} />
+          <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '5px' }}>
+            Valor total (R$) <span style={{ color: '#555' }}>— ajuste se necessário</span>
+          </label>
+          <input type="number" style={inputStyle} value={totalValor}
+            readOnly
+            style={{ ...inputStyle, color: '#E8C96A', fontWeight: '700', background: '#1A0F0D' }} />
         </div>
 
         {/* Data */}
