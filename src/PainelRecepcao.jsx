@@ -198,6 +198,7 @@ function ModalPagamento({ agendamento, onConfirmar, onFechar }) {
 function ModalNovoAgendamento({ agendamentosHoje, onSalvar, onFechar }) {
   const [barbeiros, setBarbeiros] = React.useState([]);
   const [servicos, setServicos]   = React.useState([]);
+  const [configHorarios, setConfigHorarios] = React.useState(null); // ✅ horários do gerente
   // ✅ Múltiplos serviços selecionados
   const [servicosSel, setServicosSel] = React.useState([]);
   const [form, setForm] = React.useState({
@@ -226,7 +227,6 @@ function ModalNovoAgendamento({ agendamentosHoje, onSalvar, onFechar }) {
 
   React.useEffect(() => {
     getDocs(collection(db, 'barbeiros')).then(snap => {
-      // ✅ Filtra recepção — só barbeiros reais
       setBarbeiros(
         snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
@@ -244,6 +244,10 @@ function ModalNovoAgendamento({ agendamentosHoje, onSalvar, onFechar }) {
             ...(data.combos  || []).filter(s => s.ativo),
           ]);
         }
+      });
+      // ✅ Carregar horários do gerente
+      getDoc(fDoc(db, 'config', 'barbearia')).then(snap => {
+        if (snap.exists()) setConfigHorarios(snap.data());
       });
     });
   }, []);
@@ -286,13 +290,31 @@ function ModalNovoAgendamento({ agendamentosHoje, onSalvar, onFechar }) {
   }
 
   // ✅ Gera lista de horários com status (livre/ocupado)
+  // ✅ Gera horários respeitando config do gerente para o dia selecionado
   function gerarHorarios() {
+    const DIAS_KEYS = ['dom','seg','ter','qua','qui','sex','sab'];
+    const diaSem    = DIAS_KEYS[new Date(form.data + 'T12:00:00').getDay()];
+    const horConfig = configHorarios?.horarios?.[diaSem];
+
+    let inicio = 8 * 60;   // fallback 08:00
+    let fim    = 24 * 60;  // fallback 00:00
+
+    if (horConfig?.aberto) {
+      const [hA, mA] = horConfig.abertura.split(':').map(Number);
+      const [hF, mF] = horConfig.fechamento.split(':').map(Number);
+      inicio = hA * 60 + mA;
+      fim    = hF === 0 && mF === 0 ? 24 * 60 : hF * 60 + mF;
+    }
+
     const slots = [];
-    for (let h = 8; h <= 20; h++) {
-      for (let m of [0, 30]) {
-        const hora = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-        slots.push({ hora, ocupado: horariosOcupados.includes(hora) });
-      }
+    let atual = inicio;
+    while (atual < fim) {
+      const hora = `${String(Math.floor(atual/60)).padStart(2,'0')}:${String(atual%60).padStart(2,'0')}`;
+      slots.push({ hora, ocupado: horariosOcupados.includes(hora) });
+      atual += 30;
+    }
+    if (fim === 24 * 60) {
+      slots.push({ hora: '00:00', ocupado: horariosOcupados.includes('00:00') });
     }
     return slots;
   }
