@@ -15,6 +15,7 @@ import Agendamento from './Agendamento';
 import MinhasReservas from './MinhasReservas';
 import AgendaBarbeiro from './AgendaBarbeiro';
 import Financeiro from './Financeiro';
+import PainelRecepcao from './PainelRecepcao';
 
 // ─────────────────────────────────────────────────────────────
 // ERROR BOUNDARY
@@ -579,9 +580,8 @@ export default function App() {
       setTela('home_gerente');
     } else if (usuarioLogado.perfil === PERFIL.BARBEIRO) {
       setTela('home_barbeiro');
-    } else {
-      setEmBreveInfo({ titulo: 'Painel da Recepção', descricao: 'Em desenvolvimento.', passo: 10 });
-      setTela('em_breve');
+    } else if (usuarioLogado.perfil === PERFIL.RECEPCIONISTA) {
+      setTela('recepcao');
     }
   }
 
@@ -590,7 +590,7 @@ export default function App() {
     if (modulo === 'equipe')      { setTela('gestao_equipe'); return; }
     if (modulo === 'financeiro' || modulo === 'comparativo') { setTela('financeiro'); return; }
     if (modulo === 'agenda')      { setTela('agenda_barbeiro'); return; }
-    const passos = { permissoes: 10 };
+    if (modulo === 'permissoes') { setTela('recepcao'); return; }
     setEmBreveInfo({ titulo: modulo.charAt(0).toUpperCase() + modulo.slice(1), descricao: `Módulo ${modulo} em desenvolvimento.`, passo: passos[modulo] || '?' });
     setTela('em_breve');
   }
@@ -689,6 +689,15 @@ export default function App() {
             <Agendamento
               cliente={cliente}
               onBack={() => setTela('home_cliente')}
+              dark={dark}
+            />
+          </ErrorBoundary>
+        )}
+
+        {tela === 'recepcao' && (
+          <ErrorBoundary modulo="PainelRecepcao">
+            <PainelRecepcao
+              onBack={() => usuario?.perfil === PERFIL.GERENTE ? setTela('home_gerente') : setTela('splash')}
               dark={dark}
             />
           </ErrorBoundary>
