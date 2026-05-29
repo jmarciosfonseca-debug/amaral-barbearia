@@ -1,9 +1,10 @@
 // Agendamento.jsx — Flyguer BarberShop
 // ─────────────────────────────────────────────────────────────
-// Passo 6: Agendamento do Cliente
-// Fluxo: Barbeiro → Serviço → Data/Hora → Pagamento → Confirmação
-// Regra: Trava de cancelamento no mesmo dia (exige sinal via Pix)
-// Salva em: Firestore /agendamentos/{id}
+// Passo 6: Agendamento do Cliente — v2
+// CORREÇÕES:
+// ✅ Query Firestore sem índice composto (evita erro 400)
+// ✅ Horários da recepção bloqueiam agenda do cliente
+// ✅ Recepção não aparece na lista de barbeiros
 // ─────────────────────────────────────────────────────────────
 
 import React from 'react';
@@ -18,7 +19,7 @@ import { getStyles, DIAS_SEMANA } from './getStyles';
 // UTILITÁRIOS DE DATA
 // ─────────────────────────────────────────────────────────────
 function hoje() {
-  return new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  return new Date().toISOString().split('T')[0];
 }
 
 function formatarData(dataStr) {
@@ -42,8 +43,8 @@ function gerarHorarios(abertura, fechamento, almoco, duracaoMin, agendados) {
   const fim = hF * 60 + mF;
 
   while (atual + duracaoMin <= fim) {
-    const hh = String(Math.floor(atual / 60)).padStart(2, '0');
-    const mm = String(atual % 60).padStart(2, '0');
+    const hh   = String(Math.floor(atual / 60)).padStart(2, '0');
+    const mm   = String(atual % 60).padStart(2, '0');
     const hora = `${hh}:${mm}`;
 
     // Bloquear almoço
@@ -51,22 +52,19 @@ function gerarHorarios(abertura, fechamento, almoco, duracaoMin, agendados) {
     if (inicioAlmoco && fimAlmoco) {
       const [hAl, mAl] = inicioAlmoco.split(':').map(Number);
       const [hFl, mFl] = fimAlmoco.split(':').map(Number);
-      const inicioMin = hAl * 60 + mAl;
-      const fimMin    = hFl * 60 + mFl;
+      const inicioMin  = hAl * 60 + mAl;
+      const fimMin     = hFl * 60 + mFl;
       if (atual >= inicioMin && atual < fimMin) bloqueado = true;
     }
 
-    // Bloquear horários passados (se hoje)
-    const agora = new Date();
-    const hojeStr = hoje();
-
     horarios.push({
       hora,
+      // ✅ agendados já inclui horários da recepção + clientes
       disponivel: !bloqueado && !agendados.includes(hora),
       bloqueado,
     });
 
-    atual += 30; // intervalo de 30 min
+    atual += 30;
   }
 
   return horarios;
@@ -107,13 +105,10 @@ function Card({ children, style, onClick }) {
 
 function BotaoVoltar({ onClick }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        background: 'none', border: 'none', color: '#E8C96A',
-        fontSize: '14px', cursor: 'pointer', padding: '0',
-      }}
-    >
+    <button onClick={onClick} style={{
+      background: 'none', border: 'none', color: '#E8C96A',
+      fontSize: '14px', cursor: 'pointer', padding: '0',
+    }}>
       ← Voltar
     </button>
   );
@@ -121,10 +116,11 @@ function BotaoVoltar({ onClick }) {
 
 // ─────────────────────────────────────────────────────────────
 // PASSO A: Escolher Barbeiro
+// ✅ Filtra papel 'recepcao' — não aparece para o cliente
 // ─────────────────────────────────────────────────────────────
 function EscolherBarbeiro({ onEscolher, onBack, dark }) {
   const s = getStyles(dark);
-  const [barbeiros, setBarbeiros] = React.useState([]);
+  const [barbeiros, setBarbeiros]   = React.useState([]);
   const [carregando, setCarregando] = React.useState(true);
 
   React.useEffect(() => {
@@ -134,7 +130,12 @@ function EscolherBarbeiro({ onEscolher, onBack, dark }) {
           collection(db, 'barbeiros'),
           where('ativo', '==', true)
         ));
-        setBarbeiros(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setBarbeiros(
+          snap.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            // ✅ Exclui quem tem papel 'recepcao'
+            .filter(b => b.papel !== 'recepcao')
+        );
       } catch (e) {
         console.error(e);
       } finally {
@@ -160,11 +161,7 @@ function EscolherBarbeiro({ onEscolher, onBack, dark }) {
         <div style={{ textAlign: 'center', color: '#9A8880', padding: '40px' }}>Carregando...</div>
       ) : (
         barbeiros.map(b => (
-          <Card
-            key={b.id}
-            onClick={() => onEscolher(b)}
-            style={{ border: '1px solid #3A2018' }}
-          >
+          <Card key={b.id} onClick={() => onEscolher(b)} style={{ border: '1px solid #3A2018' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
               <div style={{
                 width: '56px', height: '56px', borderRadius: '50%',
@@ -208,7 +205,7 @@ function EscolherBarbeiro({ onEscolher, onBack, dark }) {
 // ─────────────────────────────────────────────────────────────
 function EscolherServico({ barbeiro, onEscolher, onBack, dark }) {
   const s = getStyles(dark);
-  const [servicos, setServicos] = React.useState({ avulsos: [], combos: [] });
+  const [servicos, setServicos]     = React.useState({ avulsos: [], combos: [] });
   const [selecionados, setSelecionados] = React.useState([]);
   const [carregando, setCarregando] = React.useState(true);
 
@@ -224,8 +221,8 @@ function EscolherServico({ barbeiro, onEscolher, onBack, dark }) {
   }, []);
 
   const todosServicos = [
-    ...servicos.avulsos?.filter(s => s.ativo) || [],
-    ...servicos.combos?.filter(s => s.ativo) || [],
+    ...(servicos.avulsos?.filter(s => s.ativo) || []),
+    ...(servicos.combos?.filter(s => s.ativo)  || []),
   ];
 
   function toggleServico(sv) {
@@ -236,7 +233,7 @@ function EscolherServico({ barbeiro, onEscolher, onBack, dark }) {
     });
   }
 
-  const totalValor = selecionados.reduce((acc, s) => acc + s.valor, 0);
+  const totalValor   = selecionados.reduce((acc, s) => acc + s.valor, 0);
   const totalDuracao = selecionados.reduce((acc, s) => acc + s.duracao, 0);
   const nomeServicos = selecionados.map(s => s.nome).join(' + ');
 
@@ -251,9 +248,7 @@ function EscolherServico({ barbeiro, onEscolher, onBack, dark }) {
       <div style={{ fontSize: '12px', color: '#9A8880', marginBottom: '4px' }}>
         Barbeiro: <strong style={{ color: '#E8C96A' }}>{barbeiro.nome}</strong>
       </div>
-      <div style={{ fontSize: '11px', color: '#9A8880', marginBottom: '20px' }}>
-        Toque para selecionar
-      </div>
+      <div style={{ fontSize: '11px', color: '#9A8880', marginBottom: '20px' }}>Toque para selecionar</div>
 
       {carregando ? (
         <div style={{ textAlign: 'center', color: '#9A8880', padding: '40px' }}>Carregando...</div>
@@ -261,20 +256,14 @@ function EscolherServico({ barbeiro, onEscolher, onBack, dark }) {
         todosServicos.map(sv => {
           const sel = !!selecionados.find(s => s.id === sv.id);
           return (
-            <Card
-              key={sv.id}
-              onClick={() => toggleServico(sv)}
-              style={{
-                border: sel ? '1.5px solid #8B3A2A' : '1px solid #3A2018',
-                background: sel ? '#2E1A14' : '#231410',
-              }}
-            >
+            <Card key={sv.id} onClick={() => toggleServico(sv)} style={{
+              border: sel ? '1.5px solid #8B3A2A' : '1px solid #3A2018',
+              background: sel ? '#2E1A14' : '#231410',
+            }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <div style={{ fontWeight: '600', fontSize: '15px', color: '#F5EFE6' }}>{sv.nome}</div>
-                  <div style={{ fontSize: '12px', color: '#9A8880', marginTop: '2px' }}>
-                    ⏱ {sv.duracao} min
-                  </div>
+                  <div style={{ fontSize: '12px', color: '#9A8880', marginTop: '2px' }}>⏱ {sv.duracao} min</div>
                 </div>
                 <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div style={{ fontSize: '16px', fontWeight: '700', color: sel ? '#E8C96A' : '#F5EFE6' }}>
@@ -296,7 +285,6 @@ function EscolherServico({ barbeiro, onEscolher, onBack, dark }) {
         })
       )}
 
-      {/* Botão continuar fixo */}
       {selecionados.length > 0 && (
         <div style={{
           position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
@@ -330,12 +318,13 @@ function EscolherServico({ barbeiro, onEscolher, onBack, dark }) {
 
 // ─────────────────────────────────────────────────────────────
 // PASSO C: Escolher Data e Horário
+// ✅ Query sem índice composto — filtra status no client-side
+// ✅ Cruza agendamentos do app + da recepção
 // ─────────────────────────────────────────────────────────────
 function EscolherDataHora({ barbeiro, servico, onEscolher, onBack, dark }) {
   const s = getStyles(dark);
   const DIAS_KEYS = ['dom','seg','ter','qua','qui','sex','sab'];
 
-  // Próximos 14 dias
   const diasDisponiveis = React.useMemo(() => {
     const dias = [];
     for (let i = 0; i < 14; i++) {
@@ -346,21 +335,19 @@ function EscolherDataHora({ barbeiro, servico, onEscolher, onBack, dark }) {
     return dias;
   }, []);
 
-  const [dataSel, setDataSel] = React.useState(null);
-  const [horaSel, setHoraSel] = React.useState(null);
+  const [dataSel, setDataSel]   = React.useState(null);
+  const [horaSel, setHoraSel]   = React.useState(null);
   const [horarios, setHorarios] = React.useState([]);
-  const [config, setConfig] = React.useState(null);
+  const [config, setConfig]     = React.useState(null);
   const [carregando, setCarregando] = React.useState(false);
-  const [agendados, setAgendados] = React.useState([]);
+  const [agendados, setAgendados]   = React.useState([]);
 
-  // Carregar config da barbearia
   React.useEffect(() => {
     getDoc(doc(db, 'config', 'barbearia'))
       .then(snap => { if (snap.exists()) setConfig(snap.data()); })
       .catch(console.error);
   }, []);
 
-  // Ao selecionar data — gerar horários disponíveis
   React.useEffect(() => {
     if (!dataSel || !config) return;
     setCarregando(true);
@@ -368,17 +355,27 @@ function EscolherDataHora({ barbeiro, servico, onEscolher, onBack, dark }) {
 
     async function carregarHorarios() {
       try {
-        // Buscar agendamentos já existentes para esse barbeiro nessa data
+        // ✅ Query simples — só filtra por data (sem índice composto, sem erro 400)
+        // Filtra barbeiroId e status no client-side
         const snap = await getDocs(query(
           collection(db, 'agendamentos'),
-          where('barbeiroId', '==', barbeiro.id),
           where('data', '==', dataSel),
-          where('status', 'in', ['confirmado', 'pendente']),
         ));
-        const horasOcupadas = snap.docs.map(d => d.data().hora);
+
+        const STATUSES_ATIVOS = ['confirmado', 'pendente'];
+        const horasOcupadas = snap.docs
+          .map(d => d.data())
+          .filter(a =>
+            // ✅ Mesmo barbeiro (app + recepção)
+            a.barbeiroId === barbeiro.id &&
+            // ✅ Status ativo (não cancelado, não concluído)
+            STATUSES_ATIVOS.includes(a.status)
+          )
+          .map(a => a.hora);
+
         setAgendados(horasOcupadas);
 
-        const diaSem = DIAS_KEYS[new Date(dataSel + 'T12:00:00').getDay()];
+        const diaSem   = DIAS_KEYS[new Date(dataSel + 'T12:00:00').getDay()];
         const horConfig = config.horarios?.[diaSem];
 
         if (!horConfig?.aberto) {
@@ -398,6 +395,7 @@ function EscolherDataHora({ barbeiro, servico, onEscolher, onBack, dark }) {
         setCarregando(false);
       }
     }
+
     carregarHorarios();
   }, [dataSel, config, barbeiro.id, servico.duracao]);
 
@@ -423,24 +421,20 @@ function EscolherDataHora({ barbeiro, servico, onEscolher, onBack, dark }) {
       <div style={{ overflowX: 'auto', display: 'flex', gap: '8px', paddingBottom: '8px', marginBottom: '20px' }}>
         {diasDisponiveis.map(data => {
           const aberto = isDiaAberto(data);
-          const sel = dataSel === data;
-          const d = new Date(data + 'T12:00:00');
+          const sel    = dataSel === data;
+          const d      = new Date(data + 'T12:00:00');
           return (
-            <div
-              key={data}
-              onClick={() => aberto && setDataSel(data)}
-              style={{
-                minWidth: '56px', padding: '10px 8px', borderRadius: '12px',
-                textAlign: 'center', cursor: aberto ? 'pointer' : 'not-allowed',
-                background: sel ? '#8B3A2A' : aberto ? '#231410' : '#1A0F0D',
-                border: sel ? '1.5px solid #E8C96A' : '1px solid #3A2018',
-                opacity: aberto ? 1 : 0.4,
-              }}
-            >
+            <div key={data} onClick={() => aberto && setDataSel(data)} style={{
+              minWidth: '56px', padding: '10px 8px', borderRadius: '12px',
+              textAlign: 'center', cursor: aberto ? 'pointer' : 'not-allowed',
+              background: sel ? '#8B3A2A' : aberto ? '#231410' : '#1A0F0D',
+              border: sel ? '1.5px solid #E8C96A' : '1px solid #3A2018',
+              opacity: aberto ? 1 : 0.4,
+            }}>
               <div style={{ fontSize: '10px', color: sel ? '#E8C96A' : '#9A8880', fontWeight: '600' }}>
                 {DIAS_SEMANA[d.getDay()]}
               </div>
-              <div style={{ fontSize: '18px', fontWeight: '700', color: sel ? '#F5EFE6' : '#F5EFE6', marginTop: '2px' }}>
+              <div style={{ fontSize: '18px', fontWeight: '700', color: '#F5EFE6', marginTop: '2px' }}>
                 {d.getDate()}
               </div>
               <div style={{ fontSize: '10px', color: sel ? '#E8C96A' : '#9A8880' }}>
@@ -462,28 +456,22 @@ function EscolherDataHora({ barbeiro, servico, onEscolher, onBack, dark }) {
             <div style={{ textAlign: 'center', color: '#9A8880', padding: '20px' }}>Carregando horários...</div>
           ) : horarios.length === 0 ? (
             <Card>
-              <div style={{ textAlign: 'center', color: '#9A8880', padding: '12px' }}>
-                Fechado neste dia
-              </div>
+              <div style={{ textAlign: 'center', color: '#9A8880', padding: '12px' }}>Fechado neste dia</div>
             </Card>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
               {horarios.map(h => {
                 const sel = horaSel === h.hora;
                 return (
-                  <div
-                    key={h.hora}
-                    onClick={() => h.disponivel && setHoraSel(h.hora)}
-                    style={{
-                      padding: '10px 4px', borderRadius: '10px', textAlign: 'center',
-                      cursor: h.disponivel ? 'pointer' : 'not-allowed',
-                      background: sel ? '#8B3A2A' : h.disponivel ? '#231410' : '#1A0F0D',
-                      border: sel ? '1.5px solid #E8C96A' : '1px solid #3A2018',
-                      opacity: h.disponivel ? 1 : 0.4,
-                      fontSize: '13px', fontWeight: '600',
-                      color: sel ? '#F5EFE6' : h.disponivel ? '#F5EFE6' : '#555',
-                    }}
-                  >
+                  <div key={h.hora} onClick={() => h.disponivel && setHoraSel(h.hora)} style={{
+                    padding: '10px 4px', borderRadius: '10px', textAlign: 'center',
+                    cursor: h.disponivel ? 'pointer' : 'not-allowed',
+                    background: sel ? '#8B3A2A' : h.disponivel ? '#231410' : '#1A0F0D',
+                    border: sel ? '1.5px solid #E8C96A' : '1px solid #3A2018',
+                    opacity: h.disponivel ? 1 : 0.4,
+                    fontSize: '13px', fontWeight: '600',
+                    color: sel ? '#F5EFE6' : h.disponivel ? '#F5EFE6' : '#555',
+                  }}>
                     {h.hora}
                     {!h.disponivel && !h.bloqueado && (
                       <div style={{ fontSize: '8px', color: '#F44336', marginTop: '2px' }}>Ocupado</div>
@@ -528,29 +516,24 @@ function EscolherDataHora({ barbeiro, servico, onEscolher, onBack, dark }) {
 
 // ─────────────────────────────────────────────────────────────
 // PASSO D: Pagamento e Confirmação
-// Inclui trava de cancelamento no mesmo dia
 // ─────────────────────────────────────────────────────────────
 function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, dark }) {
   const s = getStyles(dark);
-  const [pagPref, setPagPref] = React.useState('local');
-  const [salvando, setSalvando] = React.useState(false);
-  const [erro, setErro] = React.useState('');
+  const [pagPref, setPagPref]     = React.useState('local');
+  const [salvando, setSalvando]   = React.useState(false);
+  const [erro, setErro]           = React.useState('');
   const [pixConfig, setPixConfig] = React.useState('');
   const [comprovante, setComprovante] = React.useState(null);
-  const [pixCopiado, setPixCopiado] = React.useState(false);
-
-  // Verificar trava: cliente cancelou agendamento hoje?
-  const [travado, setTravado] = React.useState(false);
+  const [pixCopiado, setPixCopiado]   = React.useState(false);
+  const [travado, setTravado]         = React.useState(false);
   const [verificando, setVerificando] = React.useState(true);
 
   React.useEffect(() => {
     async function verificar() {
       try {
-        // Buscar chave Pix
         const snapConfig = await getDoc(doc(db, 'config', 'barbearia'));
         if (snapConfig.exists()) setPixConfig(snapConfig.data().pix || '');
 
-        // Verificar cancelamentos de hoje
         if (dataHora.data === hoje()) {
           const snap = await getDocs(query(
             collection(db, 'agendamentos'),
@@ -572,35 +555,32 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
   const valorSinal = ((servico.valor || 0) * 0.5).toFixed(2).replace('.', ',');
 
   async function handleConfirmar() {
-    // Se travado, só aceita Pix
     if (travado && pagPref === 'local') {
       setErro('Você deve pagar o sinal via Pix para confirmar este agendamento.');
       return;
     }
-
     setSalvando(true);
     setErro('');
-
     try {
       const agendamento = {
-        clienteCpf:    cliente.cpf,
-        clienteNome:   cliente.nome,
-        clienteTel:    cliente.telefone,
-        barbeiroId:    barbeiro.id,
-        barbeiroNome:  barbeiro.nome,
-        servico:       servico.nome,
-        servicoIds:    (servico.servicos || []).map(s => s.id).filter(Boolean),
-        valor:         servico.valor,
-        duracao:       servico.duracao,
-        data:          dataHora.data,
-        hora:          dataHora.hora,
-        pagamento:     travado ? 'pix_sinal' : pagPref,
-        sinal:         travado ? servico.valor * 0.5 : 0,
-        status:        'confirmado',
+        clienteCpf:        cliente.cpf,
+        clienteNome:       cliente.nome,
+        clienteTel:        cliente.telefone,
+        barbeiroId:        barbeiro.id,
+        barbeiroNome:      barbeiro.nome,
+        servico:           servico.nome,
+        servicoIds:        (servico.servicos || []).map(s => s.id).filter(Boolean),
+        valor:             servico.valor,
+        duracao:           servico.duracao,
+        data:              dataHora.data,
+        hora:              dataHora.hora,
+        pagamento:         travado ? 'pix_sinal' : pagPref,
+        sinal:             travado ? servico.valor * 0.5 : 0,
+        status:            'confirmado',
+        agendadoPor:       'cliente',
         travaCancelamento: travado,
-        criadoEm:      serverTimestamp(),
+        criadoEm:          serverTimestamp(),
       };
-
       await addDoc(collection(db, 'agendamentos'), agendamento);
       onConfirmar(agendamento);
     } catch (e) {
@@ -637,12 +617,12 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
           Resumo
         </div>
         {[
-          { label: 'Barbeiro',  value: barbeiro.nome },
-          { label: 'Serviço',   value: servico.nome  },
-          { label: 'Data',      value: `${diaSemana(dataHora.data)}, ${formatarData(dataHora.data)}` },
-          { label: 'Horário',   value: dataHora.hora },
-          { label: 'Duração',   value: `${servico.duracao} min` },
-          { label: 'Valor',     value: `R$ ${(servico.valor || 0).toFixed(2).replace('.', ',')}` },
+          { label: 'Barbeiro', value: barbeiro.nome },
+          { label: 'Serviço',  value: servico.nome  },
+          { label: 'Data',     value: `${diaSemana(dataHora.data)}, ${formatarData(dataHora.data)}` },
+          { label: 'Horário',  value: dataHora.hora },
+          { label: 'Duração',  value: `${servico.duracao} min` },
+          { label: 'Valor',    value: `R$ ${(servico.valor || 0).toFixed(2).replace('.', ',')}` },
         ].map(item => (
           <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
             <span style={{ fontSize: '13px', color: '#9A8880' }}>{item.label}</span>
@@ -651,7 +631,7 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
         ))}
       </Card>
 
-      {/* TRAVA: aviso de cancelamento no mesmo dia */}
+      {/* Trava */}
       {travado && (
         <div style={{
           background: 'rgba(244,67,54,0.1)', border: '1.5px solid rgba(244,67,54,0.4)',
@@ -665,9 +645,7 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
           </div>
           <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '10px' }}>
             <div style={{ fontSize: '12px', color: '#9A8880' }}>Sinal obrigatório:</div>
-            <div style={{ fontSize: '22px', fontWeight: '700', color: '#F44336' }}>
-              R$ {valorSinal}
-            </div>
+            <div style={{ fontSize: '22px', fontWeight: '700', color: '#F44336' }}>R$ {valorSinal}</div>
             <div style={{ fontSize: '11px', color: '#9A8880', marginTop: '4px' }}>
               Será abatido no pagamento final. Em caso de falta, o sinal não será reembolsado.
             </div>
@@ -680,7 +658,7 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
         Forma de pagamento
       </div>
 
-      {/* Pagar no local */}
+      {/* Local */}
       <Card
         onClick={() => !travado && setPagPref('local')}
         style={{
@@ -693,8 +671,7 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
           <div style={{ fontSize: '24px' }}>💵</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: '600', fontSize: '14px', color: travado ? '#555' : '#F5EFE6' }}>
-              Pagar no Local
-              {travado && <span style={{ marginLeft: '8px', fontSize: '11px' }}>🔒</span>}
+              Pagar no Local {travado && <span style={{ marginLeft: '8px', fontSize: '11px' }}>🔒</span>}
             </div>
             <div style={{ fontSize: '11px', color: '#9A8880' }}>
               {travado ? 'Bloqueado — cancelamento realizado hoje' : 'No dia do atendimento — sem burocracia'}
@@ -732,7 +709,6 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
           }} />
         </div>
 
-        {/* Chave Pix e comprovante */}
         {(pagPref === 'pix' || travado) && pixConfig && (
           <div style={{ marginTop: '12px', background: '#1A0F0D', borderRadius: '10px', padding: '12px' }}>
             <div style={{ fontSize: '10px', color: '#9A8880', marginBottom: '4px' }}>Chave Pix:</div>
@@ -740,10 +716,7 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
               {pixConfig}
             </div>
             <button
-              onClick={() => {
-                navigator.clipboard?.writeText(pixConfig);
-                setPixCopiado(true);
-              }}
+              onClick={() => { navigator.clipboard?.writeText(pixConfig); setPixCopiado(true); }}
               style={{
                 padding: '6px 12px', borderRadius: '8px',
                 border: '1px solid #2E7D7A', background: pixCopiado ? '#2E7D7A' : 'transparent',
@@ -754,7 +727,6 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
               {pixCopiado ? '✓ Chave copiada!' : '📋 Copiar chave'}
             </button>
 
-            {/* Campo anexar comprovante — aparece após copiar */}
             {pixCopiado && (
               <div style={{ marginTop: '4px' }}>
                 <div style={{ fontSize: '12px', color: '#F5EFE6', fontWeight: '600', marginBottom: '6px' }}>
@@ -769,15 +741,8 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
                   background: comprovante ? 'rgba(46,125,122,0.1)' : '#2E1A14',
                   cursor: 'pointer', textAlign: 'center',
                 }}>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (file) setComprovante(file);
-                    }}
-                  />
+                  <input type="file" accept="image/*" style={{ display: 'none' }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) setComprovante(f); }} />
                   {comprovante ? (
                     <div>
                       <div style={{ fontSize: '20px', marginBottom: '4px' }}>✅</div>
@@ -797,14 +762,12 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
             <div style={{ fontSize: '11px', color: '#9A8880', marginTop: '8px' }}>
               {travado
                 ? `Transfira R$ ${valorSinal} e anexe o comprovante`
-                : 'Transfira o valor, anexe o comprovante e confirme'
-              }
+                : 'Transfira o valor, anexe o comprovante e confirme'}
             </div>
           </div>
         )}
       </Card>
 
-      {/* Info Pix opcional */}
       {!travado && (
         <div style={{
           background: 'rgba(46,125,122,0.08)', border: '1px solid rgba(46,125,122,0.2)',
@@ -827,7 +790,6 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
         width: '100%', maxWidth: '430px', background: '#1A0F0D',
         borderTop: '1px solid #3A2018', padding: '12px 16px 28px', zIndex: 100,
       }}>
-        {/* Aviso comprovante pendente */}
         {(pagPref === 'pix' || travado) && pixCopiado && !comprovante && (
           <div style={{ fontSize: '12px', color: '#FFC107', textAlign: 'center', marginBottom: '8px' }}>
             ⚠️ Anexe o comprovante Pix para confirmar
@@ -835,7 +797,7 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
         )}
         <button
           onClick={handleConfirmar}
-          disabled={salvando || ((pagPref === 'pix' || travado) && (!comprovante))}
+          disabled={salvando || ((pagPref === 'pix' || travado) && !comprovante)}
           style={{
             width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
             background: (pagPref === 'pix' || travado) && !comprovante
@@ -879,11 +841,11 @@ function Confirmado({ agendamento, onVoltar, dark }) {
         border: '1.5px solid #8B3A2A', marginBottom: '24px', textAlign: 'left',
       }}>
         {[
-          { icon: '✂️', label: 'Barbeiro',  value: agendamento.barbeiroNome },
-          { icon: '💈', label: 'Serviço',   value: agendamento.servico      },
-          { icon: '📅', label: 'Data',      value: formatarData(agendamento.data) },
-          { icon: '🕐', label: 'Horário',   value: agendamento.hora         },
-          { icon: '💰', label: 'Valor',     value: `R$ ${agendamento.valor.toFixed(2).replace('.', ',')}` },
+          { icon: '✂️', label: 'Barbeiro', value: agendamento.barbeiroNome },
+          { icon: '💈', label: 'Serviço',  value: agendamento.servico      },
+          { icon: '📅', label: 'Data',     value: formatarData(agendamento.data) },
+          { icon: '🕐', label: 'Horário',  value: agendamento.hora         },
+          { icon: '💰', label: 'Valor',    value: `R$ ${agendamento.valor.toFixed(2).replace('.', ',')}` },
         ].map(item => (
           <div key={item.label} style={{ display: 'flex', gap: '10px', marginBottom: '10px', alignItems: 'center' }}>
             <span style={{ fontSize: '16px' }}>{item.icon}</span>
@@ -896,21 +858,19 @@ function Confirmado({ agendamento, onVoltar, dark }) {
       {agendamento.travaCancelamento && (
         <div style={{
           background: 'rgba(46,125,122,0.1)', border: '1px solid rgba(46,125,122,0.3)',
-          borderRadius: '12px', padding: '12px', marginBottom: '20px', fontSize: '12px', color: '#2E7D7A',
+          borderRadius: '12px', padding: '12px', marginBottom: '20px',
+          fontSize: '12px', color: '#2E7D7A',
         }}>
           ℹ️ Sinal de R$ {(agendamento.valor * 0.5).toFixed(2).replace('.', ',')} enviado via Pix. Será abatido no pagamento final.
         </div>
       )}
 
-      <button
-        onClick={onVoltar}
-        style={{
-          width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
-          background: 'linear-gradient(135deg, #5C2218, #8B3A2A)',
-          color: '#F5EFE6', fontSize: '15px', fontWeight: '700', cursor: 'pointer',
-          fontFamily: "'DM Sans', sans-serif",
-        }}
-      >
+      <button onClick={onVoltar} style={{
+        width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
+        background: 'linear-gradient(135deg, #5C2218, #8B3A2A)',
+        color: '#F5EFE6', fontSize: '15px', fontWeight: '700', cursor: 'pointer',
+        fontFamily: "'DM Sans', sans-serif",
+      }}>
         Voltar ao início
       </button>
     </div>
@@ -918,14 +878,13 @@ function Confirmado({ agendamento, onVoltar, dark }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// COMPONENTE PRINCIPAL — Orquestra o fluxo
+// COMPONENTE PRINCIPAL
 // ─────────────────────────────────────────────────────────────
 export default function Agendamento({ cliente, onBack, dark }) {
-  const [etapa, setEtapa] = React.useState('barbeiro'); // barbeiro | servico | dataHora | pagamento | confirmado
-
-  const [barbeiro, setBarbeiro] = React.useState(null);
-  const [servico,  setServico]  = React.useState(null); // { servicos:[], valor, duracao, nome }
-  const [dataHora, setDataHora] = React.useState(null);
+  const [etapa, setEtapa]         = React.useState('barbeiro');
+  const [barbeiro, setBarbeiro]   = React.useState(null);
+  const [servico, setServico]     = React.useState(null);
+  const [dataHora, setDataHora]   = React.useState(null);
   const [agendamento, setAgendamento] = React.useState(null);
 
   if (etapa === 'confirmado' && agendamento) {
@@ -935,13 +894,9 @@ export default function Agendamento({ cliente, onBack, dark }) {
   if (etapa === 'pagamento') {
     return (
       <Pagamento
-        cliente={cliente}
-        barbeiro={barbeiro}
-        servico={servico}
-        dataHora={dataHora}
+        cliente={cliente} barbeiro={barbeiro} servico={servico} dataHora={dataHora}
         onConfirmar={ag => { setAgendamento(ag); setEtapa('confirmado'); }}
-        onBack={() => setEtapa('dataHora')}
-        dark={dark}
+        onBack={() => setEtapa('dataHora')} dark={dark}
       />
     );
   }
@@ -949,11 +904,9 @@ export default function Agendamento({ cliente, onBack, dark }) {
   if (etapa === 'dataHora') {
     return (
       <EscolherDataHora
-        barbeiro={barbeiro}
-        servico={servico}
+        barbeiro={barbeiro} servico={servico}
         onEscolher={dh => { setDataHora(dh); setEtapa('pagamento'); }}
-        onBack={() => setEtapa('servico')}
-        dark={dark}
+        onBack={() => setEtapa('servico')} dark={dark}
       />
     );
   }
@@ -963,8 +916,7 @@ export default function Agendamento({ cliente, onBack, dark }) {
       <EscolherServico
         barbeiro={barbeiro}
         onEscolher={sv => { setServico(sv); setEtapa('dataHora'); }}
-        onBack={() => setEtapa('barbeiro')}
-        dark={dark}
+        onBack={() => setEtapa('barbeiro')} dark={dark}
       />
     );
   }
@@ -972,8 +924,7 @@ export default function Agendamento({ cliente, onBack, dark }) {
   return (
     <EscolherBarbeiro
       onEscolher={b => { setBarbeiro(b); setEtapa('servico'); }}
-      onBack={onBack}
-      dark={dark}
+      onBack={onBack} dark={dark}
     />
   );
 }
