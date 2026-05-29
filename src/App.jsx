@@ -9,6 +9,7 @@ import React from 'react';
 import { getStyles, PERFIL, APP_CONFIG, COLORS } from './getStyles';
 import LoginFlow from './Login';
 import ConfigBarbearia from './ConfigBarbearia';
+import GestaoEquipe from './GestaoEquipe';
 
 // ─────────────────────────────────────────────────────────────
 // ERROR BOUNDARY
@@ -523,8 +524,8 @@ function HomeBarbeiro({ usuario, onLogout, onNavegar, dark }) {
           </div>
         </div>
 
-        <button style={{ ...s.btnGold }} onClick={() => onNavegar('agenda')}>
-          📅 Ver Agenda (em breve)
+        <button style={{ ...s.btnGold }} onClick={() => onNavegar('equipe')}>
+          👤 Meu Perfil & Disponibilidade
         </button>
         <button style={{ ...s.btnDark, marginTop:'10px' }} onClick={() => onNavegar('fixos')}>
           🔒 Clientes Fixos (em breve)
@@ -569,7 +570,11 @@ export default function App() {
       setTela('config_barbearia');
       return;
     }
-    const passos = { equipe:5, agenda:8, financeiro:9, comparativo:9, permissoes:10 };
+    if (modulo === 'equipe') {
+      setTela('gestao_equipe');
+      return;
+    }
+    const passos = { agenda:8, financeiro:9, comparativo:9, permissoes:10 };
     setEmBreveInfo({ titulo: modulo.charAt(0).toUpperCase() + modulo.slice(1), descricao: `Módulo ${modulo} em desenvolvimento.`, passo: passos[modulo] || '?' });
     setTela('em_breve');
   }
@@ -640,7 +645,17 @@ export default function App() {
 
         {tela === 'home_barbeiro' && usuario && (
           <ErrorBoundary modulo="HomeBarbeiro">
-            <HomeBarbeiro usuario={usuario} onLogout={handleLogout} onNavegar={() => {}} dark={dark} />
+            <HomeBarbeiro usuario={usuario} onLogout={handleLogout} onNavegar={(mod) => { if (mod === 'equipe') setTela('gestao_equipe'); }} dark={dark} />
+          </ErrorBoundary>
+        )}
+
+        {tela === 'gestao_equipe' && usuario && (
+          <ErrorBoundary modulo="GestaoEquipe">
+            <GestaoEquipe
+              usuario={usuario}
+              onBack={() => usuario.perfil === PERFIL.GERENTE ? setTela('home_gerente') : setTela('home_barbeiro')}
+              dark={dark}
+            />
           </ErrorBoundary>
         )}
 
