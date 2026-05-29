@@ -20,8 +20,8 @@ import { getStyles, COLORS, DIAS_SEMANA } from './getStyles';
 // ─────────────────────────────────────────────────────────────
 const CONFIG_PADRAO = {
   nome:      'Flyguer BarberShop',
-  whatsapp:  '',
-  pix:       '',
+  whatsapp:  '11977643509',
+  pix:       '11939089988',
   endereco:  'Shopping Cidade das Artes — Piso 2, Nº 22',
   horarios: {
     dom: { aberto: false, abertura: '09:00', fechamento: '18:00' },
@@ -45,6 +45,8 @@ const SERVICOS_PADRAO = {
     { id: 's2', nome: 'Corte + Sobrancelha', valor: 50.00, duracao: 40, ativo: true },
     { id: 's3', nome: 'Barba',               valor: 35.00, duracao: 25, ativo: true },
     { id: 's4', nome: 'Pezinho',             valor: 20.00, duracao: 15, ativo: true },
+    { id: 's5', nome: 'Sobrancelha',         valor: 20.00, duracao: 10, ativo: true },
+    { id: 's6', nome: 'Pigmentação',         valor: 35.00, duracao: 20, ativo: true },
   ],
   combos: [
     { id: 'c1', nome: 'Corte + Barba',    valor: 70.00, duracao: 55, ativo: true },
