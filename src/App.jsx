@@ -171,7 +171,7 @@ function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark }) {
             </div>
             <div style={ b.disponivel ? s.badgeGreen : s.badgeYellow }>
               <span style={{ width:'7px', height:'7px', borderRadius:'50%', background: b.disponivel ? '#4CAF50' : '#FFC107', display:'inline-block' }} />
-              {b.disponivel ? 'Disponível' : 'Ocupado'}
+              {b.disponivel ? 'Disponível' : 'Ocupado agora'}
             </div>
           </div>
         ))}
