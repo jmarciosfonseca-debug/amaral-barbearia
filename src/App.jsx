@@ -10,6 +10,7 @@ import { getStyles, PERFIL, APP_CONFIG, COLORS } from './getStyles';
 import LoginFlow from './Login';
 import ConfigBarbearia from './ConfigBarbearia';
 import GestaoEquipe from './GestaoEquipe';
+import Agendamento from './Agendamento';
 
 // ─────────────────────────────────────────────────────────────
 // ERROR BOUNDARY
@@ -357,7 +358,7 @@ function EmBreve({ titulo, descricao, passo, onBack, dark }) {
 // ─────────────────────────────────────────────────────────────
 // TELA: HOME CLIENTE
 // ─────────────────────────────────────────────────────────────
-function HomeCliente({ cliente, onLogout, dark }) {
+function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
   const s = getStyles(dark);
   return (
     <div style={{ ...s.app, paddingBottom: '80px' }}>
@@ -401,16 +402,16 @@ function HomeCliente({ cliente, onLogout, dark }) {
         </div>
 
         {[
-          { icon: '📅', label: 'Fazer Agendamento',  sub: 'Escolha barbeiro, dia e horário', passo: 6  },
-          { icon: '📋', label: 'Minhas Reservas',    sub: 'Ver, cancelar ou reagendar',      passo: 6  },
-          { icon: '💳', label: 'Pagamento via Pix',  sub: 'Pagar adiantado com Pix',         passo: 13 },
-          { icon: '🔔', label: 'Notificações',       sub: 'Avisos e confirmações',            passo: 11 },
+          { icon: '📅', label: 'Fazer Agendamento',  sub: 'Escolha barbeiro, dia e horário', passo: 6, acao: () => onNavegar('agendamento')  },
+          { icon: '📋', label: 'Minhas Reservas',    sub: 'Ver, cancelar ou reagendar',      passo: 6, acao: null  },
+          { icon: '💳', label: 'Pagamento via Pix',  sub: 'Pagar adiantado com Pix',         passo: 13, acao: null },
+          { icon: '🔔', label: 'Notificações',       sub: 'Avisos e confirmações',            passo: 11, acao: null },
         ].map(item => (
-          <div key={item.label} style={{
+          <div key={item.label} onClick={item.acao || undefined} style={{
             display: 'flex', alignItems: 'center', gap: '14px',
             padding: '14px', background: s.cardBg,
             borderRadius: '14px', border: `1px solid ${s.border}`,
-            marginBottom: '10px',
+            marginBottom: '10px', cursor: item.acao ? 'pointer' : 'default',
           }}>
             <div style={{ fontSize: '24px' }}>{item.icon}</div>
             <div style={{ flex: 1 }}>
@@ -620,7 +621,12 @@ export default function App() {
 
         {tela === 'home_cliente' && cliente && (
           <ErrorBoundary modulo="HomeCliente">
-            <HomeCliente cliente={cliente} onLogout={() => { setCliente(null); setTela('splash'); }} dark={dark} />
+            <HomeCliente
+              cliente={cliente}
+              onLogout={() => { setCliente(null); setTela('splash'); }}
+              onNavegar={setTela}
+              dark={dark}
+            />
           </ErrorBoundary>
         )}
 
@@ -646,6 +652,16 @@ export default function App() {
         {tela === 'home_barbeiro' && usuario && (
           <ErrorBoundary modulo="HomeBarbeiro">
             <HomeBarbeiro usuario={usuario} onLogout={handleLogout} onNavegar={(mod) => { if (mod === 'equipe') setTela('gestao_equipe'); }} dark={dark} />
+          </ErrorBoundary>
+        )}
+
+        {tela === 'agendamento' && cliente && (
+          <ErrorBoundary modulo="Agendamento">
+            <Agendamento
+              cliente={cliente}
+              onBack={() => setTela('home_cliente')}
+              dark={dark}
+            />
           </ErrorBoundary>
         )}
 
