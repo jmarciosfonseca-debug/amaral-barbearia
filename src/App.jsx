@@ -254,15 +254,20 @@ function StaffLoginScreen({ onBack, onSuccess, dark }) {
   ];
 
   function handleLogin() {
-    // Busca todos que têm esse PIN — se mais de um, pede seleção
-    const matches = USUARIOS_DEV.filter(u => u.pin === pin.trim());
+    const pinDigitado = pin.trim();
+    // PIN REC1 vai direto para recepção
+    if (pinDigitado.toUpperCase() === 'REC1') {
+      onSuccess({ pin: 'REC1', perfil: PERFIL.RECEPCIONISTA, nome: 'Recepção', id: 'r1' });
+      return;
+    }
+    // Busca barbeiros/gerente com esse PIN
+    const matches = USUARIOS_DEV.filter(u => u.pin === pinDigitado && u.perfil !== PERFIL.RECEPCIONISTA);
     if (matches.length === 0) {
       setErro('PIN inválido. Tente novamente.');
       setPin('');
       return;
     }
     setErro('');
-    // Se só um resultado, entra direto; se vários (PIN padrão), mostra seleção
     if (matches.length === 1) {
       onSuccess(matches[0]);
     } else {
