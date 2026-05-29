@@ -12,6 +12,7 @@ import LoginFlow from './Login';
 import ConfigBarbearia from './ConfigBarbearia';
 import GestaoEquipe from './GestaoEquipe';
 import Agendamento from './Agendamento';
+import MinhasReservas from './MinhasReservas';
 
 // ─────────────────────────────────────────────────────────────
 // ERROR BOUNDARY
@@ -417,7 +418,7 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
 
         {[
           { icon: '📅', label: 'Fazer Agendamento',  sub: 'Escolha barbeiro, dia e horário', passo: 6, acao: () => onNavegar('agendamento')  },
-          { icon: '📋', label: 'Minhas Reservas',    sub: 'Ver, cancelar ou reagendar',      passo: 6, acao: null  },
+          { icon: '📋', label: 'Minhas Reservas',    sub: 'Ver, cancelar ou reagendar',      passo: 6, acao: () => onNavegar('minhas_reservas')  },
           { icon: '💳', label: 'Pagamento via Pix',  sub: 'Pagar adiantado com Pix',         passo: 13, acao: null },
           { icon: '🔔', label: 'Notificações',       sub: 'Avisos e confirmações',            passo: 11, acao: null },
         ].map(item => (
@@ -666,6 +667,17 @@ export default function App() {
         {tela === 'home_barbeiro' && usuario && (
           <ErrorBoundary modulo="HomeBarbeiro">
             <HomeBarbeiro usuario={usuario} onLogout={handleLogout} onNavegar={(mod) => { if (mod === 'equipe') setTela('gestao_equipe'); }} dark={dark} />
+          </ErrorBoundary>
+        )}
+
+        {tela === 'minhas_reservas' && cliente && (
+          <ErrorBoundary modulo="MinhasReservas">
+            <MinhasReservas
+              cliente={cliente}
+              onBack={() => setTela('home_cliente')}
+              onReagendar={() => setTela('agendamento')}
+              dark={dark}
+            />
           </ErrorBoundary>
         )}
 
