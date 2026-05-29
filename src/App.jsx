@@ -8,6 +8,7 @@
 import React from 'react';
 import { getStyles, PERFIL, APP_CONFIG, COLORS } from './getStyles';
 import LoginFlow from './Login';
+import ConfigBarbearia from './ConfigBarbearia';
 
 // ─────────────────────────────────────────────────────────────
 // ERROR BOUNDARY
@@ -564,7 +565,11 @@ export default function App() {
   }
 
   function handleNavegarGerente(modulo) {
-    const passos = { config:4, servicos:4, equipe:5, agenda:8, financeiro:9, comparativo:9, permissoes:10 };
+    if (modulo === 'config' || modulo === 'servicos') {
+      setTela('config_barbearia');
+      return;
+    }
+    const passos = { equipe:5, agenda:8, financeiro:9, comparativo:9, permissoes:10 };
     setEmBreveInfo({ titulo: modulo.charAt(0).toUpperCase() + modulo.slice(1), descricao: `Módulo ${modulo} em desenvolvimento.`, passo: passos[modulo] || '?' });
     setTela('em_breve');
   }
@@ -636,6 +641,12 @@ export default function App() {
         {tela === 'home_barbeiro' && usuario && (
           <ErrorBoundary modulo="HomeBarbeiro">
             <HomeBarbeiro usuario={usuario} onLogout={handleLogout} onNavegar={() => {}} dark={dark} />
+          </ErrorBoundary>
+        )}
+
+        {tela === 'config_barbearia' && usuario && (
+          <ErrorBoundary modulo="ConfigBarbearia">
+            <ConfigBarbearia onBack={() => setTela('home_gerente')} dark={dark} />
           </ErrorBoundary>
         )}
 
