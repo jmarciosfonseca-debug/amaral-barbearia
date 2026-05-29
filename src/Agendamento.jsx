@@ -162,11 +162,8 @@ function EscolherBarbeiro({ onEscolher, onBack, dark }) {
         barbeiros.map(b => (
           <Card
             key={b.id}
-            onClick={() => b.disponivel && onEscolher(b)}
-            style={{
-              opacity: b.disponivel ? 1 : 0.5,
-              border: b.disponivel ? '1px solid #3A2018' : '1px solid #2A1208',
-            }}
+            onClick={() => onEscolher(b)}
+            style={{ border: '1px solid #3A2018' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
               <div style={{
@@ -174,7 +171,7 @@ function EscolherBarbeiro({ onEscolher, onBack, dark }) {
                 background: 'linear-gradient(135deg, #5C2218, #8B3A2A)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: '22px', fontWeight: '700', color: '#F5EFE6',
-                border: b.disponivel ? '2px solid #4CAF50' : '2px solid #555',
+                border: b.disponivel ? '2px solid #4CAF50' : '2px solid #FFC107',
                 overflow: 'hidden', flexShrink: 0,
               }}>
                 {b.foto
@@ -188,12 +185,17 @@ function EscolherBarbeiro({ onEscolher, onBack, dark }) {
               </div>
               <div style={{
                 fontSize: '11px', padding: '4px 10px', borderRadius: '20px', fontWeight: '600',
-                background: b.disponivel ? 'rgba(76,175,80,0.15)' : 'rgba(150,150,150,0.15)',
-                color: b.disponivel ? '#4CAF50' : '#888',
+                background: b.disponivel ? 'rgba(76,175,80,0.15)' : 'rgba(255,193,7,0.15)',
+                color: b.disponivel ? '#4CAF50' : '#FFC107',
               }}>
                 {b.disponivel ? '● Disponível' : '● Ocupado'}
               </div>
             </div>
+            {!b.disponivel && (
+              <div style={{ fontSize: '11px', color: '#9A8880', marginTop: '8px', paddingLeft: '70px' }}>
+                Atendendo agora — veja horários disponíveis
+              </div>
+            )}
           </Card>
         ))
       )}
@@ -207,7 +209,7 @@ function EscolherBarbeiro({ onEscolher, onBack, dark }) {
 function EscolherServico({ barbeiro, onEscolher, onBack, dark }) {
   const s = getStyles(dark);
   const [servicos, setServicos] = React.useState({ avulsos: [], combos: [] });
-  const [selecionado, setSelecionado] = React.useState(null);
+  const [selecionados, setSelecionados] = React.useState([]);
   const [carregando, setCarregando] = React.useState(true);
 
   React.useEffect(() => {
@@ -225,6 +227,18 @@ function EscolherServico({ barbeiro, onEscolher, onBack, dark }) {
     ...servicos.avulsos?.filter(s => s.ativo) || [],
     ...servicos.combos?.filter(s => s.ativo) || [],
   ];
+
+  function toggleServico(sv) {
+    setSelecionados(prev => {
+      const jatem = prev.find(s => s.id === sv.id);
+      if (jatem) return prev.filter(s => s.id !== sv.id);
+      return [...prev, sv];
+    });
+  }
+
+  const totalValor = selecionados.reduce((acc, s) => acc + s.valor, 0);
+  const totalDuracao = selecionados.reduce((acc, s) => acc + s.duracao, 0);
+  const nomeServicos = selecionados.map(s => s.nome).join(' + ');
 
   return (
     <div style={{ ...s.app, padding: '20px', paddingBottom: '100px' }}>
@@ -245,11 +259,11 @@ function EscolherServico({ barbeiro, onEscolher, onBack, dark }) {
         <div style={{ textAlign: 'center', color: '#9A8880', padding: '40px' }}>Carregando...</div>
       ) : (
         todosServicos.map(sv => {
-          const sel = selecionado?.id === sv.id;
+          const sel = !!selecionados.find(s => s.id === sv.id);
           return (
             <Card
               key={sv.id}
-              onClick={() => setSelecionado(sv)}
+              onClick={() => toggleServico(sv)}
               style={{
                 border: sel ? '1.5px solid #8B3A2A' : '1px solid #3A2018',
                 background: sel ? '#2E1A14' : '#231410',
@@ -262,13 +276,19 @@ function EscolherServico({ barbeiro, onEscolher, onBack, dark }) {
                     ⏱ {sv.duracao} min
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '18px', fontWeight: '700', color: sel ? '#E8C96A' : '#F5EFE6' }}>
+                <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ fontSize: '16px', fontWeight: '700', color: sel ? '#E8C96A' : '#F5EFE6' }}>
                     R$ {sv.valor.toFixed(2).replace('.', ',')}
                   </div>
-                  {sel && (
-                    <div style={{ fontSize: '11px', color: '#8B3A2A', fontWeight: '600' }}>✓ Selecionado</div>
-                  )}
+                  <div style={{
+                    width: '22px', height: '22px', borderRadius: '6px',
+                    border: `2px solid ${sel ? '#8B3A2A' : '#3A2018'}`,
+                    background: sel ? '#8B3A2A' : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '13px', color: '#F5EFE6', flexShrink: 0,
+                  }}>
+                    {sel ? '✓' : ''}
+                  </div>
                 </div>
               </div>
             </Card>
@@ -277,14 +297,22 @@ function EscolherServico({ barbeiro, onEscolher, onBack, dark }) {
       )}
 
       {/* Botão continuar fixo */}
-      {selecionado && (
+      {selecionados.length > 0 && (
         <div style={{
           position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
           width: '100%', maxWidth: '430px', background: '#1A0F0D',
           borderTop: '1px solid #3A2018', padding: '12px 16px 28px', zIndex: 100,
         }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <span style={{ fontSize: '12px', color: '#9A8880' }}>
+              {selecionados.length} serviço(s) · {totalDuracao} min
+            </span>
+            <span style={{ fontSize: '14px', fontWeight: '700', color: '#E8C96A' }}>
+              R$ {totalValor.toFixed(2).replace('.', ',')}
+            </span>
+          </div>
           <button
-            onClick={() => onEscolher(selecionado)}
+            onClick={() => onEscolher({ servicos: selecionados, valor: totalValor, duracao: totalDuracao, nome: nomeServicos })}
             style={{
               width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
               background: 'linear-gradient(135deg, #5C2218, #8B3A2A)',
@@ -292,7 +320,7 @@ function EscolherServico({ barbeiro, onEscolher, onBack, dark }) {
               fontFamily: "'DM Sans', sans-serif",
             }}
           >
-            Continuar com {selecionado.nome} →
+            Continuar ({selecionados.length}) →
           </button>
         </div>
       )}
@@ -508,6 +536,8 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
   const [salvando, setSalvando] = React.useState(false);
   const [erro, setErro] = React.useState('');
   const [pixConfig, setPixConfig] = React.useState('');
+  const [comprovante, setComprovante] = React.useState(null);
+  const [pixCopiado, setPixCopiado] = React.useState(false);
 
   // Verificar trava: cliente cancelou agendamento hoje?
   const [travado, setTravado] = React.useState(false);
@@ -701,28 +731,72 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
           }} />
         </div>
 
-        {/* Chave Pix */}
+        {/* Chave Pix e comprovante */}
         {(pagPref === 'pix' || travado) && pixConfig && (
-          <div style={{ marginTop: '12px', background: '#1A0F0D', borderRadius: '10px', padding: '10px 12px' }}>
+          <div style={{ marginTop: '12px', background: '#1A0F0D', borderRadius: '10px', padding: '12px' }}>
             <div style={{ fontSize: '10px', color: '#9A8880', marginBottom: '4px' }}>Chave Pix:</div>
-            <div style={{ fontSize: '15px', fontWeight: '700', color: '#2E7D7A', letterSpacing: '1px' }}>
+            <div style={{ fontSize: '15px', fontWeight: '700', color: '#2E7D7A', letterSpacing: '1px', marginBottom: '8px' }}>
               {pixConfig}
             </div>
             <button
-              onClick={() => navigator.clipboard?.writeText(pixConfig)}
+              onClick={() => {
+                navigator.clipboard?.writeText(pixConfig);
+                setPixCopiado(true);
+              }}
               style={{
-                marginTop: '8px', padding: '6px 12px', borderRadius: '8px',
-                border: '1px solid #2E7D7A', background: 'transparent',
-                color: '#2E7D7A', fontSize: '12px', cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif",
+                padding: '6px 12px', borderRadius: '8px',
+                border: '1px solid #2E7D7A', background: pixCopiado ? '#2E7D7A' : 'transparent',
+                color: pixCopiado ? '#F5EFE6' : '#2E7D7A', fontSize: '12px', cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif", marginBottom: '12px',
               }}
             >
-              📋 Copiar chave
+              {pixCopiado ? '✓ Chave copiada!' : '📋 Copiar chave'}
             </button>
+
+            {/* Campo anexar comprovante — aparece após copiar */}
+            {pixCopiado && (
+              <div style={{ marginTop: '4px' }}>
+                <div style={{ fontSize: '12px', color: '#F5EFE6', fontWeight: '600', marginBottom: '6px' }}>
+                  📎 Anexar comprovante Pix
+                </div>
+                <div style={{ fontSize: '11px', color: '#9A8880', marginBottom: '8px' }}>
+                  Após transferir, anexe o comprovante para confirmar a reserva
+                </div>
+                <label style={{
+                  display: 'block', padding: '12px', borderRadius: '10px',
+                  border: comprovante ? '1.5px solid #2E7D7A' : '1.5px dashed #3A2018',
+                  background: comprovante ? 'rgba(46,125,122,0.1)' : '#2E1A14',
+                  cursor: 'pointer', textAlign: 'center',
+                }}>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) setComprovante(file);
+                    }}
+                  />
+                  {comprovante ? (
+                    <div>
+                      <div style={{ fontSize: '20px', marginBottom: '4px' }}>✅</div>
+                      <div style={{ fontSize: '12px', color: '#2E7D7A', fontWeight: '600' }}>{comprovante.name}</div>
+                      <div style={{ fontSize: '10px', color: '#9A8880', marginTop: '2px' }}>Toque para trocar</div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ fontSize: '24px', marginBottom: '4px' }}>📷</div>
+                      <div style={{ fontSize: '12px', color: '#9A8880' }}>Toque para anexar foto do comprovante</div>
+                    </div>
+                  )}
+                </label>
+              </div>
+            )}
+
             <div style={{ fontSize: '11px', color: '#9A8880', marginTop: '8px' }}>
               {travado
-                ? `Transfira R$ ${valorSinal} e confirme abaixo`
-                : 'Transfira o valor e confirme abaixo'
+                ? `Transfira R$ ${valorSinal} e anexe o comprovante`
+                : 'Transfira o valor, anexe o comprovante e confirme'
               }
             </div>
           </div>
@@ -752,17 +826,27 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
         width: '100%', maxWidth: '430px', background: '#1A0F0D',
         borderTop: '1px solid #3A2018', padding: '12px 16px 28px', zIndex: 100,
       }}>
+        {/* Aviso comprovante pendente */}
+        {(pagPref === 'pix' || travado) && pixCopiado && !comprovante && (
+          <div style={{ fontSize: '12px', color: '#FFC107', textAlign: 'center', marginBottom: '8px' }}>
+            ⚠️ Anexe o comprovante Pix para confirmar
+          </div>
+        )}
         <button
           onClick={handleConfirmar}
-          disabled={salvando}
+          disabled={salvando || ((pagPref === 'pix' || travado) && (!comprovante))}
           style={{
             width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
-            background: travado
-              ? 'linear-gradient(135deg, #2E7D7A, #3A9E9A)'
-              : 'linear-gradient(135deg, #5C2218, #8B3A2A)',
-            color: '#F5EFE6', fontSize: '15px', fontWeight: '700',
-            cursor: salvando ? 'wait' : 'pointer',
+            background: (pagPref === 'pix' || travado) && !comprovante
+              ? '#2E1A14'
+              : travado
+                ? 'linear-gradient(135deg, #2E7D7A, #3A9E9A)'
+                : 'linear-gradient(135deg, #5C2218, #8B3A2A)',
+            color: (pagPref === 'pix' || travado) && !comprovante ? '#555' : '#F5EFE6',
+            fontSize: '15px', fontWeight: '700',
+            cursor: salvando || ((pagPref === 'pix' || travado) && !comprovante) ? 'not-allowed' : 'pointer',
             fontFamily: "'DM Sans', sans-serif",
+            transition: 'all 0.3s',
           }}
         >
           {salvando ? '⏳ Confirmando...'
@@ -839,7 +923,7 @@ export default function Agendamento({ cliente, onBack, dark }) {
   const [etapa, setEtapa] = React.useState('barbeiro'); // barbeiro | servico | dataHora | pagamento | confirmado
 
   const [barbeiro, setBarbeiro] = React.useState(null);
-  const [servico,  setServico]  = React.useState(null);
+  const [servico,  setServico]  = React.useState(null); // { servicos:[], valor, duracao, nome }
   const [dataHora, setDataHora] = React.useState(null);
   const [agendamento, setAgendamento] = React.useState(null);
 
