@@ -14,6 +14,7 @@ import GestaoEquipe from './GestaoEquipe';
 import Agendamento from './Agendamento';
 import MinhasReservas from './MinhasReservas';
 import AgendaBarbeiro from './AgendaBarbeiro';
+import Financeiro from './Financeiro';
 
 // ─────────────────────────────────────────────────────────────
 // ERROR BOUNDARY
@@ -585,15 +586,11 @@ export default function App() {
   }
 
   function handleNavegarGerente(modulo) {
-    if (modulo === 'config' || modulo === 'servicos') {
-      setTela('config_barbearia');
-      return;
-    }
-    if (modulo === 'equipe') {
-      setTela('gestao_equipe');
-      return;
-    }
-    const passos = { agenda:8, financeiro:9, comparativo:9, permissoes:10 };
+    if (modulo === 'config' || modulo === 'servicos') { setTela('config_barbearia'); return; }
+    if (modulo === 'equipe')      { setTela('gestao_equipe'); return; }
+    if (modulo === 'financeiro' || modulo === 'comparativo') { setTela('financeiro'); return; }
+    if (modulo === 'agenda')      { setTela('agenda_barbeiro'); return; }
+    const passos = { permissoes: 10 };
     setEmBreveInfo({ titulo: modulo.charAt(0).toUpperCase() + modulo.slice(1), descricao: `Módulo ${modulo} em desenvolvimento.`, passo: passos[modulo] || '?' });
     setTela('em_breve');
   }
@@ -694,6 +691,12 @@ export default function App() {
               onBack={() => setTela('home_cliente')}
               dark={dark}
             />
+          </ErrorBoundary>
+        )}
+
+        {tela === 'financeiro' && usuario && (
+          <ErrorBoundary modulo="Financeiro">
+            <Financeiro onBack={() => setTela('home_gerente')} dark={dark} />
           </ErrorBoundary>
         )}
 
