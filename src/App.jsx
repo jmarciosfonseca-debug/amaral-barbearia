@@ -13,6 +13,7 @@ import ConfigBarbearia from './ConfigBarbearia';
 import GestaoEquipe from './GestaoEquipe';
 import Agendamento from './Agendamento';
 import MinhasReservas from './MinhasReservas';
+import AgendaBarbeiro from './AgendaBarbeiro';
 
 // ─────────────────────────────────────────────────────────────
 // ERROR BOUNDARY
@@ -539,7 +540,10 @@ function HomeBarbeiro({ usuario, onLogout, onNavegar, dark }) {
           </div>
         </div>
 
-        <button style={{ ...s.btnGold }} onClick={() => onNavegar('equipe')}>
+        <button style={{ ...s.btnGold }} onClick={() => onNavegar('agenda_barbeiro')}>
+          📅 Minha Agenda
+        </button>
+        <button style={{ ...s.btnDark, marginTop:'10px' }} onClick={() => onNavegar('equipe')}>
           👤 Meu Perfil & Disponibilidade
         </button>
         <button style={{ ...s.btnDark, marginTop:'10px' }} onClick={() => onNavegar('fixos')}>
@@ -665,7 +669,10 @@ export default function App() {
 
         {tela === 'home_barbeiro' && usuario && (
           <ErrorBoundary modulo="HomeBarbeiro">
-            <HomeBarbeiro usuario={usuario} onLogout={handleLogout} onNavegar={(mod) => { if (mod === 'equipe') setTela('gestao_equipe'); }} dark={dark} />
+            <HomeBarbeiro usuario={usuario} onLogout={handleLogout} onNavegar={(mod) => {
+              if (mod === 'equipe') setTela('gestao_equipe');
+              if (mod === 'agenda_barbeiro') setTela('agenda_barbeiro');
+            }} dark={dark} />
           </ErrorBoundary>
         )}
 
@@ -685,6 +692,16 @@ export default function App() {
             <Agendamento
               cliente={cliente}
               onBack={() => setTela('home_cliente')}
+              dark={dark}
+            />
+          </ErrorBoundary>
+        )}
+
+        {tela === 'agenda_barbeiro' && usuario && (
+          <ErrorBoundary modulo="AgendaBarbeiro">
+            <AgendaBarbeiro
+              usuario={usuario}
+              onBack={() => setTela('home_barbeiro')}
               dark={dark}
             />
           </ErrorBoundary>
