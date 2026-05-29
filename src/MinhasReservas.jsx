@@ -1,0 +1,443 @@
+// MinhasReservas.jsx — Flyguer BarberShop
+// ─────────────────────────────────────────────────────────────
+// Passo 7: Minhas Reservas (cliente)
+// - Lista agendamentos futuros e passados
+// - Status: confirmado, pendente, cancelado, concluído
+// - Cancelar (com aviso de trava no mesmo dia)
+// - Reagendar (redireciona para agendamento)
+// Lê de: Firestore /agendamentos where clienteCpf == cpf
+// ─────────────────────────────────────────────────────────────
+
+import React from 'react';
+import { db } from './firebase';
+import {
+  collection, query, where, orderBy,
+  onSnapshot, doc, updateDoc, serverTimestamp,
+} from 'firebase/firestore';
+import { getStyles } from './getStyles';
+
+// ─────────────────────────────────────────────────────────────
+// UTILITÁRIOS
+// ─────────────────────────────────────────────────────────────
+function hoje() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function formatarData(dataStr) {
+  if (!dataStr) return '';
+  const [ano, mes, dia] = dataStr.split('-');
+  return `${dia}/${mes}/${ano}`;
+}
+
+function diaSemana(dataStr) {
+  const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const d = new Date(dataStr + 'T12:00:00');
+  return DIAS[d.getDay()];
+}
+
+function isPassado(dataStr, hora) {
+  const agora = new Date();
+  const dataHora = new Date(`${dataStr}T${hora}:00`);
+  return dataHora < agora;
+}
+
+// ─────────────────────────────────────────────────────────────
+// BADGE DE STATUS
+// ─────────────────────────────────────────────────────────────
+function BadgeStatus({ status, pagamento }) {
+  const configs = {
+    confirmado:        { label: '✅ Confirmado',   bg: 'rgba(76,175,80,0.15)',   color: '#4CAF50' },
+    pendente:          { label: '⏳ Pendente',      bg: 'rgba(255,193,7,0.15)',   color: '#FFC107' },
+    cancelado_cliente: { label: '✗ Cancelado',     bg: 'rgba(244,67,54,0.15)',   color: '#F44336' },
+    cancelado_barbeiro:{ label: '✗ Cancelado',     bg: 'rgba(244,67,54,0.15)',   color: '#F44336' },
+    concluido:         { label: '✓ Concluído',     bg: 'rgba(46,125,122,0.15)',  color: '#2E7D7A' },
+    reagendado:        { label: '🔄 Reagendado',   bg: 'rgba(201,168,76,0.15)',  color: '#C9A84C' },
+  };
+  const cfg = configs[status] || { label: status, bg: '#2E1A14', color: '#9A8880' };
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: '4px',
+      padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600',
+      background: cfg.bg, color: cfg.color,
+    }}>
+      {cfg.label}
+      {pagamento === 'pix' || pagamento === 'pix_sinal' ? ' · 💳 Pix' : ''}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// MODAL: CONFIRMAR CANCELAMENTO
+// ─────────────────────────────────────────────────────────────
+function ModalCancelar({ agendamento, onConfirmar, onFechar }) {
+  const [cancelando, setCancelando] = React.useState(false);
+  const ehHoje = agendamento.data === hoje();
+
+  async function handleCancelar() {
+    setCancelando(true);
+    try {
+      await updateDoc(doc(db, 'agendamentos', agendamento.firestoreId), {
+        status: 'cancelado_cliente',
+        canceladoEm: serverTimestamp(),
+      });
+      onConfirmar();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setCancelando(false);
+    }
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      zIndex: 999,
+    }}>
+      <div style={{
+        background: '#1A0F0D', borderRadius: '20px 20px 0 0',
+        width: '100%', maxWidth: '430px', padding: '24px 20px 40px',
+        border: '1px solid #3A2018', borderBottom: 'none',
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+          <div style={{ fontSize: '40px', marginBottom: '12px' }}>⚠️</div>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '18px', color: '#F5EFE6', marginBottom: '8px' }}>
+            Cancelar agendamento?
+          </div>
+          <div style={{ fontSize: '13px', color: '#9A8880' }}>
+            {agendamento.barbeiroNome} · {agendamento.servico}
+          </div>
+          <div style={{ fontSize: '13px', color: '#9A8880' }}>
+            {diaSemana(agendamento.data)}, {formatarData(agendamento.data)} às {agendamento.hora}
+          </div>
+        </div>
+
+        {/* Aviso trava mesmo dia */}
+        {ehHoje && (
+          <div style={{
+            background: 'rgba(244,67,54,0.1)', border: '1px solid rgba(244,67,54,0.3)',
+            borderRadius: '12px', padding: '12px 14px', marginBottom: '16px',
+          }}>
+            <div style={{ fontSize: '12px', fontWeight: '700', color: '#F44336', marginBottom: '4px' }}>
+              ⚠️ Atenção — Cancelamento no mesmo dia
+            </div>
+            <div style={{ fontSize: '12px', color: '#F5EFE6', lineHeight: '1.6' }}>
+              Se cancelar hoje e quiser remarcar para hoje, será necessário pagar um <strong>sinal de 50% via Pix</strong> para confirmar a nova vaga.
+            </div>
+          </div>
+        )}
+
+        {/* Aviso sinal Pix não reembolsável */}
+        {agendamento.sinal > 0 && (
+          <div style={{
+            background: 'rgba(255,193,7,0.1)', border: '1px solid rgba(255,193,7,0.3)',
+            borderRadius: '12px', padding: '12px 14px', marginBottom: '16px',
+          }}>
+            <div style={{ fontSize: '12px', color: '#FFC107', lineHeight: '1.6' }}>
+              💳 Você pagou um sinal de <strong>R$ {agendamento.sinal.toFixed(2).replace('.', ',')}</strong> via Pix. Em caso de cancelamento, este valor <strong>não será reembolsado</strong>.
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={onFechar}
+            style={{
+              flex: 1, padding: '14px', borderRadius: '14px',
+              border: '1px solid #3A2018', background: '#2E1A14',
+              color: '#9A8880', fontSize: '14px', cursor: 'pointer',
+              fontFamily: "'DM Sans', sans-serif",
+            }}
+          >
+            Manter reserva
+          </button>
+          <button
+            onClick={handleCancelar}
+            disabled={cancelando}
+            style={{
+              flex: 1, padding: '14px', borderRadius: '14px', border: 'none',
+              background: 'linear-gradient(135deg, #8B0000, #F44336)',
+              color: '#F5EFE6', fontSize: '14px', fontWeight: '700',
+              cursor: cancelando ? 'wait' : 'pointer',
+              fontFamily: "'DM Sans', sans-serif",
+            }}
+          >
+            {cancelando ? '...' : 'Sim, cancelar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// CARD DE AGENDAMENTO
+// ─────────────────────────────────────────────────────────────
+function CardAgendamento({ ag, onCancelar, onReagendar }) {
+  const passado = isPassado(ag.data, ag.hora);
+  const podeCancelar = !passado &&
+    ag.status !== 'cancelado_cliente' &&
+    ag.status !== 'cancelado_barbeiro' &&
+    ag.status !== 'concluido';
+
+  return (
+    <div style={{
+      background: '#231410', borderRadius: '16px',
+      border: passado ? '1px solid #2A1208' : '1px solid #3A2018',
+      marginBottom: '12px', overflow: 'hidden',
+      opacity: passado ? 0.7 : 1,
+    }}>
+      {/* Faixa colorida topo */}
+      <div style={{
+        height: '3px',
+        background: ag.status === 'confirmado' ? '#4CAF50'
+          : ag.status === 'concluido' ? '#2E7D7A'
+          : ag.status?.includes('cancelado') ? '#F44336'
+          : '#FFC107',
+      }} />
+
+      <div style={{ padding: '14px' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '10px' }}>
+          <div>
+            <div style={{ fontWeight: '700', fontSize: '15px', color: '#F5EFE6' }}>
+              {ag.servico}
+            </div>
+            <div style={{ fontSize: '12px', color: '#9A8880', marginTop: '2px' }}>
+              ✂️ {ag.barbeiroNome}
+            </div>
+          </div>
+          <BadgeStatus status={ag.status} pagamento={ag.pagamento} />
+        </div>
+
+        {/* Info */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: '1fr 1fr',
+          gap: '8px', marginBottom: '12px',
+          background: '#1A0F0D', borderRadius: '10px', padding: '10px',
+        }}>
+          <div>
+            <div style={{ fontSize: '10px', color: '#9A8880', marginBottom: '2px' }}>Data</div>
+            <div style={{ fontSize: '13px', color: '#F5EFE6', fontWeight: '600' }}>
+              {diaSemana(ag.data)}, {formatarData(ag.data)}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '10px', color: '#9A8880', marginBottom: '2px' }}>Horário</div>
+            <div style={{ fontSize: '13px', color: '#F5EFE6', fontWeight: '600' }}>
+              {ag.hora}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '10px', color: '#9A8880', marginBottom: '2px' }}>Valor</div>
+            <div style={{ fontSize: '13px', color: '#E8C96A', fontWeight: '700' }}>
+              R$ {(ag.valor || 0).toFixed(2).replace('.', ',')}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '10px', color: '#9A8880', marginBottom: '2px' }}>Pagamento</div>
+            <div style={{ fontSize: '13px', color: '#F5EFE6', fontWeight: '600' }}>
+              {ag.pagamento === 'pix' || ag.pagamento === 'pix_sinal' ? '💳 Pix' : '💵 Local'}
+            </div>
+          </div>
+        </div>
+
+        {/* Sinal pago */}
+        {ag.sinal > 0 && (
+          <div style={{
+            fontSize: '11px', color: '#2E7D7A',
+            background: 'rgba(46,125,122,0.1)', borderRadius: '8px',
+            padding: '6px 10px', marginBottom: '10px',
+          }}>
+            💳 Sinal pago: R$ {ag.sinal.toFixed(2).replace('.', ',')} · será abatido no total
+          </div>
+        )}
+
+        {/* Botões ação */}
+        {podeCancelar && (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => onReagendar(ag)}
+              style={{
+                flex: 1, padding: '10px', borderRadius: '10px',
+                border: '1px solid #3A2018', background: '#2E1A14',
+                color: '#E8C96A', fontSize: '13px', fontWeight: '600',
+                cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+              }}
+            >
+              🔄 Reagendar
+            </button>
+            <button
+              onClick={() => onCancelar(ag)}
+              style={{
+                flex: 1, padding: '10px', borderRadius: '10px', border: 'none',
+                background: 'rgba(244,67,54,0.15)',
+                color: '#F44336', fontSize: '13px', fontWeight: '600',
+                cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+              }}
+            >
+              ✗ Cancelar
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// COMPONENTE PRINCIPAL
+// ─────────────────────────────────────────────────────────────
+export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
+  const s = getStyles(dark);
+  const [agendamentos, setAgendamentos] = React.useState([]);
+  const [carregando, setCarregando]     = React.useState(true);
+  const [cancelando, setCancelando]     = React.useState(null);
+  const [aba, setAba]                   = React.useState('proximos'); // proximos | historico
+
+  // ── Escuta em tempo real ────────────────────────────────────
+  React.useEffect(() => {
+    if (!cliente?.cpf) return;
+
+    const q = query(
+      collection(db, 'agendamentos'),
+      where('clienteCpf', '==', cliente.cpf),
+      orderBy('data', 'desc'),
+      orderBy('hora', 'desc'),
+    );
+
+    const unsub = onSnapshot(q, snap => {
+      setAgendamentos(snap.docs.map(d => ({
+        firestoreId: d.id,
+        ...d.data(),
+      })));
+      setCarregando(false);
+    }, err => {
+      console.error('Erro ao carregar reservas:', err);
+      setCarregando(false);
+    });
+
+    return () => unsub();
+  }, [cliente?.cpf]);
+
+  // Separar próximos e histórico
+  const proximos = agendamentos.filter(ag =>
+    !isPassado(ag.data, ag.hora) &&
+    ag.status !== 'cancelado_cliente' &&
+    ag.status !== 'cancelado_barbeiro'
+  );
+
+  const historico = agendamentos.filter(ag =>
+    isPassado(ag.data, ag.hora) ||
+    ag.status === 'cancelado_cliente' ||
+    ag.status === 'cancelado_barbeiro'
+  );
+
+  const lista = aba === 'proximos' ? proximos : historico;
+
+  // ── Render ──────────────────────────────────────────────────
+  return (
+    <div style={{ ...s.app, paddingBottom: '40px' }}>
+
+      {/* Header */}
+      <div style={{
+        background: 'linear-gradient(135deg, #5C2218, #8B3A2A)',
+        padding: '16px 20px',
+        display: 'flex', alignItems: 'center', gap: '12px',
+      }}>
+        <button
+          onClick={onBack}
+          style={{ background: 'rgba(0,0,0,0.2)', border: 'none', borderRadius: '8px', padding: '6px 10px', color: '#F5EFE6', cursor: 'pointer', fontSize: '14px' }}
+        >
+          ←
+        </button>
+        <div>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '17px', fontWeight: '700', color: '#F5EFE6' }}>
+            📋 Minhas Reservas
+          </div>
+          <div style={{ fontSize: '11px', color: 'rgba(245,239,230,0.6)' }}>
+            {cliente.nome.split(' ')[0]}
+          </div>
+        </div>
+      </div>
+
+      {/* Abas */}
+      <div style={{ display: 'flex', borderBottom: '1px solid #3A2018' }}>
+        {[
+          { id: 'proximos',  label: `Próximos (${proximos.length})`   },
+          { id: 'historico', label: `Histórico (${historico.length})`  },
+        ].map(a => (
+          <button
+            key={a.id}
+            onClick={() => setAba(a.id)}
+            style={{
+              flex: 1, padding: '14px', border: 'none',
+              background: 'transparent',
+              borderBottom: aba === a.id ? '2px solid #8B3A2A' : '2px solid transparent',
+              color: aba === a.id ? '#F5EFE6' : '#9A8880',
+              fontSize: '13px', fontWeight: aba === a.id ? '700' : '400',
+              cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+              transition: 'all 0.2s',
+            }}
+          >
+            {a.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Conteúdo */}
+      <div style={{ padding: '16px' }}>
+        {carregando ? (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#9A8880' }}>
+            <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+            Carregando reservas...
+          </div>
+        ) : lista.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>
+              {aba === 'proximos' ? '📅' : '📋'}
+            </div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '18px', color: '#E8C96A', marginBottom: '8px' }}>
+              {aba === 'proximos' ? 'Nenhuma reserva ativa' : 'Nenhum histórico'}
+            </div>
+            <div style={{ fontSize: '13px', color: '#9A8880', marginBottom: '24px' }}>
+              {aba === 'proximos' ? 'Que tal agendar agora?' : 'Seus agendamentos anteriores aparecerão aqui'}
+            </div>
+            {aba === 'proximos' && (
+              <button
+                onClick={onReagendar}
+                style={{
+                  padding: '12px 24px', borderRadius: '12px', border: 'none',
+                  background: 'linear-gradient(135deg, #5C2218, #8B3A2A)',
+                  color: '#F5EFE6', fontSize: '14px', fontWeight: '700',
+                  cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                }}
+              >
+                📅 Fazer Agendamento
+              </button>
+            )}
+          </div>
+        ) : (
+          lista.map(ag => (
+            <CardAgendamento
+              key={ag.firestoreId}
+              ag={ag}
+              onCancelar={ag => setCancelando(ag)}
+              onReagendar={onReagendar}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Modal cancelamento */}
+      {cancelando && (
+        <ModalCancelar
+          agendamento={cancelando}
+          onConfirmar={() => setCancelando(null)}
+          onFechar={() => setCancelando(null)}
+        />
+      )}
+
+    </div>
+  );
+}
