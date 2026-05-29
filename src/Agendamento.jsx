@@ -569,7 +569,7 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
     verificar();
   }, [cliente.cpf, dataHora.data]);
 
-  const valorSinal = (servico.valor * 0.5).toFixed(2).replace('.', ',');
+  const valorSinal = ((servico.valor || 0) * 0.5).toFixed(2).replace('.', ',');
 
   async function handleConfirmar() {
     // Se travado, só aceita Pix
@@ -583,21 +583,22 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
 
     try {
       const agendamento = {
-        clienteCpf:   cliente.cpf,
-        clienteNome:  cliente.nome,
-        clienteTel:   cliente.telefone,
-        barbeiroId:   barbeiro.id,
-        barbeiroNome: barbeiro.nome,
-        servico:      servico.nome,
-        servicoId:    servico.id,
-        valor:        servico.valor,
-        data:         dataHora.data,
-        hora:         dataHora.hora,
-        pagamento:    travado ? 'pix_sinal' : pagPref,
-        sinal:        travado ? servico.valor * 0.5 : 0,
-        status:       'confirmado',
+        clienteCpf:    cliente.cpf,
+        clienteNome:   cliente.nome,
+        clienteTel:    cliente.telefone,
+        barbeiroId:    barbeiro.id,
+        barbeiroNome:  barbeiro.nome,
+        servico:       servico.nome,
+        servicoIds:    (servico.servicos || []).map(s => s.id).filter(Boolean),
+        valor:         servico.valor,
+        duracao:       servico.duracao,
+        data:          dataHora.data,
+        hora:          dataHora.hora,
+        pagamento:     travado ? 'pix_sinal' : pagPref,
+        sinal:         travado ? servico.valor * 0.5 : 0,
+        status:        'confirmado',
         travaCancelamento: travado,
-        criadoEm:     serverTimestamp(),
+        criadoEm:      serverTimestamp(),
       };
 
       await addDoc(collection(db, 'agendamentos'), agendamento);
@@ -641,7 +642,7 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
           { label: 'Data',      value: `${diaSemana(dataHora.data)}, ${formatarData(dataHora.data)}` },
           { label: 'Horário',   value: dataHora.hora },
           { label: 'Duração',   value: `${servico.duracao} min` },
-          { label: 'Valor',     value: `R$ ${servico.valor.toFixed(2).replace('.', ',')}` },
+          { label: 'Valor',     value: `R$ ${(servico.valor || 0).toFixed(2).replace('.', ',')}` },
         ].map(item => (
           <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
             <span style={{ fontSize: '13px', color: '#9A8880' }}>{item.label}</span>
