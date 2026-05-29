@@ -417,10 +417,10 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
         </div>
 
         {[
-          { icon: '📅', label: 'Fazer Agendamento',  sub: 'Escolha barbeiro, dia e horário', passo: 6, acao: () => onNavegar('agendamento')  },
-          { icon: '📋', label: 'Minhas Reservas',    sub: 'Ver, cancelar ou reagendar',      passo: 6, acao: () => onNavegar('minhas_reservas')  },
-          { icon: '💳', label: 'Pagamento via Pix',  sub: 'Pagar adiantado com Pix',         passo: 13, acao: null },
-          { icon: '🔔', label: 'Notificações',       sub: 'Avisos e confirmações',            passo: 11, acao: null },
+          { icon: '📅', label: 'Fazer Agendamento',  sub: 'Escolha barbeiro, dia e horário', acao: () => onNavegar('agendamento')     },
+          { icon: '📋', label: 'Minhas Reservas',    sub: 'Ver, cancelar ou reagendar',      acao: () => onNavegar('minhas_reservas') },
+          { icon: '💳', label: 'Pagamento via Pix',  sub: 'Pagar adiantado com Pix',         acao: null },
+          { icon: '🔔', label: 'Notificações',       sub: 'Avisos e confirmações',            acao: null },
         ].map(item => (
           <div key={item.label} onClick={item.acao || undefined} style={{
             display: 'flex', alignItems: 'center', gap: '14px',
@@ -433,7 +433,6 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
               <div style={{ fontWeight: '600', fontSize: '14px' }}>{item.label}</div>
               <div style={{ fontSize: '11px', color: s.textSub }}>{item.sub}</div>
             </div>
-            <div style={{ fontSize: '11px', color: '#444' }}>Passo {item.passo}</div>
           </div>
         ))}
       </div>
@@ -611,10 +610,10 @@ export default function App() {
     <button
       onClick={() => setDark(d => !d)}
       style={{
-        position: 'fixed', top: '12px', right: '12px', zIndex: '999',
-        background: 'rgba(0,0,0,0.5)', border: '1px solid #3A2018',
-        borderRadius: '50%', width: '36px', height: '36px',
-        fontSize: '16px', cursor: 'pointer', color: '#fff',
+        position: 'fixed', top: '12px', right: '12px', zIndex: '100',
+        background: 'rgba(0,0,0,0.4)', border: '1px solid #3A2018',
+        borderRadius: '50%', width: '32px', height: '32px',
+        fontSize: '14px', cursor: 'pointer', color: '#fff',
         backdropFilter: 'blur(4px)',
       }}
       title={dark ? 'Modo claro' : 'Modo escuro'}
