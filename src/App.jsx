@@ -51,7 +51,6 @@ function WarnBanner({ children }) {
     <div style={{ background:'rgba(255,193,7,0.1)', border:'1px solid rgba(255,193,7,0.3)', borderRadius:'10px', padding:'10px 14px', display:'flex', alignItems:'flex-start', gap:'8px', fontSize:'12px', color:'#FFC107', marginBottom:'12px' }}>
       <span>⚠️</span><span>{children}</span>
     </div>
-    </GlobalErrorBoundary>
   );
 }
 
@@ -417,7 +416,10 @@ export default function App() {
   );
 
   return (
-    <div style={{ maxWidth:'430px', margin:'0 auto', minHeight:'100vh', position:'relative' }}>
+    <GlobalErrorBoundary>
+      <BannerOffline />
+      <InstalarApp dark={dark} />
+      <div style={{ maxWidth:'430px', margin:'0 auto', minHeight:'100vh', position:'relative' }}>
       {toggleTema}
       <ErrorBoundary modulo="App">
 
@@ -546,7 +548,7 @@ export default function App() {
         )}
 
       </ErrorBoundary>
-    </div>
+      </div>
     </GlobalErrorBoundary>
   );
 }
