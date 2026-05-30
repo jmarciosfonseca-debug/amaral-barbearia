@@ -1,7 +1,5 @@
 // ConfigBarbearia.jsx — Flyguer BarberShop
-// ✅ prop abaInicial — abre direto em 'servicos' quando vem do menu Serviços & Preços
-// ✅ botão adicionar novo serviço/combo
-// ✅ horários salvos no Firestore — usados pela recepção e agenda do cliente
+// ✅ Passo 13 — Pix Avançado: banco, nome beneficiário, tipo chave, preview
 
 import React from 'react';
 import { db } from './firebase';
@@ -12,6 +10,10 @@ const CONFIG_PADRAO = {
   nome:     'Flyguer BarberShop',
   whatsapp: '11977643509',
   pix:      '11939089988',
+  pixNome:  'Alisson Ferreira da Silva',
+  pixBanco: 'Nubank',
+  pixTipo:  'telefone',
+  pixCidade:'Sao Paulo',
   endereco: 'Shopping Cidade das Artes — Piso 2, Nº 22',
   horarios: {
     dom: { aberto: false, abertura: '09:00', fechamento: '18:00' },
@@ -54,7 +56,6 @@ const ABAS = [
   { id: 'contato',  icon: '📱', label: 'Contato'  },
 ];
 
-// ── Componentes internos ─────────────────────────────────────
 function SectionTitle({ icon, title, subtitle }) {
   return (
     <div style={{ marginBottom: '16px', marginTop: '8px' }}>
@@ -109,22 +110,16 @@ function TimeInput({ label, value, onChange }) {
 }
 
 const servicoInputStyle = { width: '100%', background: '#2E1A14', border: '1px solid #3A2018', borderRadius: '8px', padding: '8px 10px', color: '#F5EFE6', fontSize: '14px', outline: 'none', boxSizing: 'border-box' };
+const selectStyle = { width: '100%', background: '#2E1A14', border: '1px solid #3A2018', borderRadius: '10px', padding: '10px 12px', color: '#F5EFE6', fontSize: '14px', outline: 'none', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif" };
 
-// ── Modal: Adicionar Serviço ✅ NOVO ─────────────────────────
 function ModalNovoServico({ categoria, onSalvar, onFechar }) {
   const [dados, setDados] = React.useState({ nome: '', valor: '', duracao: '' });
   const [erro, setErro]   = React.useState('');
 
   function handleSalvar() {
-    if (!dados.nome.trim())              { setErro('Nome obrigatório'); return; }
+    if (!dados.nome.trim())               { setErro('Nome obrigatório'); return; }
     if (!dados.valor || dados.valor <= 0) { setErro('Valor inválido'); return; }
-    onSalvar({
-      id: `${categoria[0]}${Date.now()}`,
-      nome: dados.nome.trim(),
-      valor: parseFloat(dados.valor),
-      duracao: parseInt(dados.duracao) || 30,
-      ativo: true,
-    });
+    onSalvar({ id: `${categoria[0]}${Date.now()}`, nome: dados.nome.trim(), valor: parseFloat(dados.valor), duracao: parseInt(dados.duracao) || 30, ativo: true });
   }
 
   return (
@@ -134,9 +129,8 @@ function ModalNovoServico({ categoria, onSalvar, onFechar }) {
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '18px', color: '#E8C96A' }}>
             ➕ {categoria === 'avulsos' ? 'Novo Serviço' : 'Novo Combo'}
           </div>
-          <button onClick={onFechar} style={{ background: 'none', border: 'none', color: '#9A8880', fontSize: '20px', cursor: 'pointer' }}>✕</button>
+          <button onClick={onFechar} style={{ background: '#2E1A14', border: '1px solid #3A2018', borderRadius: '50%', width: '32px', height: '32px', color: '#F5EFE6', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
-
         <div style={{ marginBottom: '12px' }}>
           <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '5px' }}>Nome *</label>
           <input style={{ ...servicoInputStyle, borderRadius: '10px', padding: '10px 12px' }} placeholder="Ex: Hidratação, Relaxamento..." value={dados.nome} onChange={e => setDados(d => ({ ...d, nome: e.target.value }))} />
@@ -151,9 +145,7 @@ function ModalNovoServico({ categoria, onSalvar, onFechar }) {
             <input type="number" style={servicoInputStyle} placeholder="30" value={dados.duracao} onChange={e => setDados(d => ({ ...d, duracao: e.target.value }))} />
           </div>
         </div>
-
         {erro && <div style={{ fontSize: '12px', color: '#F44336', marginBottom: '12px', textAlign: 'center' }}>{erro}</div>}
-
         <button onClick={handleSalvar} style={{ width: '100%', padding: '14px', borderRadius: '14px', border: 'none', background: 'linear-gradient(135deg, #5C2218, #8B3A2A)', color: '#F5EFE6', fontSize: '15px', fontWeight: '700', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
           ✅ Adicionar
         </button>
@@ -162,11 +154,8 @@ function ModalNovoServico({ categoria, onSalvar, onFechar }) {
   );
 }
 
-// ── Componente Principal ─────────────────────────────────────
-// ✅ abaInicial — prop para abrir direto em 'servicos' ou 'horarios'
 export default function ConfigBarbearia({ onBack, dark, abaInicial = 'horarios' }) {
   const s = getStyles(dark);
-
   const [abaAtiva, setAbaAtiva]     = React.useState(abaInicial);
   const [carregando, setCarregando] = React.useState(true);
   const [salvando, setSalvando]     = React.useState(false);
@@ -174,8 +163,7 @@ export default function ConfigBarbearia({ onBack, dark, abaInicial = 'horarios' 
   const [erro, setErro]             = React.useState('');
   const [config, setConfig]         = React.useState(CONFIG_PADRAO);
   const [servicos, setServicos]     = React.useState(SERVICOS_PADRAO);
-  // ✅ Modal novo serviço
-  const [modalServico, setModalServico] = React.useState(null); // 'avulsos' | 'combos' | null
+  const [modalServico, setModalServico] = React.useState(null);
 
   React.useEffect(() => {
     async function carregar() {
@@ -184,7 +172,7 @@ export default function ConfigBarbearia({ onBack, dark, abaInicial = 'horarios' 
           getDoc(doc(db, 'config', 'barbearia')),
           getDoc(doc(db, 'config', 'servicos')),
         ]);
-        if (snapConfig.exists())   setConfig(snapConfig.data());
+        if (snapConfig.exists())   setConfig({ ...CONFIG_PADRAO, ...snapConfig.data() });
         if (snapServicos.exists()) setServicos(snapServicos.data());
       } catch (e) { console.error(e); }
       finally { setCarregando(false); }
@@ -192,7 +180,6 @@ export default function ConfigBarbearia({ onBack, dark, abaInicial = 'horarios' 
     carregar();
   }, []);
 
-  // ✅ Atualiza aba quando abaInicial muda (ex: navegar de config pra servicos)
   React.useEffect(() => { setAbaAtiva(abaInicial); }, [abaInicial]);
 
   async function salvar() {
@@ -208,23 +195,11 @@ export default function ConfigBarbearia({ onBack, dark, abaInicial = 'horarios' 
     finally { setSalvando(false); }
   }
 
-  function setHorario(dia, campo, valor) {
-    setConfig(c => ({ ...c, horarios: { ...c.horarios, [dia]: { ...c.horarios[dia], [campo]: valor } } }));
-  }
-  function setAlmoco(campo, valor) {
-    setConfig(c => ({ ...c, almoco: { ...c.almoco, [campo]: valor } }));
-  }
-  function setServico(categoria, id, campo, valor) {
-    setServicos(sv => ({ ...sv, [categoria]: sv[categoria].map(s => s.id === id ? { ...s, [campo]: valor } : s) }));
-  }
-  function setPlano(id, campo, valor) {
-    setServicos(sv => ({ ...sv, planos: sv.planos.map(p => p.id === id ? { ...p, [campo]: valor } : p) }));
-  }
-  // ✅ Adicionar novo serviço/combo
-  function adicionarServico(categoria, novo) {
-    setServicos(sv => ({ ...sv, [categoria]: [...(sv[categoria] || []), novo] }));
-    setModalServico(null);
-  }
+  function setHorario(dia, campo, valor) { setConfig(c => ({ ...c, horarios: { ...c.horarios, [dia]: { ...c.horarios[dia], [campo]: valor } } })); }
+  function setAlmoco(campo, valor) { setConfig(c => ({ ...c, almoco: { ...c.almoco, [campo]: valor } })); }
+  function setServico(categoria, id, campo, valor) { setServicos(sv => ({ ...sv, [categoria]: sv[categoria].map(s => s.id === id ? { ...s, [campo]: valor } : s) })); }
+  function setPlano(id, campo, valor) { setServicos(sv => ({ ...sv, planos: sv.planos.map(p => p.id === id ? { ...p, [campo]: valor } : p) })); }
+  function adicionarServico(categoria, novo) { setServicos(sv => ({ ...sv, [categoria]: [...(sv[categoria] || []), novo] })); setModalServico(null); }
 
   if (carregando) {
     return (
@@ -302,15 +277,12 @@ export default function ConfigBarbearia({ onBack, dark, abaInicial = 'horarios' 
           </div>
         )}
 
-        {/* ── SERVIÇOS ✅ com botão adicionar ── */}
+        {/* ── SERVIÇOS ── */}
         {abaAtiva === 'servicos' && (
           <div>
-            {/* Serviços avulsos */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
               <SectionTitle icon="✂️" title="Serviços Avulsos" subtitle="Edite valores e duração" />
-              <button onClick={() => setModalServico('avulsos')} style={{ background: 'rgba(139,58,42,0.2)', border: '1px solid #8B3A2A', borderRadius: '10px', padding: '6px 12px', color: '#E8C96A', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
-                ➕ Novo
-              </button>
+              <button onClick={() => setModalServico('avulsos')} style={{ background: 'rgba(139,58,42,0.2)', border: '1px solid #8B3A2A', borderRadius: '10px', padding: '6px 12px', color: '#E8C96A', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>➕ Novo</button>
             </div>
             {(servicos.avulsos || []).map(sv => (
               <Card key={sv.id}>
@@ -331,12 +303,9 @@ export default function ConfigBarbearia({ onBack, dark, abaInicial = 'horarios' 
               </Card>
             ))}
 
-            {/* Combos */}
             <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
               <SectionTitle icon="🤝" title="Combos" subtitle="Pacotes combinados" />
-              <button onClick={() => setModalServico('combos')} style={{ background: 'rgba(46,125,122,0.2)', border: '1px solid #2E7D7A', borderRadius: '10px', padding: '6px 12px', color: '#2E7D7A', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
-                ➕ Novo
-              </button>
+              <button onClick={() => setModalServico('combos')} style={{ background: 'rgba(46,125,122,0.2)', border: '1px solid #2E7D7A', borderRadius: '10px', padding: '6px 12px', color: '#2E7D7A', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>➕ Novo</button>
             </div>
             {(servicos.combos || []).map(sv => (
               <Card key={sv.id}>
@@ -396,25 +365,86 @@ export default function ConfigBarbearia({ onBack, dark, abaInicial = 'horarios' 
         {/* ── CONTATO ── */}
         {abaAtiva === 'contato' && (
           <div>
-            <SectionTitle icon="📱" title="Dados de Contato" subtitle="WhatsApp e chave Pix da barbearia" />
+            <SectionTitle icon="📱" title="Dados de Contato" subtitle="WhatsApp e Pix da barbearia" />
+
+            {/* WhatsApp */}
             <Card>
               <InputField label="WhatsApp da barbearia (com DDD)" value={config.whatsapp} onChange={v => setConfig(c => ({ ...c, whatsapp: v }))} placeholder="11999999999" type="tel" prefix="📞" />
-              <div style={{ fontSize: '11px', color: '#9A8880', marginTop: '-4px', marginBottom: '8px' }}>Usado para enviar confirmações de agendamento</div>
+              <div style={{ fontSize: '11px', color: '#9A8880', marginTop: '-4px', marginBottom: '4px' }}>Usado para enviar confirmações de agendamento</div>
             </Card>
+
+            {/* ✅ PIX AVANÇADO */}
             <Card>
-              <InputField label="Chave Pix" value={config.pix} onChange={v => setConfig(c => ({ ...c, pix: v }))} placeholder="CPF, CNPJ, e-mail ou chave aleatória" prefix="💳" />
-              <div style={{ fontSize: '11px', color: '#9A8880', marginTop: '-4px', marginBottom: '8px' }}>Exibida para clientes que optarem por Pix antecipado</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#820AD1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>💜</div>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#F5EFE6' }}>Configuração Pix</div>
+                  <div style={{ fontSize: '11px', color: '#9A8880' }}>Dados para recebimento antecipado dos clientes</div>
+                </div>
+              </div>
+
+              {/* Banco */}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '5px' }}>Banco</label>
+                <select value={config.pixBanco || 'Nubank'} onChange={e => setConfig(c => ({ ...c, pixBanco: e.target.value }))} style={selectStyle}>
+                  {['Nubank','Itaú','Bradesco','Inter','Caixa','Banco do Brasil','Santander','Sicoob','Outro'].map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+
+              {/* Nome beneficiário */}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '5px' }}>Nome do beneficiário</label>
+                <input value={config.pixNome || ''} onChange={e => setConfig(c => ({ ...c, pixNome: e.target.value }))} placeholder="Nome completo do titular"
+                  style={{ width: '100%', background: '#2E1A14', border: '1px solid #3A2018', borderRadius: '10px', padding: '10px 12px', color: '#F5EFE6', fontSize: '14px', outline: 'none', boxSizing: 'border-box', fontFamily: "'DM Sans',sans-serif" }} />
+              </div>
+
+              {/* Tipo de chave */}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '5px' }}>Tipo de chave</label>
+                <select value={config.pixTipo || 'telefone'} onChange={e => setConfig(c => ({ ...c, pixTipo: e.target.value }))} style={selectStyle}>
+                  <option value="telefone">📱 Telefone</option>
+                  <option value="cpf">👤 CPF</option>
+                  <option value="cnpj">🏢 CNPJ</option>
+                  <option value="email">📧 Email</option>
+                  <option value="aleatoria">🔑 Chave aleatória</option>
+                </select>
+              </div>
+
+              {/* Chave Pix */}
+              <InputField label="Chave Pix" value={config.pix} onChange={v => setConfig(c => ({ ...c, pix: v }))} placeholder="Ex: 11939089988" prefix="💳" />
+              <div style={{ fontSize: '11px', color: '#9A8880', marginTop: '-4px', marginBottom: '12px' }}>Exibida para clientes que optarem por Pix antecipado</div>
+
+              {/* Preview */}
+              {config.pix && (
+                <div style={{ background: 'rgba(130,10,209,0.1)', border: '1px solid rgba(130,10,209,0.3)', borderRadius: '12px', padding: '14px' }}>
+                  <div style={{ fontSize: '11px', color: '#9A8880', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Preview para o cliente</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#820AD1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0 }}>💜</div>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: '700', color: '#820AD1' }}>{config.pixBanco || 'Nubank'}</div>
+                      <div style={{ fontSize: '12px', color: '#F5EFE6' }}>{config.pixNome || 'Nome não configurado'}</div>
+                      <div style={{ fontSize: '11px', color: '#9A8880', marginTop: '2px' }}>
+                        {config.pixTipo === 'telefone' ? '📱' : config.pixTipo === 'email' ? '📧' : config.pixTipo === 'cpf' ? '👤' : '🔑'} {config.pix}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </Card>
+
+            {/* Endereço */}
             <Card>
               <InputField label="Endereço" value={config.endereco} onChange={v => setConfig(c => ({ ...c, endereco: v }))} placeholder="Rua, número, complemento" prefix="📍" />
             </Card>
+
+            {/* Preview geral */}
             <div style={{ marginTop: '8px' }}>
-              <SectionTitle icon="👁️" title="Preview" subtitle="Como os clientes veem" />
+              <SectionTitle icon="👁️" title="Preview Geral" subtitle="Como os clientes veem" />
               <Card style={{ borderColor: '#8B3A2A' }}>
                 <div style={{ fontSize: '13px', fontWeight: '600', color: '#F5EFE6', marginBottom: '10px' }}>Flyguer BarberShop</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <div style={{ fontSize: '12px', color: '#9A8880' }}>📞 {config.whatsapp || 'WhatsApp não configurado'}</div>
-                  <div style={{ fontSize: '12px', color: '#9A8880' }}>💳 Pix: {config.pix || 'Não configurado'}</div>
+                  <div style={{ fontSize: '12px', color: '#9A8880' }}>💜 Pix: {config.pix || 'Não configurado'} ({config.pixBanco || 'Banco'})</div>
                   <div style={{ fontSize: '12px', color: '#9A8880' }}>📍 {config.endereco || 'Endereço não configurado'}</div>
                 </div>
               </Card>
@@ -430,13 +460,8 @@ export default function ConfigBarbearia({ onBack, dark, abaInicial = 'horarios' 
         </button>
       </div>
 
-      {/* Modal novo serviço */}
       {modalServico && (
-        <ModalNovoServico
-          categoria={modalServico}
-          onSalvar={novo => adicionarServico(modalServico, novo)}
-          onFechar={() => setModalServico(null)}
-        />
+        <ModalNovoServico categoria={modalServico} onSalvar={novo => adicionarServico(modalServico, novo)} onFechar={() => setModalServico(null)} />
       )}
     </div>
   );
