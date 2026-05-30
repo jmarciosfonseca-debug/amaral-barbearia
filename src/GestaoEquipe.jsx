@@ -1,4 +1,4 @@
-// GestaoEquipe.jsx — Flyguer BarberShop
+// v2// GestaoEquipe.jsx — Flyguer BarberShop
 // ✅ NOVO: Modal para adicionar barbeiro
 // ✅ MANTIDO: Editar, PIN, disponibilidade
 
