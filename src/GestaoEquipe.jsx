@@ -366,7 +366,19 @@ export default function GestaoEquipe({ usuario, onBack, dark }) {
     carregar();
   }, []);
 
-  async function toggleDisponivel(barbeiro) {
+  const [excluindo, setExcluindo] = React.useState(null); // barbeiro a excluir
+
+  async function handleExcluir(barbeiro) {
+    if (barbeiro.perfil === PERFIL.GERENTE) return; // protege o gerente
+    try {
+      await updateDoc(doc(db, 'barbeiros', barbeiro.id), {
+        ativo: false,
+        excluidoEm: serverTimestamp(),
+      });
+      setBarbeiros(bs => bs.filter(b => b.id !== barbeiro.id));
+    } catch (e) { console.error(e); }
+    finally { setExcluindo(null); }
+  }
     setSalvandoDisp(barbeiro.id);
     const novoValor = !barbeiro.disponivel;
     try {
@@ -464,6 +476,15 @@ export default function GestaoEquipe({ usuario, onBack, dark }) {
                   color: '#F5EFE6', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                 }}>✏️ Editar</button>
               )}
+              {/* ✅ Excluir — só gerente, não pode excluir a si mesmo */}
+              {isGerente && barbeiro.perfil !== PERFIL.GERENTE && (
+                <button onClick={() => setExcluindo(barbeiro)} style={{
+                  padding: '8px 10px', borderRadius: '10px',
+                  border: '1px solid rgba(244,67,54,0.3)',
+                  background: 'rgba(244,67,54,0.1)',
+                  color: '#F44336', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                }}>🗑️</button>
+              )}
             </div>
           </Card>
         ))}
@@ -475,7 +496,34 @@ export default function GestaoEquipe({ usuario, onBack, dark }) {
       </div>
 
       {/* Modais */}
-      {adicionando && (
+      {/* ✅ Modal confirmação exclusão */}
+      {excluindo && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: '20px' }}>
+          <div style={{ background: '#1A0F0D', borderRadius: '20px', width: '100%', maxWidth: '360px', padding: '28px 24px', border: '1px solid #3A2018', textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '12px' }}>🗑️</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '18px', color: '#F44336', marginBottom: '8px' }}>
+              Remover barbeiro?
+            </div>
+            <div style={{ fontSize: '14px', color: '#F5EFE6', fontWeight: '600', marginBottom: '6px' }}>{excluindo.nome}</div>
+            <div style={{ fontSize: '12px', color: '#9A8880', marginBottom: '24px' }}>
+              O barbeiro será inativado e não aparecerá mais no app. Os agendamentos existentes não serão afetados.
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setExcluindo(null)} style={{
+                flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #3A2018',
+                background: '#231410', color: '#9A8880', fontSize: '14px', fontWeight: '600',
+                cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+              }}>Cancelar</button>
+              <button onClick={() => handleExcluir(excluindo)} style={{
+                flex: 1, padding: '12px', borderRadius: '12px', border: 'none',
+                background: 'linear-gradient(135deg, #8B1A1A, #C62828)',
+                color: '#F5EFE6', fontSize: '14px', fontWeight: '700',
+                cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+              }}>🗑️ Remover</button>
+            </div>
+          </div>
+        </div>
+      )}
         <ModalNovoBarbeiro
           onSalvar={novo => { setBarbeiros(bs => [...bs, novo]); setAdicionando(false); }}
           onFechar={() => setAdicionando(false)}
