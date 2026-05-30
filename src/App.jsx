@@ -1,5 +1,5 @@
 // App.jsx — Flyguer BarberShop
-// ✅ Passo 12 — Planos Mensais adicionados
+// ✅ Passo 14 — PerfilCliente + AvaliacaoServico
 
 import React from 'react';
 import { db } from './firebase';
@@ -13,13 +13,11 @@ import AgendaBarbeiro from './AgendaBarbeiro';
 import AgendaGeral from './AgendaGeral';
 import Financeiro from './Financeiro';
 import PainelRecepcao from './PainelRecepcao';
-import PlanosMensais from './PlanosMensais';           // ✅ P12
-import AssinaturaPlano from './AssinaturaPlano';       // ✅ P12
-import GerenciarAssinaturas from './GerenciarAssinaturas'; // ✅ P12
+import PlanosMensais from './PlanosMensais';
+import AssinaturaPlano from './AssinaturaPlano';
+import GerenciarAssinaturas from './GerenciarAssinaturas';
+import PerfilCliente from './PerfilCliente';   // ✅ P14
 
-// ─────────────────────────────────────────────────────────────
-// ERROR BOUNDARY
-// ─────────────────────────────────────────────────────────────
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
@@ -27,13 +25,13 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ minHeight: '100vh', background: '#1A0F0D', color: '#F5EFE6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
-          <div style={{ fontSize: '20px', fontWeight: '700', color: '#C9A84C', marginBottom: '8px' }}>Algo deu errado</div>
-          <div style={{ fontSize: '13px', color: '#9A8880', marginBottom: '8px' }}>Módulo: {this.props.modulo || 'App'}</div>
-          <div style={{ fontSize: '12px', color: '#666', marginBottom: '24px', maxWidth: '300px' }}>{this.state.error?.message}</div>
-          <button onClick={() => this.setState({ hasError: false, error: null })} style={{ padding: '12px 24px', background: '#8B3A2A', color: '#F5EFE6', border: 'none', borderRadius: '10px', fontWeight: '700', cursor: 'pointer', marginBottom: '10px', width: '200px' }}>Tentar novamente</button>
-          <button onClick={() => window.location.reload()} style={{ padding: '12px 24px', background: '#2E1A14', color: '#F5EFE6', border: '1px solid #3A2018', borderRadius: '10px', cursor: 'pointer', width: '200px' }}>Recarregar app</button>
+        <div style={{ minHeight:'100vh', background:'#1A0F0D', color:'#F5EFE6', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'24px', textAlign:'center' }}>
+          <div style={{ fontSize:'48px', marginBottom:'16px' }}>⚠️</div>
+          <div style={{ fontSize:'20px', fontWeight:'700', color:'#C9A84C', marginBottom:'8px' }}>Algo deu errado</div>
+          <div style={{ fontSize:'13px', color:'#9A8880', marginBottom:'8px' }}>Módulo: {this.props.modulo || 'App'}</div>
+          <div style={{ fontSize:'12px', color:'#666', marginBottom:'24px', maxWidth:'300px' }}>{this.state.error?.message}</div>
+          <button onClick={() => this.setState({ hasError:false, error:null })} style={{ padding:'12px 24px', background:'#8B3A2A', color:'#F5EFE6', border:'none', borderRadius:'10px', fontWeight:'700', cursor:'pointer', marginBottom:'10px', width:'200px' }}>Tentar novamente</button>
+          <button onClick={() => window.location.reload()} style={{ padding:'12px 24px', background:'#2E1A14', color:'#F5EFE6', border:'1px solid #3A2018', borderRadius:'10px', cursor:'pointer', width:'200px' }}>Recarregar app</button>
         </div>
       );
     }
@@ -42,49 +40,43 @@ class ErrorBoundary extends React.Component {
 }
 
 function LogoMark({ size = 48 }) {
-  return (
-    <img src="/logo-flyguer.png" alt="Flyguer BarberShop" style={{ width: size * 1.8, height: size * 1.8, objectFit: 'contain', filter: 'drop-shadow(0 6px 24px rgba(0,0,0,0.7))', flexShrink: 0, display: 'block' }} />
-  );
+  return <img src="/logo-flyguer.png" alt="Flyguer BarberShop" style={{ width:size*1.8, height:size*1.8, objectFit:'contain', filter:'drop-shadow(0 6px 24px rgba(0,0,0,0.7))', flexShrink:0, display:'block' }} />;
 }
 
 function WarnBanner({ children }) {
   return (
-    <div style={{ background: 'rgba(255,193,7,0.1)', border: '1px solid rgba(255,193,7,0.3)', borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '12px', color: '#FFC107', marginBottom: '12px' }}>
+    <div style={{ background:'rgba(255,193,7,0.1)', border:'1px solid rgba(255,193,7,0.3)', borderRadius:'10px', padding:'10px 14px', display:'flex', alignItems:'flex-start', gap:'8px', fontSize:'12px', color:'#FFC107', marginBottom:'12px' }}>
       <span>⚠️</span><span>{children}</span>
     </div>
   );
 }
 
 function Divider({ style }) {
-  return <div style={{ height: '1px', background: '#3A2018', margin: '16px 0', ...style }} />;
+  return <div style={{ height:'1px', background:'#3A2018', margin:'16px 0', ...style }} />;
 }
 
-// ─────────────────────────────────────────────────────────────
-// SPLASH
-// ─────────────────────────────────────────────────────────────
 function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark }) {
   const s = getStyles(dark);
   const [barbeiros, setBarbeiros] = React.useState([
-    { id: 'b1', nome: 'Amaral', cargo: '👑 Gerente · Barbeiro', disponivel: true  },
-    { id: 'b2', nome: 'Jotace', cargo: '✂️ Barbeiro',            disponivel: true  },
-    { id: 'b3', nome: 'Júnior', cargo: '✂️ Barbeiro',            disponivel: false },
+    { id:'b1', nome:'Amaral', cargo:'👑 Gerente · Barbeiro', disponivel:true  },
+    { id:'b2', nome:'Jotace', cargo:'✂️ Barbeiro',            disponivel:true  },
+    { id:'b3', nome:'Júnior', cargo:'✂️ Barbeiro',            disponivel:false },
   ]);
 
   React.useEffect(() => {
     import('firebase/firestore').then(({ collection, onSnapshot, query, where }) => {
-      const q = query(collection(db, 'barbeiros'), where('ativo', '==', true));
+      const q = query(collection(db,'barbeiros'), where('ativo','==',true));
       const unsub = onSnapshot(q, snap => {
-        if (!snap.empty) setBarbeiros(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => b.papel !== 'recepcao'));
+        if (!snap.empty) setBarbeiros(snap.docs.map(d=>({id:d.id,...d.data()})).filter(b=>b.papel!=='recepcao'));
       });
       return () => unsub();
     }).catch(console.error);
   }, []);
 
   return (
-    <div style={{ ...s.app, paddingBottom: '80px' }}>
-      <div style={{ background: `linear-gradient(160deg, #5C2218 0%, #8B3A2A 50%, #A84832 100%)`, padding: '40px 24px 32px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ ...s.app, paddingBottom:'80px' }}>
+      <div style={{ background:`linear-gradient(160deg,#5C2218 0%,#8B3A2A 50%,#A84832 100%)`, padding:'40px 24px 32px', textAlign:'center', position:'relative', overflow:'hidden' }}>
         <div style={{ position:'absolute', top:'-40px', right:'-40px', width:'120px', height:'120px', background:'rgba(46,125,122,0.15)', borderRadius:'50%', filter:'blur(20px)' }} />
-        <div style={{ position:'absolute', bottom:'-20px', left:'-20px', width:'80px', height:'80px', background:'rgba(201,168,76,0.1)', borderRadius:'50%', filter:'blur(15px)' }} />
         <div style={{ display:'flex', justifyContent:'center', marginBottom:'16px' }}><LogoMark size={80} /></div>
         <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'26px', fontWeight:'900', color:'#F5EFE6', letterSpacing:'1px' }}>
           Flyguer <span style={{ fontWeight:'300', color:'#E8C96A' }}>BarberShop</span>
@@ -92,19 +84,18 @@ function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark }) {
         <div style={{ fontSize:'13px', color:'rgba(245,239,230,0.7)', marginTop:'6px', fontStyle:'italic' }}>Nossa Arte, Seu Estilo.</div>
         <div style={{ fontSize:'11px', color:'rgba(245,239,230,0.5)', marginTop:'4px' }}>Shopping Cidade das Artes — Piso 2, Nº 22</div>
       </div>
-
-      <div style={{ padding: '20px 20px 0' }}>
+      <div style={{ padding:'20px 20px 0' }}>
         <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'600', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'10px' }}>Nossos barbeiros</div>
         {barbeiros.map(b => (
           <div key={b.id} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'14px', background:'#231410', borderRadius:'14px', border:'1px solid #3A2018', marginBottom:'8px' }}>
             <div style={{ ...s.avatar, width:'48px', height:'48px', fontSize:'18px', flexShrink:0 }}>{b.nome[0]}</div>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex:1 }}>
               <div style={{ fontWeight:'600', fontSize:'15px', color:'#F5EFE6' }}>{b.nome}</div>
               <div style={{ fontSize:'11px', color:'#E8C96A', marginTop:'2px' }}>{b.cargo}</div>
             </div>
-            <div style={ b.disponivel ? s.badgeGreen : s.badgeYellow }>
-              <span style={{ width:'7px', height:'7px', borderRadius:'50%', background: b.disponivel ? '#4CAF50' : '#FFC107', display:'inline-block' }} />
-              {b.disponivel ? 'Disponível' : 'Ocupado agora'}
+            <div style={b.disponivel?s.badgeGreen:s.badgeYellow}>
+              <span style={{ width:'7px', height:'7px', borderRadius:'50%', background:b.disponivel?'#4CAF50':'#FFC107', display:'inline-block' }} />
+              {b.disponivel?'Disponível':'Ocupado agora'}
             </div>
           </div>
         ))}
@@ -113,22 +104,12 @@ function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark }) {
         <button style={{ ...s.btnGold, marginBottom:'10px' }} onClick={onClienteNovo}>👤 Criar Conta de Cliente</button>
         <button style={{ ...s.btnDark, marginBottom:'16px' }} onClick={onClienteCadastrado}>🔒 Acessar Cadastro Existente</button>
         <WarnBanner>Use um número de WhatsApp válido para receber confirmações.</WarnBanner>
-        <label style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'12px', color:'#9A8880', marginBottom:'24px', cursor:'pointer' }}>
-          <input type="checkbox" style={{ accentColor:'#8B3A2A' }} /> Receber novidades por WhatsApp
-        </label>
-        <div style={{ display:'flex', justifyContent:'center', gap:'24px', marginBottom:'16px' }}>
-          <span style={{ fontSize:'12px', color:'#9A8880', cursor:'pointer', textDecoration:'underline' }}>Sobre nós</span>
-          <span style={{ fontSize:'12px', color:'#9A8880', cursor:'pointer', textDecoration:'underline' }}>Contato</span>
-        </div>
         <div onClick={onStaff} style={{ textAlign:'center', fontSize:'11px', color:'#444', cursor:'pointer', paddingBottom:'8px' }}>Acesso da equipe</div>
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// STAFF LOGIN
-// ─────────────────────────────────────────────────────────────
 function StaffLoginScreen({ onBack, onSuccess, dark }) {
   const s = getStyles(dark);
   const [pin, setPin] = React.useState('');
@@ -136,36 +117,32 @@ function StaffLoginScreen({ onBack, onSuccess, dark }) {
   const [usuariosMatch, setUsuariosMatch] = React.useState([]);
 
   const USUARIOS_DEV = [
-    { pin: '12345', perfil: PERFIL.GERENTE,      nome: 'Amaral',  id: 'b1' },
-    { pin: '12345', perfil: PERFIL.BARBEIRO,      nome: 'Jotace',  id: 'b2' },
-    { pin: '12345', perfil: PERFIL.BARBEIRO,      nome: 'Júnior',  id: 'b3' },
-    { pin: 'REC1',  perfil: PERFIL.RECEPCIONISTA, nome: 'Recepção', id: 'r1' },
+    { pin:'12345', perfil:PERFIL.GERENTE,      nome:'Amaral',   id:'b1' },
+    { pin:'12345', perfil:PERFIL.BARBEIRO,      nome:'Jotace',   id:'b2' },
+    { pin:'12345', perfil:PERFIL.BARBEIRO,      nome:'Júnior',   id:'b3' },
+    { pin:'REC1',  perfil:PERFIL.RECEPCIONISTA, nome:'Recepção', id:'r1' },
   ];
 
   function handleLogin() {
-    const pinDigitado = pin.trim();
-    if (pinDigitado.toUpperCase() === 'REC1') {
-      onSuccess({ pin: 'REC1', perfil: PERFIL.RECEPCIONISTA, nome: 'Recepção', id: 'r1' });
-      return;
-    }
-    const matches = USUARIOS_DEV.filter(u => u.pin === pinDigitado && u.perfil !== PERFIL.RECEPCIONISTA);
-    if (matches.length === 0) { setErro('PIN inválido. Tente novamente.'); setPin(''); return; }
+    const p = pin.trim();
+    if (p.toUpperCase()==='REC1') { onSuccess({ pin:'REC1', perfil:PERFIL.RECEPCIONISTA, nome:'Recepção', id:'r1' }); return; }
+    const matches = USUARIOS_DEV.filter(u => u.pin===p && u.perfil!==PERFIL.RECEPCIONISTA);
+    if (matches.length===0) { setErro('PIN inválido.'); setPin(''); return; }
     setErro('');
-    if (matches.length === 1) { onSuccess(matches[0]); }
-    else { setUsuariosMatch(matches); }
+    if (matches.length===1) onSuccess(matches[0]);
+    else setUsuariosMatch(matches);
   }
 
   if (usuariosMatch.length > 1) {
     return (
-      <div style={{ ...s.app, padding: '40px 20px 24px' }}>
+      <div style={{ ...s.app, padding:'40px 20px 24px' }}>
         <button onClick={() => { setUsuariosMatch([]); setPin(''); }} style={{ background:'none', border:'none', color:'#E8C96A', fontSize:'14px', cursor:'pointer', marginBottom:'24px' }}>← Voltar</button>
         <div style={{ textAlign:'center', marginBottom:'24px' }}>
           <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#E8C96A' }}>Quem é você?</div>
-          <div style={{ fontSize:'12px', color:'#9A8880', marginTop:'4px' }}>Selecione seu nome para entrar</div>
         </div>
         {usuariosMatch.map(u => (
-          <button key={u.id} onClick={() => onSuccess(u)} style={{ ...s.btnGold, marginBottom:'10px', background: u.perfil === PERFIL.GERENTE ? 'linear-gradient(135deg,#5C2218,#8B3A2A)' : 'linear-gradient(135deg,#2E7D7A,#3A9E9A)' }}>
-            {u.perfil === PERFIL.GERENTE ? '👑' : '✂️'} {u.nome}
+          <button key={u.id} onClick={() => onSuccess(u)} style={{ ...s.btnGold, marginBottom:'10px', background:u.perfil===PERFIL.GERENTE?'linear-gradient(135deg,#5C2218,#8B3A2A)':'linear-gradient(135deg,#2E7D7A,#3A9E9A)' }}>
+            {u.perfil===PERFIL.GERENTE?'👑':'✂️'} {u.nome}
           </button>
         ))}
       </div>
@@ -173,21 +150,20 @@ function StaffLoginScreen({ onBack, onSuccess, dark }) {
   }
 
   return (
-    <div style={{ ...s.app, padding: '40px 20px 24px' }}>
+    <div style={{ ...s.app, padding:'40px 20px 24px' }}>
       <button onClick={onBack} style={{ background:'none', border:'none', color:'#E8C96A', fontSize:'14px', cursor:'pointer', marginBottom:'24px' }}>← Voltar</button>
       <div style={{ textAlign:'center', marginBottom:'32px' }}>
         <div style={{ display:'flex', justifyContent:'center' }}><LogoMark size={60} /></div>
         <div style={{ marginTop:'12px', fontFamily:"'Playfair Display',serif", fontSize:'20px', color:'#E8C96A' }}>Acesso da equipe</div>
-        <div style={{ fontSize:'12px', color:'#9A8880', marginTop:'4px' }}>Flyguer BarberShop</div>
       </div>
       <div style={{ marginBottom:'14px' }}>
-        <label style={ s.label }>PIN de acesso</label>
-        <input style={ s.input } type="password" placeholder="Digite seu PIN" value={pin}
+        <label style={s.label}>PIN de acesso</label>
+        <input style={s.input} type="password" placeholder="Digite seu PIN" value={pin}
           onChange={e => { setPin(e.target.value); setErro(''); }}
-          onKeyDown={e => e.key === 'Enter' && handleLogin()} autoFocus />
+          onKeyDown={e => e.key==='Enter'&&handleLogin()} autoFocus />
       </div>
       {erro && <div style={{ fontSize:'12px', color:'#F44336', marginBottom:'12px', textAlign:'center' }}>{erro}</div>}
-      <button style={ s.btnGold } onClick={handleLogin}>Entrar →</button>
+      <button style={s.btnGold} onClick={handleLogin}>Entrar →</button>
       <Divider />
       <WarnBanner>PINs são definidos pelo gerente nas configurações do app.</WarnBanner>
     </div>
@@ -197,7 +173,7 @@ function StaffLoginScreen({ onBack, onSuccess, dark }) {
 function EmBreve({ titulo, descricao, passo, onBack, dark }) {
   const s = getStyles(dark);
   return (
-    <div style={{ ...s.app, padding: '24px 20px' }}>
+    <div style={{ ...s.app, padding:'24px 20px' }}>
       <button onClick={onBack} style={{ background:'none', border:'none', color:'#E8C96A', fontSize:'14px', cursor:'pointer', marginBottom:'24px' }}>← Voltar</button>
       <div style={{ textAlign:'center', paddingTop:'60px' }}>
         <div style={{ fontSize:'48px', marginBottom:'16px' }}>🔨</div>
@@ -209,43 +185,43 @@ function EmBreve({ titulo, descricao, passo, onBack, dark }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// HOME CLIENTE
-// ─────────────────────────────────────────────────────────────
+// ── HOME CLIENTE ──────────────────────────────────────────────
 function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
   const s = getStyles(dark);
   return (
-    <div style={{ ...s.app, paddingBottom: '80px' }}>
+    <div style={{ ...s.app, paddingBottom:'80px' }}>
       <div style={{ ...s.header }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ ...s.avatar, width: '40px', height: '40px', fontSize: '16px', overflow: 'hidden' }}>
-            {cliente.foto ? <img src={cliente.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : cliente.nome[0].toUpperCase()}
+        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+          {/* ✅ Avatar clicável → Perfil */}
+          <div onClick={() => onNavegar('perfil_cliente')}
+            style={{ ...s.avatar, width:'40px', height:'40px', fontSize:'16px', overflow:'hidden', cursor:'pointer', border:'2px solid #C9A84C' }}>
+            {cliente.foto ? <img src={cliente.foto} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : cliente.nome[0].toUpperCase()}
           </div>
           <div>
-            <div style={{ fontSize: '13px', fontWeight: '600', color: '#F5EFE6' }}>Olá, {cliente.nome.split(' ')[0]}! 👋</div>
-            <div style={{ fontSize: '11px', color: '#9A8880' }}>Flyguer BarberShop</div>
+            <div style={{ fontSize:'13px', fontWeight:'600', color:'#F5EFE6' }}>Olá, {cliente.nome.split(' ')[0]}! 👋</div>
+            <div style={{ fontSize:'11px', color:'#9A8880' }}>Flyguer BarberShop</div>
           </div>
         </div>
-        <button onClick={onLogout} style={{ background: '#2E1A14', border: 'none', borderRadius: '8px', padding: '6px 12px', fontSize: '12px', color: '#9A8880', cursor: 'pointer' }}>Sair</button>
+        <button onClick={onLogout} style={{ background:'#2E1A14', border:'none', borderRadius:'8px', padding:'6px 12px', fontSize:'12px', color:'#9A8880', cursor:'pointer' }}>Sair</button>
       </div>
-      <div style={{ padding: '20px' }}>
-        <div style={{ background: 'linear-gradient(135deg, #5C2218, #8B3A2A)', borderRadius: '18px', padding: '20px', marginBottom: '20px' }}>
-          <div style={{ fontSize: '12px', color: 'rgba(245,239,230,0.6)', marginBottom: '4px', fontWeight: '600' }}>BEM-VINDO DE VOLTA!</div>
-          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', color: '#F5EFE6', fontWeight: '700' }}>{cliente.nome.split(' ')[0]}</div>
-          <div style={{ fontSize: '12px', color: 'rgba(245,239,230,0.6)', marginTop: '4px' }}>Cadastro ativo ✅</div>
+      <div style={{ padding:'20px' }}>
+        <div style={{ background:'linear-gradient(135deg,#5C2218,#8B3A2A)', borderRadius:'18px', padding:'20px', marginBottom:'20px' }}>
+          <div style={{ fontSize:'12px', color:'rgba(245,239,230,0.6)', marginBottom:'4px', fontWeight:'600' }}>BEM-VINDO DE VOLTA!</div>
+          <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'20px', color:'#F5EFE6', fontWeight:'700' }}>{cliente.nome.split(' ')[0]}</div>
+          <div style={{ fontSize:'12px', color:'rgba(245,239,230,0.6)', marginTop:'4px' }}>Cadastro ativo ✅</div>
         </div>
-        <div style={{ fontSize: '11px', color: '#E8C96A', fontWeight: '600', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '12px' }}>O que deseja fazer?</div>
+        <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'600', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'12px' }}>O que deseja fazer?</div>
         {[
-          { icon: '📅', label: 'Fazer Agendamento',  sub: 'Escolha barbeiro, dia e horário', acao: () => onNavegar('agendamento')       },
-          { icon: '📋', label: 'Minhas Reservas',    sub: 'Ver, cancelar ou reagendar',      acao: () => onNavegar('minhas_reservas')   },
-          { icon: '💳', label: 'Planos Mensais',     sub: 'Assine e economize nos cortes',   acao: () => onNavegar('assinatura_plano') }, // ✅ P12
-          { icon: '🔔', label: 'Notificações',       sub: 'Avisos e confirmações',           acao: null },
+          { icon:'📅', label:'Fazer Agendamento', sub:'Escolha barbeiro, dia e horário', acao:()=>onNavegar('agendamento')       },
+          { icon:'📋', label:'Minhas Reservas',   sub:'Ver, cancelar ou reagendar',      acao:()=>onNavegar('minhas_reservas')   },
+          { icon:'💳', label:'Planos Mensais',    sub:'Assine e economize nos cortes',   acao:()=>onNavegar('assinatura_plano') },
+          { icon:'👤', label:'Meu Perfil',        sub:'Dados, histórico e avaliações',   acao:()=>onNavegar('perfil_cliente')   }, // ✅ P14
         ].map(item => (
-          <div key={item.label} onClick={item.acao || undefined} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px', background: s.cardBg, borderRadius: '14px', border: `1px solid ${s.border}`, marginBottom: '10px', cursor: item.acao ? 'pointer' : 'default' }}>
-            <div style={{ fontSize: '24px' }}>{item.icon}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: '600', fontSize: '14px' }}>{item.label}</div>
-              <div style={{ fontSize: '11px', color: s.textSub }}>{item.sub}</div>
+          <div key={item.label} onClick={item.acao||undefined} style={{ display:'flex', alignItems:'center', gap:'14px', padding:'14px', background:s.cardBg, borderRadius:'14px', border:`1px solid ${s.border}`, marginBottom:'10px', cursor:item.acao?'pointer':'default' }}>
+            <div style={{ fontSize:'24px' }}>{item.icon}</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:'600', fontSize:'14px' }}>{item.label}</div>
+              <div style={{ fontSize:'11px', color:s.textSub }}>{item.sub}</div>
             </div>
           </div>
         ))}
@@ -254,23 +230,21 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// HOME GERENTE
-// ─────────────────────────────────────────────────────────────
+// ── HOME GERENTE ──────────────────────────────────────────────
 function HomeGerente({ usuario, onLogout, onNavegar, dark }) {
   const s = getStyles(dark);
   const acoes = [
-    { id: 'config',        icon: '⚙️',  label: 'Configurações',    sub: 'Horários, Pix, dados',    passo: 4  },
-    { id: 'servicos',      icon: '💈',  label: 'Serviços & Preços', sub: 'Tabela de serviços',      passo: 4  },
-    { id: 'equipe',        icon: '👥',  label: 'Equipe',            sub: 'Barbeiros e recepção',    passo: 5  },
-    { id: 'agenda',        icon: '📅',  label: 'Agenda Geral',      sub: 'Todos os barbeiros',      passo: 8  },
-    { id: 'financeiro',    icon: '💰',  label: 'Financeiro',        sub: 'Receitas e relatórios',   passo: 9  },
-    { id: 'comparativo',   icon: '📊',  label: 'Comparativo',       sub: 'Ranking de barbeiros',    passo: 9  },
-    { id: 'permissoes',    icon: '🔑',  label: 'Permissões',        sub: 'Acesso da recepção',      passo: 10 },
-    { id: 'planos_mensais',icon: '💳',  label: 'Planos Mensais',    sub: 'Criar e gerir planos',    passo: 12 }, // ✅ P12
+    { id:'config',         icon:'⚙️',  label:'Configurações',    sub:'Horários, Pix, dados',    passo:4  },
+    { id:'servicos',       icon:'💈',  label:'Serviços & Preços', sub:'Tabela de serviços',      passo:4  },
+    { id:'equipe',         icon:'👥',  label:'Equipe',            sub:'Barbeiros e recepção',    passo:5  },
+    { id:'agenda',         icon:'📅',  label:'Agenda Geral',      sub:'Todos os barbeiros',      passo:8  },
+    { id:'financeiro',     icon:'💰',  label:'Financeiro',        sub:'Receitas e relatórios',   passo:9  },
+    { id:'comparativo',    icon:'📊',  label:'Comparativo',       sub:'Ranking de barbeiros',    passo:9  },
+    { id:'permissoes',     icon:'🔑',  label:'Permissões',        sub:'Acesso da recepção',      passo:10 },
+    { id:'planos_mensais', icon:'💳',  label:'Planos Mensais',    sub:'Criar e gerir planos',    passo:12 },
   ];
   return (
-    <div style={{ ...s.app, paddingBottom: '24px' }}>
+    <div style={{ ...s.app, paddingBottom:'24px' }}>
       <div style={{ ...s.headerGold, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <div>
           <div style={{ fontSize:'11px', color:'rgba(245,239,230,0.7)', fontWeight:'600' }}>👑 ADMINISTRAÇÃO</div>
@@ -278,7 +252,7 @@ function HomeGerente({ usuario, onLogout, onNavegar, dark }) {
         </div>
         <button onClick={onLogout} style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:'8px', padding:'6px 12px', fontSize:'12px', color:'#F5EFE6', cursor:'pointer', fontWeight:'600' }}>Sair</button>
       </div>
-      <div style={{ padding: '20px' }}>
+      <div style={{ padding:'20px' }}>
         <div style={{ ...s.card, background:'linear-gradient(135deg,#1A0F0D,#231410)', borderColor:'#8B3A2A', marginBottom:'20px' }}>
           <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
             <div style={{ ...s.avatar, width:'52px', height:'52px', fontSize:'22px', border:'2px solid #E8C96A' }}>{usuario.nome[0]}</div>
@@ -304,13 +278,11 @@ function HomeGerente({ usuario, onLogout, onNavegar, dark }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// HOME BARBEIRO
-// ─────────────────────────────────────────────────────────────
+// ── HOME BARBEIRO ──────────────────────────────────────────────
 function HomeBarbeiro({ usuario, onLogout, onNavegar, dark }) {
   const s = getStyles(dark);
   return (
-    <div style={{ ...s.app, paddingBottom: '24px' }}>
+    <div style={{ ...s.app, paddingBottom:'24px' }}>
       <div style={{ ...s.header }}>
         <div>
           <div style={{ ...s.headerTitle }}>✂️ Minha Agenda</div>
@@ -326,9 +298,7 @@ function HomeBarbeiro({ usuario, onLogout, onNavegar, dark }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// APP PRINCIPAL
-// ─────────────────────────────────────────────────────────────
+// ── APP PRINCIPAL ──────────────────────────────────────────────
 export default function App() {
   const [dark, setDark]       = React.useState(true);
   const [tela, setTela]       = React.useState('splash');
@@ -341,20 +311,20 @@ export default function App() {
 
   function handleStaffLogin(usuarioLogado) {
     setUsuario(usuarioLogado);
-    if (usuarioLogado.perfil === PERFIL.GERENTE)           setTela('home_gerente');
-    else if (usuarioLogado.perfil === PERFIL.BARBEIRO)     setTela('home_barbeiro');
-    else if (usuarioLogado.perfil === PERFIL.RECEPCIONISTA) setTela('recepcao');
+    if (usuarioLogado.perfil===PERFIL.GERENTE)           setTela('home_gerente');
+    else if (usuarioLogado.perfil===PERFIL.BARBEIRO)     setTela('home_barbeiro');
+    else if (usuarioLogado.perfil===PERFIL.RECEPCIONISTA) setTela('recepcao');
   }
 
   function handleNavegarGerente(modulo) {
-    if (modulo === 'config')   { setConfigAbaInicial('horarios'); setTela('config_barbearia'); return; }
-    if (modulo === 'servicos') { setConfigAbaInicial('servicos'); setTela('config_barbearia'); return; }
-    if (modulo === 'equipe')   { setTela('gestao_equipe');  return; }
-    if (modulo === 'financeiro' || modulo === 'comparativo') { setTela('financeiro'); return; }
-    if (modulo === 'agenda')   { setTela('agenda_geral');   return; }
-    if (modulo === 'permissoes') { setTela('recepcao');     return; }
-    if (modulo === 'planos_mensais') { setTela('planos_mensais'); return; } // ✅ P12
-    setEmBreveInfo({ titulo: modulo, descricao: `Módulo em desenvolvimento.`, passo: '?' });
+    if (modulo==='config')         { setConfigAbaInicial('horarios'); setTela('config_barbearia'); return; }
+    if (modulo==='servicos')       { setConfigAbaInicial('servicos'); setTela('config_barbearia'); return; }
+    if (modulo==='equipe')         { setTela('gestao_equipe');   return; }
+    if (modulo==='financeiro'||modulo==='comparativo') { setTela('financeiro'); return; }
+    if (modulo==='agenda')         { setTela('agenda_geral');    return; }
+    if (modulo==='permissoes')     { setTela('recepcao');        return; }
+    if (modulo==='planos_mensais') { setTela('planos_mensais');  return; }
+    setEmBreveInfo({ titulo:modulo, descricao:'Módulo em desenvolvimento.', passo:'?' });
     setTela('em_breve');
   }
 
@@ -362,130 +332,137 @@ export default function App() {
 
   function voltar() {
     if (usuario) {
-      if (usuario.perfil === PERFIL.GERENTE)       setTela('home_gerente');
-      else if (usuario.perfil === PERFIL.BARBEIRO) setTela('home_barbeiro');
+      if (usuario.perfil===PERFIL.GERENTE)       setTela('home_gerente');
+      else if (usuario.perfil===PERFIL.BARBEIRO) setTela('home_barbeiro');
       else setTela('staff_login');
-    } else {
-      setTela('splash');
-    }
+    } else { setTela('splash'); }
   }
 
   const toggleTema = (
-    <button onClick={() => setDark(d => !d)} style={{ position: 'fixed', top: '12px', right: '12px', zIndex: '100', background: 'rgba(0,0,0,0.4)', border: '1px solid #3A2018', borderRadius: '50%', width: '32px', height: '32px', fontSize: '14px', cursor: 'pointer', color: '#fff', backdropFilter: 'blur(4px)' }} title={dark ? 'Modo claro' : 'Modo escuro'}>
-      {dark ? '☀️' : '🌙'}
+    <button onClick={() => setDark(d=>!d)} style={{ position:'fixed', top:'12px', right:'12px', zIndex:'100', background:'rgba(0,0,0,0.4)', border:'1px solid #3A2018', borderRadius:'50%', width:'32px', height:'32px', fontSize:'14px', cursor:'pointer', color:'#fff', backdropFilter:'blur(4px)' }} title={dark?'Modo claro':'Modo escuro'}>
+      {dark?'☀️':'🌙'}
     </button>
   );
 
   return (
-    <div style={{ maxWidth: '430px', margin: '0 auto', minHeight: '100vh', position: 'relative' }}>
+    <div style={{ maxWidth:'430px', margin:'0 auto', minHeight:'100vh', position:'relative' }}>
       {toggleTema}
       <ErrorBoundary modulo="App">
 
-        {tela === 'splash' && (
-          <SplashScreen onClienteNovo={() => setTela('login_cliente')} onClienteCadastrado={() => setTela('login_cliente')} onStaff={() => setTela('staff_login')} dark={dark} />
-        )}
+        {tela==='splash' && <SplashScreen onClienteNovo={()=>setTela('login_cliente')} onClienteCadastrado={()=>setTela('login_cliente')} onStaff={()=>setTela('staff_login')} dark={dark} />}
 
-        {tela === 'login_cliente' && (
+        {tela==='login_cliente' && (
           <ErrorBoundary modulo="LoginCliente">
-            <LoginFlow onSucesso={handleLoginClienteSucesso} onBack={() => setTela('splash')} dark={dark} />
+            <LoginFlow onSucesso={handleLoginClienteSucesso} onBack={()=>setTela('splash')} dark={dark} />
           </ErrorBoundary>
         )}
 
-        {tela === 'home_cliente' && cliente && (
+        {tela==='home_cliente' && cliente && (
           <ErrorBoundary modulo="HomeCliente">
-            <HomeCliente cliente={cliente} onLogout={() => { setCliente(null); setTela('splash'); }} onNavegar={setTela} dark={dark} />
+            <HomeCliente cliente={cliente} onLogout={()=>{setCliente(null);setTela('splash');}} onNavegar={setTela} dark={dark} />
           </ErrorBoundary>
         )}
 
-        {tela === 'staff_login' && (
-          <StaffLoginScreen onBack={() => setTela('splash')} onSuccess={handleStaffLogin} dark={dark} />
-        )}
+        {tela==='staff_login' && <StaffLoginScreen onBack={()=>setTela('splash')} onSuccess={handleStaffLogin} dark={dark} />}
 
-        {tela === 'home_gerente' && usuario && (
+        {tela==='home_gerente' && usuario && (
           <ErrorBoundary modulo="HomeGerente">
             <HomeGerente usuario={usuario} onLogout={handleLogout} onNavegar={handleNavegarGerente} dark={dark} />
           </ErrorBoundary>
         )}
 
-        {tela === 'home_barbeiro' && usuario && (
+        {tela==='home_barbeiro' && usuario && (
           <ErrorBoundary modulo="HomeBarbeiro">
-            <HomeBarbeiro usuario={usuario} onLogout={handleLogout} onNavegar={mod => {
-              if (mod === 'equipe') setTela('gestao_equipe');
-              if (mod === 'agenda_barbeiro') setTela('agenda_barbeiro');
+            <HomeBarbeiro usuario={usuario} onLogout={handleLogout} onNavegar={mod=>{
+              if (mod==='equipe') setTela('gestao_equipe');
+              if (mod==='agenda_barbeiro') setTela('agenda_barbeiro');
             }} dark={dark} />
           </ErrorBoundary>
         )}
 
-        {tela === 'minhas_reservas' && cliente && (
+        {tela==='minhas_reservas' && cliente && (
           <ErrorBoundary modulo="MinhasReservas">
-            <MinhasReservas cliente={cliente} onBack={() => setTela('home_cliente')} onReagendar={() => setTela('agendamento')} dark={dark} />
+            <MinhasReservas cliente={cliente} onBack={()=>setTela('home_cliente')} onReagendar={()=>setTela('agendamento')} dark={dark} />
           </ErrorBoundary>
         )}
 
-        {tela === 'agendamento' && cliente && (
+        {tela==='agendamento' && cliente && (
           <ErrorBoundary modulo="Agendamento">
-            <Agendamento cliente={cliente} onBack={() => setTela('home_cliente')} dark={dark} />
+            <Agendamento cliente={cliente} onBack={()=>setTela('home_cliente')} dark={dark} />
           </ErrorBoundary>
         )}
 
-        {tela === 'recepcao' && (
+        {tela==='recepcao' && (
           <ErrorBoundary modulo="PainelRecepcao">
-            <PainelRecepcao onBack={() => usuario?.perfil === PERFIL.GERENTE ? setTela('home_gerente') : setTela('splash')} dark={dark} />
+            <PainelRecepcao
+              onBack={()=>usuario?.perfil===PERFIL.GERENTE?setTela('home_gerente'):setTela('splash')}
+              dark={dark}
+              onNavegarAssinaturas={()=>setTela('gerenciar_assinaturas')}
+            />
           </ErrorBoundary>
         )}
 
-        {tela === 'financeiro' && usuario && (
+        {tela==='financeiro' && usuario && (
           <ErrorBoundary modulo="Financeiro">
-            <Financeiro onBack={() => setTela('home_gerente')} dark={dark} />
+            <Financeiro onBack={()=>setTela('home_gerente')} dark={dark} />
           </ErrorBoundary>
         )}
 
-        {tela === 'agenda_barbeiro' && usuario && (
+        {tela==='agenda_barbeiro' && usuario && (
           <ErrorBoundary modulo="AgendaBarbeiro">
-            <AgendaBarbeiro usuario={usuario} onBack={() => setTela(usuario.perfil === PERFIL.GERENTE ? 'home_gerente' : 'home_barbeiro')} dark={dark} />
+            <AgendaBarbeiro usuario={usuario} onBack={()=>setTela(usuario.perfil===PERFIL.GERENTE?'home_gerente':'home_barbeiro')} dark={dark} />
           </ErrorBoundary>
         )}
 
-        {tela === 'agenda_geral' && usuario && (
+        {tela==='agenda_geral' && usuario && (
           <ErrorBoundary modulo="AgendaGeral">
-            <AgendaGeral usuario={usuario} onBack={() => setTela('home_gerente')} dark={dark} />
+            <AgendaGeral usuario={usuario} onBack={()=>setTela('home_gerente')} dark={dark} />
           </ErrorBoundary>
         )}
 
-        {tela === 'gestao_equipe' && usuario && (
+        {tela==='gestao_equipe' && usuario && (
           <ErrorBoundary modulo="GestaoEquipe">
-            <GestaoEquipe usuario={usuario} onBack={() => usuario.perfil === PERFIL.GERENTE ? setTela('home_gerente') : setTela('home_barbeiro')} dark={dark} />
+            <GestaoEquipe usuario={usuario} onBack={()=>usuario.perfil===PERFIL.GERENTE?setTela('home_gerente'):setTela('home_barbeiro')} dark={dark} />
           </ErrorBoundary>
         )}
 
-        {tela === 'config_barbearia' && usuario && (
+        {tela==='config_barbearia' && usuario && (
           <ErrorBoundary modulo="ConfigBarbearia">
-            <ConfigBarbearia onBack={() => setTela('home_gerente')} dark={dark} abaInicial={configAbaInicial} />
+            <ConfigBarbearia onBack={()=>setTela('home_gerente')} dark={dark} abaInicial={configAbaInicial} />
           </ErrorBoundary>
         )}
 
-        {/* ✅ P12 — Gerente: gerencia planos */}
-        {tela === 'planos_mensais' && usuario && (
+        {tela==='planos_mensais' && usuario && (
           <ErrorBoundary modulo="PlanosMensais">
-            <PlanosMensais onBack={() => setTela('home_gerente')} dark={dark} />
+            <PlanosMensais onBack={()=>setTela('home_gerente')} dark={dark} />
           </ErrorBoundary>
         )}
 
-        {/* ✅ P12 — Cliente: assina plano */}
-        {tela === 'assinatura_plano' && cliente && (
+        {tela==='assinatura_plano' && cliente && (
           <ErrorBoundary modulo="AssinaturaPlano">
-            <AssinaturaPlano cliente={cliente} onBack={() => setTela('home_cliente')} dark={dark} />
+            <AssinaturaPlano cliente={cliente} onBack={()=>setTela('home_cliente')} dark={dark} />
           </ErrorBoundary>
         )}
 
-        {/* ✅ P12 — Recepção: vincula + dá baixa (acessível dentro do PainelRecepcao via prop) */}
-        {tela === 'gerenciar_assinaturas' && (
+        {tela==='gerenciar_assinaturas' && (
           <ErrorBoundary modulo="GerenciarAssinaturas">
-            <GerenciarAssinaturas onBack={() => setTela('recepcao')} dark={dark} />
+            <GerenciarAssinaturas onBack={()=>setTela('recepcao')} dark={dark} />
           </ErrorBoundary>
         )}
 
-        {tela === 'em_breve' && (
+        {/* ✅ P14 — Perfil do Cliente */}
+        {tela==='perfil_cliente' && cliente && (
+          <ErrorBoundary modulo="PerfilCliente">
+            <PerfilCliente
+              cliente={cliente}
+              onBack={()=>setTela('home_cliente')}
+              dark={dark}
+              onNavegar={setTela}
+            />
+          </ErrorBoundary>
+        )}
+
+        {tela==='em_breve' && (
           <EmBreve titulo={emBreveInfo?.titulo} descricao={emBreveInfo?.descricao} passo={emBreveInfo?.passo} onBack={voltar} dark={dark} />
         )}
 
