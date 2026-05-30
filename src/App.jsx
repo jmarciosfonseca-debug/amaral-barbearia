@@ -17,6 +17,7 @@ import PlanosMensais from './PlanosMensais';
 import AssinaturaPlano from './AssinaturaPlano';
 import GerenciarAssinaturas from './GerenciarAssinaturas';
 import PerfilCliente from './PerfilCliente';   // ✅ P14
+import Comparativo from './Comparativo';       // ✅ P14
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -320,7 +321,8 @@ export default function App() {
     if (modulo==='config')         { setConfigAbaInicial('horarios'); setTela('config_barbearia'); return; }
     if (modulo==='servicos')       { setConfigAbaInicial('servicos'); setTela('config_barbearia'); return; }
     if (modulo==='equipe')         { setTela('gestao_equipe');   return; }
-    if (modulo==='financeiro'||modulo==='comparativo') { setTela('financeiro'); return; }
+    if (modulo==='financeiro')   { setTela('financeiro');   return; }
+    if (modulo==='comparativo') { setTela('comparativo');  return; } // ✅ P14
     if (modulo==='agenda')         { setTela('agenda_geral');    return; }
     if (modulo==='permissoes')     { setTela('recepcao');        return; }
     if (modulo==='planos_mensais') { setTela('planos_mensais');  return; }
@@ -447,6 +449,13 @@ export default function App() {
         {tela==='gerenciar_assinaturas' && (
           <ErrorBoundary modulo="GerenciarAssinaturas">
             <GerenciarAssinaturas onBack={()=>setTela('recepcao')} dark={dark} />
+          </ErrorBoundary>
+        )}
+
+        {/* ✅ P14 — Comparativo */}
+        {tela==='comparativo' && usuario && (
+          <ErrorBoundary modulo="Comparativo">
+            <Comparativo onBack={()=>setTela('home_gerente')} dark={dark} />
           </ErrorBoundary>
         )}
 
