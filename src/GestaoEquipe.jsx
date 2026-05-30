@@ -84,25 +84,25 @@ function ModalNovoBarbeiro({ onSalvar, onFechar }) {
   const [erro, setErro]         = React.useState('');
 
   async function handleSalvar() {
-    if (!dados.nome.trim())       { setErro('Nome obrigatório'); return; }
-    if (!dados.whatsapp.trim())   { setErro('WhatsApp obrigatório'); return; }
-    if (dados.pin.length < 4)     { setErro('PIN deve ter pelo menos 4 dígitos'); return; }
+    if (!dados.nome.trim())     { setErro('Nome obrigatório'); return; }
+    if (!dados.whatsapp.trim()) { setErro('WhatsApp obrigatório'); return; }
+    if (dados.pin.length < 4)   { setErro('PIN deve ter pelo menos 4 dígitos'); return; }
     setSalvando(true);
+    setErro('');
     try {
-      // Gera ID único baseado no nome
       const id = 'b_' + Date.now();
       await setDoc(doc(db, 'barbeiros', id), {
         ...dados,
         id,
-        criadoEm: serverTimestamp(),
+        criadoEm:    serverTimestamp(),
         atualizadoEm: serverTimestamp(),
       });
+      // ✅ Fecha imediatamente após salvar com sucesso
       onSalvar({ ...dados, id });
     } catch (e) {
       setErro('Erro ao salvar. Tente novamente.');
       console.error(e);
-    } finally {
-      setSalvando(false);
+      setSalvando(false); // só reseta se der erro
     }
   }
 
