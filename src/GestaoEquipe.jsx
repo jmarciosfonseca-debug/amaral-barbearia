@@ -366,10 +366,10 @@ export default function GestaoEquipe({ usuario, onBack, dark }) {
     carregar();
   }, []);
 
-  const [excluindo, setExcluindo] = React.useState(null); // barbeiro a excluir
+  const [excluindo, setExcluindo] = React.useState(null);
 
   async function handleExcluir(barbeiro) {
-    if (barbeiro.perfil === PERFIL.GERENTE) return; // protege o gerente
+    if (barbeiro.perfil === PERFIL.GERENTE) return;
     try {
       await updateDoc(doc(db, 'barbeiros', barbeiro.id), {
         ativo: false,
@@ -379,6 +379,8 @@ export default function GestaoEquipe({ usuario, onBack, dark }) {
     } catch (e) { console.error(e); }
     finally { setExcluindo(null); }
   }
+
+  async function toggleDisponivel(barbeiro) {
     setSalvandoDisp(barbeiro.id);
     const novoValor = !barbeiro.disponivel;
     try {
