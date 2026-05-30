@@ -112,15 +112,26 @@ function ModalNovoBarbeiro({ onSalvar, onFechar }) {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 999 }}>
-      <div style={{ background: '#1A0F0D', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: '430px', padding: '24px 20px 40px', border: '1px solid #3A2018', borderBottom: 'none', maxHeight: '90vh', overflowY: 'auto' }}>
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 999 }}
+      onClick={fechar}
+    >
+      <div
+        style={{ background: '#1A0F0D', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: '430px', padding: '24px 20px 40px', border: '1px solid #3A2018', borderBottom: 'none', maxHeight: '90vh', overflowY: 'auto' }}
+        onClick={e => e.stopPropagation()}
+      >
 
-        {/* Header com X sempre ativo */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '18px', color: '#E8C96A' }}>➕ Novo Barbeiro</div>
           <button
             onClick={fechar}
-            style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', color: '#F5EFE6', fontSize: '18px', cursor: 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{
+              background: '#3A2018', border: 'none', borderRadius: '50%',
+              width: '36px', height: '36px', color: '#F5EFE6', fontSize: '18px',
+              cursor: 'pointer', fontWeight: '700', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              zIndex: 1001, position: 'relative', flexShrink: 0,
+            }}
           >✕</button>
         </div>
 
