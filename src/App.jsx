@@ -110,7 +110,6 @@ function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark }) {
         <div onClick={onStaff} style={{ textAlign:'center', fontSize:'11px', color:'#444', cursor:'pointer', paddingBottom:'8px' }}>Acesso da equipe</div>
       </div>
     </div>
-    </GlobalErrorBoundary>
   );
 }
 
@@ -171,7 +170,6 @@ function StaffLoginScreen({ onBack, onSuccess, dark }) {
       <Divider />
       <WarnBanner>PINs são definidos pelo gerente nas configurações do app.</WarnBanner>
     </div>
-    </GlobalErrorBoundary>
   );
 }
 
@@ -187,7 +185,6 @@ function EmBreve({ titulo, descricao, passo, onBack, dark }) {
         <div style={{ ...s.badgeGold, justifyContent:'center', fontSize:'13px', padding:'8px 16px' }}>🔨 Passo {passo} — Em desenvolvimento</div>
       </div>
     </div>
-    </GlobalErrorBoundary>
   );
 }
 
@@ -289,7 +286,6 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
         ))}
       </div>
     </div>
-    </GlobalErrorBoundary>
   );
 }
 
@@ -338,7 +334,6 @@ function HomeGerente({ usuario, onLogout, onNavegar, dark }) {
         </div>
       </div>
     </div>
-    </GlobalErrorBoundary>
   );
 }
 
@@ -359,7 +354,6 @@ function HomeBarbeiro({ usuario, onLogout, onNavegar, dark }) {
         <button style={{ ...s.btnDark, marginTop:'10px' }} onClick={() => onNavegar('equipe')}>👤 Meu Perfil & Disponibilidade</button>
       </div>
     </div>
-    </GlobalErrorBoundary>
   );
 }
 
