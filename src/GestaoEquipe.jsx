@@ -371,16 +371,156 @@ function ModalTrocarPIN({ barbeiro, onSalvar, onFechar }) {
 // ─────────────────────────────────────────────────────────────
 // COMPONENTE PRINCIPAL
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// TELA NOVO BARBEIRO — tela completa, sem modal
+// ─────────────────────────────────────────────────────────────
+function TelaNovoBarbeiro({ onVoltar, onSalvar, dark }) {
+  const s = getStyles(dark);
+  const [dados, setDados] = React.useState({
+    nome: '', cargo: 'Barbeiro', whatsapp: '', pin: '12345',
+    perfil: PERFIL.BARBEIRO, ativo: true, disponivel: true, foto: null,
+  });
+  const [salvando, setSalvando] = React.useState(false);
+  const [erro, setErro]         = React.useState('');
+  const [ok, setOk]             = React.useState(false);
+
+  async function handleSalvar() {
+    if (!dados.nome.trim())     { setErro('Nome obrigatório'); return; }
+    if (!dados.whatsapp.trim()) { setErro('WhatsApp obrigatório'); return; }
+    if (dados.pin.length < 4)   { setErro('PIN deve ter pelo menos 4 dígitos'); return; }
+    setSalvando(true);
+    setErro('');
+    try {
+      const id = 'b_' + Date.now();
+      await setDoc(doc(db, 'barbeiros', id), {
+        ...dados, id,
+        criadoEm: serverTimestamp(),
+        atualizadoEm: serverTimestamp(),
+      });
+      setOk(true);
+      setTimeout(() => onSalvar({ ...dados, id }), 1200);
+    } catch (e) {
+      setErro('Erro ao salvar. Tente novamente.');
+      setSalvando(false);
+    }
+  }
+
+  const inp = {
+    width: '100%', background: '#2E1A14', border: '1px solid #3A2018',
+    borderRadius: '10px', padding: '10px 12px', color: '#F5EFE6',
+    fontSize: '14px', outline: 'none', boxSizing: 'border-box',
+    fontFamily: "'DM Sans', sans-serif",
+  };
+
+  if (ok) {
+    return (
+      <div style={{ ...s.app, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '64px', marginBottom: '16px' }}>✅</div>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', color: '#E8C96A' }}>Barbeiro adicionado!</div>
+          <div style={{ fontSize: '13px', color: '#9A8880', marginTop: '8px' }}>Voltando para a equipe...</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...s.app, paddingBottom: '40px' }}>
+      <div style={{ background: 'linear-gradient(135deg, #5C2218, #8B3A2A)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <button onClick={onVoltar} style={{ background: 'rgba(0,0,0,0.2)', border: 'none', borderRadius: '8px', padding: '6px 10px', color: '#F5EFE6', cursor: 'pointer', fontSize: '14px' }}>← Voltar</button>
+        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '17px', fontWeight: '700', color: '#F5EFE6' }}>➕ Novo Barbeiro</div>
+      </div>
+
+      <div style={{ padding: '20px' }}>
+        {[
+          { label: 'Nome *', campo: 'nome', placeholder: 'Nome completo', type: 'text' },
+          { label: 'Cargo', campo: 'cargo', placeholder: 'Ex: Barbeiro, Sócio...', type: 'text' },
+          { label: 'WhatsApp * (com DDD)', campo: 'whatsapp', placeholder: '11999999999', type: 'tel' },
+        ].map(f => (
+          <div key={f.campo} style={{ marginBottom: '14px' }}>
+            <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '5px' }}>{f.label}</label>
+            <input type={f.type} style={inp} placeholder={f.placeholder}
+              value={dados[f.campo]} onChange={e => { setDados(d => ({ ...d, [f.campo]: e.target.value })); setErro(''); }} />
+          </div>
+        ))}
+
+        <div style={{ marginBottom: '14px' }}>
+          <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '5px' }}>PIN inicial *</label>
+          <input type="password" style={inp} value={dados.pin} maxLength={5}
+            onChange={e => setDados(d => ({ ...d, pin: e.target.value }))} placeholder="Mínimo 4 dígitos" />
+          <div style={{ fontSize: '10px', color: '#555', marginTop: '3px' }}>O barbeiro pode trocar após o primeiro acesso</div>
+        </div>
+
+        <div style={{ marginBottom: '14px' }}>
+          <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '8px' }}>Perfil</label>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {[{ id: PERFIL.BARBEIRO, label: '✂️ Barbeiro' }, { id: PERFIL.GERENTE, label: '👑 Gerente' }].map(p => (
+              <button key={p.id} onClick={() => setDados(d => ({ ...d, perfil: p.id }))} style={{
+                flex: 1, padding: '10px', borderRadius: '10px',
+                border: dados.perfil === p.id ? '2px solid #8B3A2A' : '1px solid #3A2018',
+                background: dados.perfil === p.id ? 'rgba(139,58,42,0.2)' : '#231410',
+                color: dados.perfil === p.id ? '#E8C96A' : '#9A8880',
+                fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+              }}>{p.label}</button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ background: '#231410', borderRadius: '14px', padding: '16px', border: '1px solid #3A2018', marginBottom: '14px' }}>
+          {[
+            { label: 'Ativo', sub: 'Aparece no app para clientes', campo: 'ativo' },
+            { label: 'Disponível agora', sub: 'Aceita novos agendamentos', campo: 'disponivel' },
+          ].map((item, i) => (
+            <div key={item.campo}>
+              {i > 0 && <div style={{ height: '1px', background: '#3A2018', margin: '12px 0' }} />}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: '13px', color: '#F5EFE6', fontWeight: '600' }}>{item.label}</div>
+                  <div style={{ fontSize: '11px', color: '#9A8880' }}>{item.sub}</div>
+                </div>
+                <div onClick={() => setDados(d => ({ ...d, [item.campo]: !d[item.campo] }))} style={{
+                  width: '44px', height: '24px', borderRadius: '12px',
+                  background: dados[item.campo] ? '#8B3A2A' : '#3A2018',
+                  position: 'relative', cursor: 'pointer', transition: 'background 0.2s',
+                }}>
+                  <div style={{
+                    position: 'absolute', top: '3px', left: dados[item.campo] ? '23px' : '3px',
+                    width: '18px', height: '18px', borderRadius: '50%',
+                    background: dados[item.campo] ? '#F5EFE6' : '#9A8880', transition: 'left 0.2s',
+                  }} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {erro && <div style={{ fontSize: '12px', color: '#F44336', marginBottom: '12px', textAlign: 'center', background: 'rgba(244,67,54,0.1)', borderRadius: '8px', padding: '10px' }}>{erro}</div>}
+
+        <button onClick={handleSalvar} disabled={salvando} style={{
+          width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
+          background: 'linear-gradient(135deg, #2E7D7A, #3A9E9A)',
+          color: '#F5EFE6', fontSize: '15px', fontWeight: '700',
+          cursor: salvando ? 'wait' : 'pointer', fontFamily: "'DM Sans', sans-serif",
+        }}>
+          {salvando ? '⏳ Salvando...' : '✅ Adicionar Barbeiro'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function GestaoEquipe({ usuario, onBack, dark }) {
   const s = getStyles(dark);
   const isGerente = usuario?.perfil === PERFIL.GERENTE;
 
-  const [barbeiros, setBarbeiros]       = React.useState([]);
-  const [carregando, setCarregando]     = React.useState(true);
-  const [editando, setEditando]         = React.useState(null);
-  const [trocandoPin, setTrocandoPin]   = React.useState(null);
-  const [adicionando, setAdicionando]   = React.useState(false); // ✅ NOVO
+  const [barbeiros, setBarbeiros]     = React.useState([]);
+  const [carregando, setCarregando]   = React.useState(true);
+  const [editando, setEditando]       = React.useState(null);
+  const [trocandoPin, setTrocandoPin] = React.useState(null);
+  const [excluindo, setExcluindo]     = React.useState(null);
   const [salvandoDisp, setSalvandoDisp] = React.useState(null);
+  // ✅ Tela em vez de modal
+  const [tela, setTela] = React.useState('lista'); // 'lista' | 'novo'
 
   React.useEffect(() => {
     async function carregar() {
@@ -390,7 +530,7 @@ export default function GestaoEquipe({ usuario, onBack, dark }) {
           await Promise.all(BARBEIROS_INICIAIS.map(b => setDoc(doc(db, 'barbeiros', b.id), { ...b, criadoEm: serverTimestamp() })));
           setBarbeiros(BARBEIROS_INICIAIS);
         } else {
-          setBarbeiros(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          setBarbeiros(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => b.ativo !== false));
         }
       } catch (e) {
         console.error(e);
@@ -400,15 +540,10 @@ export default function GestaoEquipe({ usuario, onBack, dark }) {
     carregar();
   }, []);
 
-  const [excluindo, setExcluindo] = React.useState(null);
-
   async function handleExcluir(barbeiro) {
     if (barbeiro.perfil === PERFIL.GERENTE) return;
     try {
-      await updateDoc(doc(db, 'barbeiros', barbeiro.id), {
-        ativo: false,
-        excluidoEm: serverTimestamp(),
-      });
+      await updateDoc(doc(db, 'barbeiros', barbeiro.id), { ativo: false, excluidoEm: serverTimestamp() });
       setBarbeiros(bs => bs.filter(b => b.id !== barbeiro.id));
     } catch (e) { console.error(e); }
     finally { setExcluindo(null); }
@@ -435,7 +570,14 @@ export default function GestaoEquipe({ usuario, onBack, dark }) {
     );
   }
 
-  return (
+  // ✅ TELA NOVO BARBEIRO — sem modal, tela completa
+  if (tela === 'novo') {
+    return <TelaNovoBarbeiro
+      dark={dark}
+      onVoltar={() => setTela('lista')}
+      onSalvar={novo => { setBarbeiros(bs => [...bs, novo]); setTela('lista'); }}
+    />;
+  }
     <div style={{ ...s.app, paddingBottom: '40px' }}>
 
       {/* Header */}
@@ -451,7 +593,7 @@ export default function GestaoEquipe({ usuario, onBack, dark }) {
         </div>
         {/* ✅ Botão adicionar — só gerente */}
         {isGerente && (
-          <button onClick={() => setAdicionando(true)} style={{
+          <button onClick={() => setTela('novo')} style={{
             background: 'rgba(245,239,230,0.15)', border: '1px solid rgba(245,239,230,0.3)',
             borderRadius: '10px', padding: '8px 12px', color: '#F5EFE6',
             fontSize: '12px', fontWeight: '700', cursor: 'pointer',
@@ -559,11 +701,6 @@ export default function GestaoEquipe({ usuario, onBack, dark }) {
             </div>
           </div>
         </div>
-      )}
-        <ModalNovoBarbeiro
-          onSalvar={novo => { setBarbeiros(bs => [...bs, novo]); setAdicionando(false); }}
-          onFechar={() => setAdicionando(false)}
-        />
       )}
       {editando && (
         <ModalEditarBarbeiro
