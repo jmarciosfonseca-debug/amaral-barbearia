@@ -80,110 +80,133 @@ function ModalNovoBarbeiro({ onSalvar, onFechar }) {
     nome: '', cargo: 'Barbeiro', whatsapp: '', pin: '12345',
     perfil: PERFIL.BARBEIRO, ativo: true, disponivel: true, foto: null,
   });
-  const [salvando, setSalvando] = React.useState(false);
-  const [erro, setErro]         = React.useState('');
+  const [estado, setEstado] = React.useState('idle'); // idle | salvando | ok | erro
+  const [msgErro, setMsgErro] = React.useState('');
+
+  // ✅ X sempre funciona — ignora estado
+  function fechar() { onFechar(); }
 
   async function handleSalvar() {
-    if (!dados.nome.trim())     { setErro('Nome obrigatório'); return; }
-    if (!dados.whatsapp.trim()) { setErro('WhatsApp obrigatório'); return; }
-    if (dados.pin.length < 4)   { setErro('PIN deve ter pelo menos 4 dígitos'); return; }
-    setSalvando(true);
-    setErro('');
+    if (!dados.nome.trim())     { setMsgErro('Nome obrigatório'); return; }
+    if (!dados.whatsapp.trim()) { setMsgErro('WhatsApp obrigatório'); return; }
+    if (dados.pin.length < 4)   { setMsgErro('PIN deve ter pelo menos 4 dígitos'); return; }
+
+    setEstado('salvando');
+    setMsgErro('');
+
     try {
       const id = 'b_' + Date.now();
       await setDoc(doc(db, 'barbeiros', id), {
-        ...dados,
-        id,
-        criadoEm:    serverTimestamp(),
+        ...dados, id,
+        criadoEm: serverTimestamp(),
         atualizadoEm: serverTimestamp(),
       });
-      // ✅ Fecha imediatamente após salvar com sucesso
-      onSalvar({ ...dados, id });
+      setEstado('ok');
+      // Fecha após 800ms mostrando sucesso
+      setTimeout(() => onSalvar({ ...dados, id }), 800);
     } catch (e) {
-      setErro('Erro ao salvar. Tente novamente.');
       console.error(e);
-      setSalvando(false); // só reseta se der erro
+      setMsgErro('Erro ao salvar. Tente novamente.');
+      setEstado('idle');
     }
   }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 999 }}>
       <div style={{ background: '#1A0F0D', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: '430px', padding: '24px 20px 40px', border: '1px solid #3A2018', borderBottom: 'none', maxHeight: '90vh', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+
+        {/* Header com X sempre ativo */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '18px', color: '#E8C96A' }}>➕ Novo Barbeiro</div>
-          <button onClick={onFechar} style={{ background: 'none', border: 'none', color: '#9A8880', fontSize: '20px', cursor: 'pointer' }}>✕</button>
+          <button
+            onClick={fechar}
+            style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', color: '#F5EFE6', fontSize: '18px', cursor: 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >✕</button>
         </div>
 
-        {[
-          { label: 'Nome *', campo: 'nome', placeholder: 'Nome completo', type: 'text' },
-          { label: 'Cargo', campo: 'cargo', placeholder: 'Ex: Barbeiro, Sócio...', type: 'text' },
-          { label: 'WhatsApp * (com DDD)', campo: 'whatsapp', placeholder: '11999999999', type: 'tel' },
-        ].map(f => (
-          <div key={f.campo} style={{ marginBottom: '12px' }}>
-            <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '5px' }}>{f.label}</label>
-            <input type={f.type} style={inputStyle} placeholder={f.placeholder}
-              value={dados[f.campo]} onChange={e => setDados(d => ({ ...d, [f.campo]: e.target.value }))} />
+        {/* Feedback sucesso */}
+        {estado === 'ok' && (
+          <div style={{ textAlign: 'center', padding: '20px' }}>
+            <div style={{ fontSize: '48px', marginBottom: '12px' }}>✅</div>
+            <div style={{ color: '#4CAF50', fontSize: '16px', fontWeight: '600' }}>Barbeiro adicionado!</div>
           </div>
-        ))}
+        )}
 
-        {/* PIN inicial */}
-        <div style={{ marginBottom: '12px' }}>
-          <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '5px' }}>PIN inicial *</label>
-          <input type="password" style={inputStyle} value={dados.pin} maxLength={5}
-            onChange={e => setDados(d => ({ ...d, pin: e.target.value }))} placeholder="Mínimo 4 dígitos" />
-          <div style={{ fontSize: '10px', color: '#555', marginTop: '3px' }}>O barbeiro pode trocar após o primeiro acesso</div>
-        </div>
-
-        {/* Perfil */}
-        <div style={{ marginBottom: '14px' }}>
-          <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '8px' }}>Perfil</label>
-          <div style={{ display: 'flex', gap: '8px' }}>
+        {estado !== 'ok' && (
+          <>
             {[
-              { id: PERFIL.BARBEIRO, label: '✂️ Barbeiro' },
-              { id: PERFIL.GERENTE,  label: '👑 Gerente'  },
-            ].map(p => (
-              <button key={p.id} onClick={() => setDados(d => ({ ...d, perfil: p.id }))} style={{
-                flex: 1, padding: '10px', borderRadius: '10px',
-                border: dados.perfil === p.id ? '2px solid #8B3A2A' : '1px solid #3A2018',
-                background: dados.perfil === p.id ? 'rgba(139,58,42,0.2)' : '#231410',
-                color: dados.perfil === p.id ? '#E8C96A' : '#9A8880',
-                fontSize: '13px', fontWeight: '600', cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif",
-              }}>{p.label}</button>
+              { label: 'Nome *', campo: 'nome', placeholder: 'Nome completo', type: 'text' },
+              { label: 'Cargo', campo: 'cargo', placeholder: 'Ex: Barbeiro, Sócio...', type: 'text' },
+              { label: 'WhatsApp * (com DDD)', campo: 'whatsapp', placeholder: '11999999999', type: 'tel' },
+            ].map(f => (
+              <div key={f.campo} style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '5px' }}>{f.label}</label>
+                <input type={f.type} style={inputStyle} placeholder={f.placeholder}
+                  value={dados[f.campo]} onChange={e => { setDados(d => ({ ...d, [f.campo]: e.target.value })); setMsgErro(''); }} />
+              </div>
             ))}
-          </div>
-        </div>
 
-        {/* Toggles */}
-        <Card>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-            <div>
-              <div style={{ fontSize: '13px', color: '#F5EFE6', fontWeight: '600' }}>Ativo</div>
-              <div style={{ fontSize: '11px', color: '#9A8880' }}>Aparece no app para clientes</div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '5px' }}>PIN inicial *</label>
+              <input type="password" style={inputStyle} value={dados.pin} maxLength={5}
+                onChange={e => setDados(d => ({ ...d, pin: e.target.value }))} placeholder="Mínimo 4 dígitos" />
+              <div style={{ fontSize: '10px', color: '#555', marginTop: '3px' }}>O barbeiro pode trocar após o primeiro acesso</div>
             </div>
-            <Toggle value={dados.ativo} onChange={v => setDados(d => ({ ...d, ativo: v }))} />
-          </div>
-          <div style={{ height: '1px', background: '#3A2018', margin: '8px 0' }} />
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontSize: '13px', color: '#F5EFE6', fontWeight: '600' }}>Disponível agora</div>
-              <div style={{ fontSize: '11px', color: '#9A8880' }}>Aceita novos agendamentos</div>
+
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ fontSize: '11px', color: '#9A8880', display: 'block', marginBottom: '8px' }}>Perfil</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {[
+                  { id: PERFIL.BARBEIRO, label: '✂️ Barbeiro' },
+                  { id: PERFIL.GERENTE,  label: '👑 Gerente'  },
+                ].map(p => (
+                  <button key={p.id} onClick={() => setDados(d => ({ ...d, perfil: p.id }))} style={{
+                    flex: 1, padding: '10px', borderRadius: '10px',
+                    border: dados.perfil === p.id ? '2px solid #8B3A2A' : '1px solid #3A2018',
+                    background: dados.perfil === p.id ? 'rgba(139,58,42,0.2)' : '#231410',
+                    color: dados.perfil === p.id ? '#E8C96A' : '#9A8880',
+                    fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+                    fontFamily: "'DM Sans', sans-serif",
+                  }}>{p.label}</button>
+                ))}
+              </div>
             </div>
-            <Toggle value={dados.disponivel} onChange={v => setDados(d => ({ ...d, disponivel: v }))} />
-          </div>
-        </Card>
 
-        {erro && <div style={{ fontSize: '12px', color: '#F44336', marginBottom: '12px', textAlign: 'center' }}>{erro}</div>}
+            <Card>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '13px', color: '#F5EFE6', fontWeight: '600' }}>Ativo</div>
+                  <div style={{ fontSize: '11px', color: '#9A8880' }}>Aparece no app para clientes</div>
+                </div>
+                <Toggle value={dados.ativo} onChange={v => setDados(d => ({ ...d, ativo: v }))} />
+              </div>
+              <div style={{ height: '1px', background: '#3A2018', margin: '8px 0' }} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: '13px', color: '#F5EFE6', fontWeight: '600' }}>Disponível agora</div>
+                  <div style={{ fontSize: '11px', color: '#9A8880' }}>Aceita novos agendamentos</div>
+                </div>
+                <Toggle value={dados.disponivel} onChange={v => setDados(d => ({ ...d, disponivel: v }))} />
+              </div>
+            </Card>
 
-        <button onClick={handleSalvar} disabled={salvando} style={{
-          width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
-          background: 'linear-gradient(135deg, #2E7D7A, #3A9E9A)',
-          color: '#F5EFE6', fontSize: '15px', fontWeight: '700',
-          cursor: salvando ? 'wait' : 'pointer',
-          fontFamily: "'DM Sans', sans-serif",
-        }}>
-          {salvando ? '⏳ Salvando...' : '✅ Adicionar Barbeiro'}
-        </button>
+            {msgErro && (
+              <div style={{ fontSize: '12px', color: '#F44336', marginBottom: '12px', textAlign: 'center', background: 'rgba(244,67,54,0.1)', borderRadius: '8px', padding: '8px' }}>
+                {msgErro}
+              </div>
+            )}
+
+            <button onClick={handleSalvar} disabled={estado === 'salvando'} style={{
+              width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
+              background: estado === 'salvando' ? '#2E7D7A' : 'linear-gradient(135deg, #2E7D7A, #3A9E9A)',
+              color: '#F5EFE6', fontSize: '15px', fontWeight: '700',
+              cursor: estado === 'salvando' ? 'wait' : 'pointer',
+              fontFamily: "'DM Sans', sans-serif",
+            }}>
+              {estado === 'salvando' ? '⏳ Salvando...' : '✅ Adicionar Barbeiro'}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
