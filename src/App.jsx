@@ -1,7 +1,5 @@
 // App.jsx — Flyguer BarberShop
-// ✅ rota 'servicos' → config_barbearia na aba serviços
-// ✅ rota 'agenda'   → AgendaGeral (nova)
-// ✅ AgendaGeral importada
+// ✅ Passo 12 — Planos Mensais adicionados
 
 import React from 'react';
 import { db } from './firebase';
@@ -12,9 +10,12 @@ import GestaoEquipe from './GestaoEquipe';
 import Agendamento from './Agendamento';
 import MinhasReservas from './MinhasReservas';
 import AgendaBarbeiro from './AgendaBarbeiro';
-import AgendaGeral from './AgendaGeral'; // ✅ NOVO
+import AgendaGeral from './AgendaGeral';
 import Financeiro from './Financeiro';
 import PainelRecepcao from './PainelRecepcao';
+import PlanosMensais from './PlanosMensais';           // ✅ P12
+import AssinaturaPlano from './AssinaturaPlano';       // ✅ P12
+import GerenciarAssinaturas from './GerenciarAssinaturas'; // ✅ P12
 
 // ─────────────────────────────────────────────────────────────
 // ERROR BOUNDARY
@@ -235,10 +236,10 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
         </div>
         <div style={{ fontSize: '11px', color: '#E8C96A', fontWeight: '600', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '12px' }}>O que deseja fazer?</div>
         {[
-          { icon: '📅', label: 'Fazer Agendamento', sub: 'Escolha barbeiro, dia e horário', acao: () => onNavegar('agendamento')     },
-          { icon: '📋', label: 'Minhas Reservas',   sub: 'Ver, cancelar ou reagendar',      acao: () => onNavegar('minhas_reservas') },
-          { icon: '💳', label: 'Pagamento via Pix', sub: 'Pagar adiantado com Pix',         acao: null },
-          { icon: '🔔', label: 'Notificações',      sub: 'Avisos e confirmações',            acao: null },
+          { icon: '📅', label: 'Fazer Agendamento',  sub: 'Escolha barbeiro, dia e horário', acao: () => onNavegar('agendamento')       },
+          { icon: '📋', label: 'Minhas Reservas',    sub: 'Ver, cancelar ou reagendar',      acao: () => onNavegar('minhas_reservas')   },
+          { icon: '💳', label: 'Planos Mensais',     sub: 'Assine e economize nos cortes',   acao: () => onNavegar('assinatura_plano') }, // ✅ P12
+          { icon: '🔔', label: 'Notificações',       sub: 'Avisos e confirmações',           acao: null },
         ].map(item => (
           <div key={item.label} onClick={item.acao || undefined} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px', background: s.cardBg, borderRadius: '14px', border: `1px solid ${s.border}`, marginBottom: '10px', cursor: item.acao ? 'pointer' : 'default' }}>
             <div style={{ fontSize: '24px' }}>{item.icon}</div>
@@ -259,13 +260,14 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
 function HomeGerente({ usuario, onLogout, onNavegar, dark }) {
   const s = getStyles(dark);
   const acoes = [
-    { id: 'config',      icon: '⚙️',  label: 'Configurações',    sub: 'Horários, Pix, dados',  passo: 4 },
-    { id: 'servicos',    icon: '💈',  label: 'Serviços & Preços', sub: 'Tabela de serviços',    passo: 4 },
-    { id: 'equipe',      icon: '👥',  label: 'Equipe',            sub: 'Barbeiros e recepção',  passo: 5 },
-    { id: 'agenda',      icon: '📅',  label: 'Agenda Geral',      sub: 'Todos os barbeiros',    passo: 8 },
-    { id: 'financeiro',  icon: '💰',  label: 'Financeiro',        sub: 'Receitas e relatórios', passo: 9 },
-    { id: 'comparativo', icon: '📊',  label: 'Comparativo',       sub: 'Ranking de barbeiros',  passo: 9 },
-    { id: 'permissoes',  icon: '🔑',  label: 'Permissões',        sub: 'Acesso da recepção',    passo: 10 },
+    { id: 'config',        icon: '⚙️',  label: 'Configurações',    sub: 'Horários, Pix, dados',    passo: 4  },
+    { id: 'servicos',      icon: '💈',  label: 'Serviços & Preços', sub: 'Tabela de serviços',      passo: 4  },
+    { id: 'equipe',        icon: '👥',  label: 'Equipe',            sub: 'Barbeiros e recepção',    passo: 5  },
+    { id: 'agenda',        icon: '📅',  label: 'Agenda Geral',      sub: 'Todos os barbeiros',      passo: 8  },
+    { id: 'financeiro',    icon: '💰',  label: 'Financeiro',        sub: 'Receitas e relatórios',   passo: 9  },
+    { id: 'comparativo',   icon: '📊',  label: 'Comparativo',       sub: 'Ranking de barbeiros',    passo: 9  },
+    { id: 'permissoes',    icon: '🔑',  label: 'Permissões',        sub: 'Acesso da recepção',      passo: 10 },
+    { id: 'planos_mensais',icon: '💳',  label: 'Planos Mensais',    sub: 'Criar e gerir planos',    passo: 12 }, // ✅ P12
   ];
   return (
     <div style={{ ...s.app, paddingBottom: '24px' }}>
@@ -328,39 +330,30 @@ function HomeBarbeiro({ usuario, onLogout, onNavegar, dark }) {
 // APP PRINCIPAL
 // ─────────────────────────────────────────────────────────────
 export default function App() {
-  const [dark, setDark]     = React.useState(true);
-  const [tela, setTela]     = React.useState('splash');
+  const [dark, setDark]       = React.useState(true);
+  const [tela, setTela]       = React.useState('splash');
   const [usuario, setUsuario] = React.useState(null);
   const [cliente, setCliente] = React.useState(null);
   const [emBreveInfo, setEmBreveInfo] = React.useState(null);
-  // ✅ Aba inicial do ConfigBarbearia (config vs servicos)
   const [configAbaInicial, setConfigAbaInicial] = React.useState('horarios');
 
   function handleLoginClienteSucesso(clienteLogado) { setCliente(clienteLogado); setTela('home_cliente'); }
 
   function handleStaffLogin(usuarioLogado) {
     setUsuario(usuarioLogado);
-    if (usuarioLogado.perfil === PERFIL.GERENTE)       setTela('home_gerente');
-    else if (usuarioLogado.perfil === PERFIL.BARBEIRO)  setTela('home_barbeiro');
+    if (usuarioLogado.perfil === PERFIL.GERENTE)           setTela('home_gerente');
+    else if (usuarioLogado.perfil === PERFIL.BARBEIRO)     setTela('home_barbeiro');
     else if (usuarioLogado.perfil === PERFIL.RECEPCIONISTA) setTela('recepcao');
   }
 
   function handleNavegarGerente(modulo) {
-    // ✅ config → aba horários | servicos → aba serviços (mesma tela, aba diferente)
-    if (modulo === 'config') {
-      setConfigAbaInicial('horarios');
-      setTela('config_barbearia');
-      return;
-    }
-    if (modulo === 'servicos') {
-      setConfigAbaInicial('servicos'); // ✅ abre direto na aba de serviços
-      setTela('config_barbearia');
-      return;
-    }
-    if (modulo === 'equipe')                            { setTela('gestao_equipe'); return; }
+    if (modulo === 'config')   { setConfigAbaInicial('horarios'); setTela('config_barbearia'); return; }
+    if (modulo === 'servicos') { setConfigAbaInicial('servicos'); setTela('config_barbearia'); return; }
+    if (modulo === 'equipe')   { setTela('gestao_equipe');  return; }
     if (modulo === 'financeiro' || modulo === 'comparativo') { setTela('financeiro'); return; }
-    if (modulo === 'agenda')                            { setTela('agenda_geral'); return; } // ✅ AgendaGeral
-    if (modulo === 'permissoes')                        { setTela('recepcao'); return; }
+    if (modulo === 'agenda')   { setTela('agenda_geral');   return; }
+    if (modulo === 'permissoes') { setTela('recepcao');     return; }
+    if (modulo === 'planos_mensais') { setTela('planos_mensais'); return; } // ✅ P12
     setEmBreveInfo({ titulo: modulo, descricao: `Módulo em desenvolvimento.`, passo: '?' });
     setTela('em_breve');
   }
@@ -369,7 +362,7 @@ export default function App() {
 
   function voltar() {
     if (usuario) {
-      if (usuario.perfil === PERFIL.GERENTE)  setTela('home_gerente');
+      if (usuario.perfil === PERFIL.GERENTE)       setTela('home_gerente');
       else if (usuario.perfil === PERFIL.BARBEIRO) setTela('home_barbeiro');
       else setTela('staff_login');
     } else {
@@ -453,7 +446,6 @@ export default function App() {
           </ErrorBoundary>
         )}
 
-        {/* ✅ NOVO: Agenda Geral do Gerente */}
         {tela === 'agenda_geral' && usuario && (
           <ErrorBoundary modulo="AgendaGeral">
             <AgendaGeral usuario={usuario} onBack={() => setTela('home_gerente')} dark={dark} />
@@ -468,8 +460,28 @@ export default function App() {
 
         {tela === 'config_barbearia' && usuario && (
           <ErrorBoundary modulo="ConfigBarbearia">
-            {/* ✅ passa abaInicial para abrir direto em Serviços ou Horários */}
             <ConfigBarbearia onBack={() => setTela('home_gerente')} dark={dark} abaInicial={configAbaInicial} />
+          </ErrorBoundary>
+        )}
+
+        {/* ✅ P12 — Gerente: gerencia planos */}
+        {tela === 'planos_mensais' && usuario && (
+          <ErrorBoundary modulo="PlanosMensais">
+            <PlanosMensais onBack={() => setTela('home_gerente')} dark={dark} />
+          </ErrorBoundary>
+        )}
+
+        {/* ✅ P12 — Cliente: assina plano */}
+        {tela === 'assinatura_plano' && cliente && (
+          <ErrorBoundary modulo="AssinaturaPlano">
+            <AssinaturaPlano cliente={cliente} onBack={() => setTela('home_cliente')} dark={dark} />
+          </ErrorBoundary>
+        )}
+
+        {/* ✅ P12 — Recepção: vincula + dá baixa (acessível dentro do PainelRecepcao via prop) */}
+        {tela === 'gerenciar_assinaturas' && (
+          <ErrorBoundary modulo="GerenciarAssinaturas">
+            <GerenciarAssinaturas onBack={() => setTela('recepcao')} dark={dark} />
           </ErrorBoundary>
         )}
 
