@@ -2,6 +2,7 @@
 // ✅ v3 — Tela separada para novo barbeiro (sem modal)
 // ✅ Excluir barbeiro com confirmação
 // ✅ Editar, PIN, disponibilidade
+// ✅ Fix sintaxe linha 720
 
 import React from 'react';
 import { db } from './firebase';
@@ -92,9 +93,12 @@ function ModalEditarBarbeiro({ barbeiro, onSalvar, onFechar }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 999 }}>
       <div style={{ background: '#1A0F0D', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: '430px', padding: '24px 20px 40px', border: '1px solid #3A2018', borderBottom: 'none', maxHeight: '85vh', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '18px', color: '#E8C96A' }}>Editar Barbeiro</div>
-          <button onClick={onFechar} style={{ background: 'none', border: 'none', color: '#9A8880', fontSize: '20px', cursor: 'pointer' }}>X</button>
+          <button
+            onClick={onFechar}
+            style={{ background: '#2E1A14', border: '1px solid #3A2018', borderRadius: '50%', width: '32px', height: '32px', color: '#F5EFE6', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+          >✕</button>
         </div>
         {[
           { label: 'Nome', campo: 'nome', type: 'text' },
@@ -156,13 +160,16 @@ function ModalTrocarPIN({ barbeiro, onSalvar, onFechar }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 999 }}>
       <div style={{ background: '#1A0F0D', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: '430px', padding: '24px 20px 40px', border: '1px solid #3A2018', borderBottom: 'none' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '18px', color: '#E8C96A' }}>Trocar PIN</div>
-          <button onClick={onFechar} style={{ background: 'none', border: 'none', color: '#9A8880', fontSize: '20px', cursor: 'pointer' }}>X</button>
+          <button
+            onClick={onFechar}
+            style={{ background: '#2E1A14', border: '1px solid #3A2018', borderRadius: '50%', width: '32px', height: '32px', color: '#F5EFE6', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+          >✕</button>
         </div>
         {ok ? (
           <div style={{ textAlign: 'center', padding: '20px' }}>
-            <div style={{ fontSize: '48px', marginBottom: '12px' }}>OK</div>
+            <div style={{ fontSize: '48px', marginBottom: '12px' }}>✅</div>
             <div style={{ color: '#4CAF50', fontSize: '16px', fontWeight: '600' }}>PIN atualizado!</div>
           </div>
         ) : (
@@ -223,7 +230,7 @@ function TelaNovoBarbeiro({ onVoltar, onSalvar, dark }) {
     return (
       <div style={{ ...s.app, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '64px', marginBottom: '16px' }}>OK</div>
+          <div style={{ fontSize: '64px', marginBottom: '16px' }}>✅</div>
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '20px', color: '#E8C96A' }}>Barbeiro adicionado!</div>
           <div style={{ fontSize: '13px', color: '#9A8880', marginTop: '8px' }}>Voltando...</div>
         </div>
@@ -234,7 +241,7 @@ function TelaNovoBarbeiro({ onVoltar, onSalvar, dark }) {
   return (
     <div style={{ ...s.app, paddingBottom: '40px' }}>
       <div style={{ background: 'linear-gradient(135deg, #5C2218, #8B3A2A)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <button onClick={onVoltar} style={{ background: 'rgba(0,0,0,0.2)', border: 'none', borderRadius: '8px', padding: '6px 10px', color: '#F5EFE6', cursor: 'pointer', fontSize: '14px' }}>Voltar</button>
+        <button onClick={onVoltar} style={{ background: 'rgba(0,0,0,0.2)', border: 'none', borderRadius: '8px', padding: '6px 10px', color: '#F5EFE6', cursor: 'pointer', fontSize: '14px' }}>← Voltar</button>
         <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '17px', fontWeight: '700', color: '#F5EFE6' }}>Novo Barbeiro</div>
       </div>
       <div style={{ padding: '20px' }}>
@@ -330,7 +337,7 @@ export default function GestaoEquipe({ usuario, onBack, dark }) {
     return (
       <div style={{ ...s.app, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '32px', marginBottom: '12px' }}>...</div>
+          <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
           <div style={{ color: '#9A8880', fontSize: '13px' }}>Carregando equipe...</div>
         </div>
       </div>
@@ -350,7 +357,7 @@ export default function GestaoEquipe({ usuario, onBack, dark }) {
   return (
     <div style={{ ...s.app, paddingBottom: '40px' }}>
       <div style={{ background: 'linear-gradient(135deg, #5C2218, #8B3A2A)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <button onClick={onBack} style={{ background: 'rgba(0,0,0,0.2)', border: 'none', borderRadius: '8px', padding: '6px 10px', color: '#F5EFE6', cursor: 'pointer', fontSize: '14px' }}>voltar</button>
+        <button onClick={onBack} style={{ background: 'rgba(0,0,0,0.2)', border: 'none', borderRadius: '8px', padding: '6px 10px', color: '#F5EFE6', cursor: 'pointer', fontSize: '14px' }}>← Voltar</button>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '17px', fontWeight: '700', color: '#F5EFE6' }}>
             {isGerente ? 'Gestao da Equipe' : 'Meu Perfil'}
@@ -391,7 +398,7 @@ export default function GestaoEquipe({ usuario, onBack, dark }) {
                 <button onClick={() => setEditando(barbeiro)} style={{ padding: '8px 12px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #5C2218, #8B3A2A)', color: '#F5EFE6', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Editar</button>
               )}
               {isGerente && barbeiro.perfil !== PERFIL.GERENTE && (
-                <button onClick={() => setExcluindo(barbeiro)} style={{ padding: '8px 10px', borderRadius: '10px', border: '1px solid rgba(244,67,54,0.3)', background: 'rgba(244,67,54,0.1)', color: '#F44336', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>X</button>
+                <button onClick={() => setExcluindo(barbeiro)} style={{ padding: '8px 10px', borderRadius: '10px', border: '1px solid rgba(244,67,54,0.3)', background: 'rgba(244,67,54,0.1)', color: '#F44336', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>✕</button>
               )}
             </div>
           </Card>
@@ -401,7 +408,7 @@ export default function GestaoEquipe({ usuario, onBack, dark }) {
       {excluindo && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: '20px' }}>
           <div style={{ background: '#1A0F0D', borderRadius: '20px', width: '100%', maxWidth: '360px', padding: '28px 24px', border: '1px solid #3A2018', textAlign: 'center' }}>
-            <div style={{ fontSize: '48px', marginBottom: '12px' }}>?</div>
+            <div style={{ fontSize: '48px', marginBottom: '12px' }}>⚠️</div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '18px', color: '#F44336', marginBottom: '8px' }}>Remover barbeiro?</div>
             <div style={{ fontSize: '14px', color: '#F5EFE6', fontWeight: '600', marginBottom: '6px' }}>{excluindo.nome}</div>
             <div style={{ fontSize: '12px', color: '#9A8880', marginBottom: '24px' }}>O barbeiro sera inativado. Agendamentos existentes nao sao afetados.</div>
