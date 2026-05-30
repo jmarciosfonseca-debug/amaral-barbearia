@@ -14,6 +14,7 @@ import {
   query, where, serverTimestamp,
 } from 'firebase/firestore';
 import { getStyles, DIAS_SEMANA } from './getStyles';
+import { notificarBarbeariaNovoAgendamento } from './notificacoes'; // ✅
 
 // ─────────────────────────────────────────────────────────────
 // UTILITÁRIOS DE DATA
@@ -582,6 +583,8 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
         criadoEm:          serverTimestamp(),
       };
       await addDoc(collection(db, 'agendamentos'), agendamento);
+      // ✅ Notifica barbearia via WhatsApp
+      notificarBarbeariaNovoAgendamento(agendamento);
       onConfirmar(agendamento);
     } catch (e) {
       setErro('Erro ao confirmar. Tente novamente.');
