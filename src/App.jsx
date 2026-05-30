@@ -18,6 +18,8 @@ import AssinaturaPlano from './AssinaturaPlano';
 import GerenciarAssinaturas from './GerenciarAssinaturas';
 import PerfilCliente from './PerfilCliente';   // ✅ P14
 import Comparativo from './Comparativo';       // ✅ P14
+import InstalarApp from './InstalarApp';       // ✅ PWA
+import { GlobalErrorBoundary, BannerOffline } from './OfflineGuard'; // ✅ Escudo
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -49,6 +51,7 @@ function WarnBanner({ children }) {
     <div style={{ background:'rgba(255,193,7,0.1)', border:'1px solid rgba(255,193,7,0.3)', borderRadius:'10px', padding:'10px 14px', display:'flex', alignItems:'flex-start', gap:'8px', fontSize:'12px', color:'#FFC107', marginBottom:'12px' }}>
       <span>⚠️</span><span>{children}</span>
     </div>
+    </GlobalErrorBoundary>
   );
 }
 
@@ -108,6 +111,7 @@ function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark }) {
         <div onClick={onStaff} style={{ textAlign:'center', fontSize:'11px', color:'#444', cursor:'pointer', paddingBottom:'8px' }}>Acesso da equipe</div>
       </div>
     </div>
+    </GlobalErrorBoundary>
   );
 }
 
@@ -168,6 +172,7 @@ function StaffLoginScreen({ onBack, onSuccess, dark }) {
       <Divider />
       <WarnBanner>PINs são definidos pelo gerente nas configurações do app.</WarnBanner>
     </div>
+    </GlobalErrorBoundary>
   );
 }
 
@@ -183,12 +188,53 @@ function EmBreve({ titulo, descricao, passo, onBack, dark }) {
         <div style={{ ...s.badgeGold, justifyContent:'center', fontSize:'13px', padding:'8px 16px' }}>🔨 Passo {passo} — Em desenvolvimento</div>
       </div>
     </div>
+    </GlobalErrorBoundary>
   );
 }
 
 // ── HOME CLIENTE ──────────────────────────────────────────────
 function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
   const s = getStyles(dark);
+  const [lembrete, setLembrete] = React.useState(null);
+
+  // ✅ P14 — Verificar agendamento nas próximas 2h
+  React.useEffect(() => {
+    if (!cliente?.cpf) return;
+    const chave = cliente.cpf;
+    const hojeStr = new Date().toISOString().split('T')[0];
+    (async () => {
+      const { collection, query, where, getDocs } = await import('firebase/firestore');
+      const snap = await getDocs(query(
+        collection(db, 'agendamentos'),
+        where('clienteCpf', '==', chave),
+        where('data', '==', hojeStr),
+        where('status', '==', 'confirmado'),
+      ));
+      const agora = new Date();
+      const proximo = snap.docs.map(d => d.data())
+        .filter(a => {
+          const [h, m] = a.hora.split(':').map(Number);
+          const alvo = new Date(); alvo.setHours(h, m, 0, 0);
+          const diff = (alvo - agora) / 1000 / 60;
+          return diff > 0 && diff <= 120;
+        })
+        .sort((a, b) => a.hora.localeCompare(b.hora))[0];
+      if (proximo) setLembrete(proximo);
+    })();
+  }, [cliente?.cpf]);
+
+  function abrirWhatsAppLembrete(ag) {
+    const msg = encodeURIComponent(
+      `Olá! Estou confirmando minha presença no agendamento de hoje:%0A%0A` +
+      `✂️ Barbeiro: ${ag.barbeiroNome}%0A` +
+      `💈 Serviço: ${ag.servico}%0A` +
+      `🕐 Horário: ${ag.hora}%0A` +
+      `💰 Valor: R$ ${(ag.valor||0).toFixed(2).replace('.',',')}%0A%0A` +
+      `Até logo! 👋`
+    );
+    window.open(`https://wa.me/5511939089988?text=${msg}`, '_blank');
+  }
+
   return (
     <div style={{ ...s.app, paddingBottom:'80px' }}>
       <div style={{ ...s.header }}>
@@ -206,6 +252,22 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
         <button onClick={onLogout} style={{ background:'#2E1A14', border:'none', borderRadius:'8px', padding:'6px 12px', fontSize:'12px', color:'#9A8880', cursor:'pointer' }}>Sair</button>
       </div>
       <div style={{ padding:'20px' }}>
+
+        {/* ✅ P14 — Banner lembrete de agendamento */}
+        {lembrete && (
+          <div style={{ background:'linear-gradient(135deg,#A07830,#C9A84C)', borderRadius:'14px', padding:'14px', marginBottom:'14px', display:'flex', alignItems:'center', gap:'12px' }}>
+            <span style={{ fontSize:'28px' }}>🔔</span>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:'700', fontSize:'13px', color:'#1A0F0D' }}>Seu agendamento é hoje às {lembrete.hora}!</div>
+              <div style={{ fontSize:'11px', color:'rgba(26,15,13,0.7)', marginTop:'2px' }}>✂️ {lembrete.barbeiroNome} · {lembrete.servico}</div>
+            </div>
+            <button onClick={() => abrirWhatsAppLembrete(lembrete)}
+              style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:'10px', padding:'8px 10px', color:'#1A0F0D', fontSize:'11px', fontWeight:'700', cursor:'pointer', whiteSpace:'nowrap' }}>
+              📲 Confirmar
+            </button>
+          </div>
+        )}
+
         <div style={{ background:'linear-gradient(135deg,#5C2218,#8B3A2A)', borderRadius:'18px', padding:'20px', marginBottom:'20px' }}>
           <div style={{ fontSize:'12px', color:'rgba(245,239,230,0.6)', marginBottom:'4px', fontWeight:'600' }}>BEM-VINDO DE VOLTA!</div>
           <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'20px', color:'#F5EFE6', fontWeight:'700' }}>{cliente.nome.split(' ')[0]}</div>
@@ -228,6 +290,7 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
         ))}
       </div>
     </div>
+    </GlobalErrorBoundary>
   );
 }
 
@@ -276,6 +339,7 @@ function HomeGerente({ usuario, onLogout, onNavegar, dark }) {
         </div>
       </div>
     </div>
+    </GlobalErrorBoundary>
   );
 }
 
@@ -296,11 +360,17 @@ function HomeBarbeiro({ usuario, onLogout, onNavegar, dark }) {
         <button style={{ ...s.btnDark, marginTop:'10px' }} onClick={() => onNavegar('equipe')}>👤 Meu Perfil & Disponibilidade</button>
       </div>
     </div>
+    </GlobalErrorBoundary>
   );
 }
 
 // ── APP PRINCIPAL ──────────────────────────────────────────────
 export default function App() {
+  React.useEffect(() => {
+    // Remove splash screen quando app montar
+    if (window.__removeSpash) window.__removeSpash();
+  }, []);
+
   const [dark, setDark]       = React.useState(true);
   const [tela, setTela]       = React.useState('splash');
   const [usuario, setUsuario] = React.useState(null);
@@ -477,5 +547,6 @@ export default function App() {
 
       </ErrorBoundary>
     </div>
+    </GlobalErrorBoundary>
   );
 }
