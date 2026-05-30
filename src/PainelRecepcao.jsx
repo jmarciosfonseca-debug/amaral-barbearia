@@ -16,6 +16,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { getStyles } from './getStyles';
+import { notificarClienteAgendamentoManual } from './notificacoes'; // ✅
 
 // ─────────────────────────────────────────────────────────────
 // UTILITÁRIOS
@@ -332,7 +333,7 @@ function ModalNovoAgendamento({ agendamentosHoje, onSalvar, onFechar }) {
     setSalvando(true);
     setErro('');
     try {
-      await addDoc(collection(db, 'agendamentos'), {
+      const novoAg = {
         ...form,
         servico:     nomeServicos,
         valor:       totalValor,
@@ -342,7 +343,10 @@ function ModalNovoAgendamento({ agendamentosHoje, onSalvar, onFechar }) {
         agendadoPor: 'recepcao',
         sinal:       0,
         criadoEm:    serverTimestamp(),
-      });
+      };
+      await addDoc(collection(db, 'agendamentos'), novoAg);
+      // ✅ Notifica cliente via WhatsApp (se tiver telefone)
+      if (form.clienteTel) notificarClienteAgendamentoManual(novoAg);
       onSalvar();
     } catch (e) {
       setErro('Erro ao salvar. Tente novamente.');
