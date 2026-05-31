@@ -168,7 +168,9 @@ function ModalNovoAgendamento({ onSalvar, onFechar, clientePreencher }) {
     if(horasOcup.includes(form.hora)){ setErro(`Horário ${form.hora} ocupado`); return; }
     setSalv(true); setErro('');
     try {
-      const ag={ ...form, servico:nomeSvs, valor:totalVal, duracao:totalDur, servicoIds:selSvs.map(s=>s.id).filter(Boolean), status:'confirmado', agendadoPor:'recepcao', sinal:0, semCadastro:semCad&&!clientePreencher, criadoEm:serverTimestamp() };
+      // 🔧 clienteTel normalizado para MinhasReservas encontrar pelo telefone
+      const telNorm = (form.clienteTel||'').replace(/\D/g,'').slice(-11);
+      const ag={ ...form, servico:nomeSvs, valor:totalVal, duracao:totalDur, servicoIds:selSvs.map(s=>s.id).filter(Boolean), status:'confirmado', agendadoPor:'recepcao', sinal:0, semCadastro:semCad&&!clientePreencher, clienteTel:telNorm, criadoEm:serverTimestamp() };
       await addDoc(collection(db,'agendamentos'),ag);
       notificarCliente(ag);
       onSalvar();
