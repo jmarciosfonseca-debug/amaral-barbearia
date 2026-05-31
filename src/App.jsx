@@ -18,6 +18,7 @@ import AssinaturaPlano from './AssinaturaPlano';
 import GerenciarAssinaturas from './GerenciarAssinaturas';
 import PerfilCliente from './PerfilCliente';   // ✅ P14
 import Comparativo from './Comparativo';       // ✅ P14
+import Promocao from './Promocao';             // ✅ Promoção
 import InstalarApp from './InstalarApp';       // ✅ PWA
 import { GlobalErrorBoundary, BannerOffline } from './OfflineGuard'; // ✅ Escudo
 
@@ -301,6 +302,7 @@ function HomeGerente({ usuario, onLogout, onNavegar, dark }) {
     { id:'comparativo',    icon:'📊',  label:'Comparativo',       sub:'Ranking de barbeiros',    passo:9  },
     { id:'permissoes',     icon:'🔑',  label:'Permissões',        sub:'Acesso da recepção',      passo:10 },
     { id:'planos_mensais', icon:'💳',  label:'Planos Mensais',    sub:'Criar e gerir planos',    passo:12 },
+    { id:'promocao',      icon:'🔴',  label:'Promoção / Novidade', sub:'Disparar para clientes',  passo:14 },
   ];
   return (
     <div style={{ ...s.app, paddingBottom:'24px' }}>
@@ -389,6 +391,7 @@ export default function App() {
     if (modulo==='agenda')         { setTela('agenda_geral');    return; }
     if (modulo==='permissoes')     { setTela('recepcao');        return; }
     if (modulo==='planos_mensais') { setTela('planos_mensais');  return; }
+    if (modulo==='promocao')      { setTela('promocao');        return; }
     setEmBreveInfo({ titulo:modulo, descricao:'Módulo em desenvolvimento.', passo:'?' });
     setTela('em_breve');
   }
@@ -515,6 +518,13 @@ export default function App() {
         {tela==='gerenciar_assinaturas' && (
           <ErrorBoundary modulo="GerenciarAssinaturas">
             <GerenciarAssinaturas onBack={()=>setTela('recepcao')} dark={dark} />
+          </ErrorBoundary>
+        )}
+
+        {/* ✅ Promoção */}
+        {tela==='promocao' && usuario && (
+          <ErrorBoundary modulo="Promocao">
+            <Promocao onBack={()=>setTela('home_gerente')} dark={dark} />
           </ErrorBoundary>
         )}
 
