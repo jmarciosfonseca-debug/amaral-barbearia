@@ -393,6 +393,7 @@ export default function App() {
   const [cliente, setCliente]     = React.useState(null);
   const [emBreveInfo, setEmBreveInfo] = React.useState(null);
   const [configAbaInicial, setConfigAbaInicial] = React.useState('horarios');
+  const [promoParaResgatar, setPromoParaResgatar] = React.useState(null);
 
   function handleLoginClienteSucesso(clienteLogado) { setCliente(clienteLogado); setTela('home_cliente'); }
 
@@ -447,7 +448,7 @@ export default function App() {
           onClienteCadastrado={()=>setTela('login_cliente')}
           onStaff={()=>setTela('staff_login')}
           dark={dark}
-          onVerPromo={()=>setTela('login_cliente')}
+          onVerPromo={(promo)=>{ setPromoParaResgatar(promo); setTela('login_cliente'); }}
         />}
 
         {tela==='login_cliente' && (
@@ -487,7 +488,7 @@ export default function App() {
 
         {tela==='agendamento' && cliente && (
           <ErrorBoundary modulo="Agendamento">
-            <Agendamento cliente={cliente} onBack={()=>setTela('home_cliente')} dark={dark} />
+            <Agendamento cliente={cliente} onBack={()=>setTela('home_cliente')} dark={dark} promoParaResgatar={promoParaResgatar} />
           </ErrorBoundary>
         )}
 
