@@ -87,23 +87,21 @@ export default function AssinaturaPlano({ cliente, onBack, dark }) {
         renovacaoAuto:    false,
       });
 
+      // ✅ Notificar barbearia via WhatsApp — DIRETO (sem setTimeout)
+      const msg = encodeURIComponent(
+        `🔔 NOVA ASSINATURA VIA APP` +
+        `%0A%0A👤 Cliente: ${cliente.nome}` +
+        `%0A📞 Telefone: ${cliente.telefone || 'Nao informado'}` +
+        `%0A💳 Plano: ${confirmando.nome}` +
+        `%0A💰 Valor: R$ ${Number(confirmando.preco).toFixed(2)}/mes` +
+        `%0A📅 Vencimento: ${new Date(venc).toLocaleDateString('pt-BR')}` +
+        `%0A%0AConfirme os detalhes com o cliente na barbearia.`
+      );
+      window.open(`https://wa.me/5511977643509?text=${msg}`, '_blank');
+
       setConfirmando(null);
       setSucesso(true);
       setTimeout(() => setSucesso(false), 4000);
-
-      // ✅ Notificar barbearia via WhatsApp
-      const msg = encodeURIComponent(
-        `🔔 *NOVA ASSINATURA VIA APP*%0A%0A` +
-        `👤 Cliente: *${cliente.nome}*%0A` +
-        `📞 Telefone: ${cliente.telefone || 'Não informado'}%0A` +
-        `💳 Plano: *${confirmando.nome}*%0A` +
-        `💰 Valor: R$ ${Number(confirmando.preco).toFixed(2)}/mês%0A` +
-        `📅 Vencimento: ${new Date(venc).toLocaleDateString('pt-BR')}%0A%0A` +
-        `✅ Confirme todos os detalhes com o cliente na barbearia.`
-      );
-      setTimeout(() => {
-        window.open(`https://wa.me/5511977643509?text=${msg}`, '_blank');
-      }, 1000);
     } catch(e) { setErro('Erro ao assinar: ' + e.message); }
     setSalvando(false);
   }
