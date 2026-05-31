@@ -1,7 +1,8 @@
 // App.jsx — Flyguer BarberShop
 // ✅ Passo 14 — PerfilCliente + AvaliacaoServico
-// 🔧 Fix: removido dynamic import Firebase da SplashScreen (travamento mobile)
-// 🔧 Fix: typo __removeSplash corrigido
+// 🔧 Fix: splash instantânea (sem Firebase)
+// 🔧 Fix: __removeSplash typo
+// 🔧 Nova: banner promoção na splash (ativo/inativo pelo gerente)
 
 import React from 'react';
 import { db } from './firebase';
@@ -18,12 +19,12 @@ import PainelRecepcao from './PainelRecepcao';
 import PlanosMensais from './PlanosMensais';
 import AssinaturaPlano from './AssinaturaPlano';
 import GerenciarAssinaturas from './GerenciarAssinaturas';
-import PerfilCliente from './PerfilCliente';   // ✅ P14
-import Comparativo from './Comparativo';       // ✅ P14
-import Promocao from './Promocao';             // ✅ Promoção
-import ListaClientes from './ListaClientes';   // ✅ Clientes
-import InstalarApp from './InstalarApp';       // ✅ PWA
-import { GlobalErrorBoundary, BannerOffline } from './OfflineGuard'; // ✅ Escudo
+import PerfilCliente from './PerfilCliente';
+import Comparativo from './Comparativo';
+import Promocao from './Promocao';
+import ListaClientes from './ListaClientes';
+import InstalarApp from './InstalarApp';
+import { GlobalErrorBoundary, BannerOffline } from './OfflineGuard';
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -62,11 +63,23 @@ function Divider({ style }) {
   return <div style={{ height:'1px', background:'#3A2018', margin:'16px 0', ...style }} />;
 }
 
-// 🔧 FIX: SplashScreen sem dynamic import Firebase — abre instantaneamente
-function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark }) {
+// ── SPLASH com banner promoção ──────────────────────────────
+function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark, onVerPromo }) {
   const s = getStyles(dark);
+  const [promo, setPromo] = React.useState(null);
 
-  // Dados fixos — sem Firebase na splash para garantir abertura imediata no mobile
+  // Busca promoção ativa do Firestore (leve, só 1 doc)
+  React.useEffect(() => {
+    import('firebase/firestore').then(({ doc, getDoc }) => {
+      getDoc(doc(db, 'config', 'promocao_ativa')).then(snap => {
+        if (snap.exists()) {
+          const d = snap.data();
+          if (d.ativo) setPromo(d);
+        }
+      }).catch(() => {});
+    }).catch(() => {});
+  }, []);
+
   const barbeiros = [
     { id:'b1', nome:'Amaral', cargo:'👑 Gerente · Barbeiro', disponivel:true  },
     { id:'b2', nome:'Jotace', cargo:'✂️ Barbeiro',            disponivel:true  },
@@ -84,7 +97,23 @@ function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark }) {
         <div style={{ fontSize:'13px', color:'rgba(245,239,230,0.7)', marginTop:'6px', fontStyle:'italic' }}>Nossa Arte, Seu Estilo.</div>
         <div style={{ fontSize:'11px', color:'rgba(245,239,230,0.5)', marginTop:'4px' }}>Shopping Cidade das Artes — Piso 2, Nº 22</div>
       </div>
+
       <div style={{ padding:'20px 20px 0' }}>
+
+        {/* 🔧 Banner promoção ativa */}
+        {promo && (
+          <div onClick={() => onVerPromo && onVerPromo(promo)}
+            style={{ background:'linear-gradient(135deg,#8B0000,#F44336)', borderRadius:'16px', padding:'16px', marginBottom:'16px', cursor:'pointer', border:'1px solid rgba(255,100,100,0.3)', position:'relative', overflow:'hidden' }}>
+            <div style={{ position:'absolute', top:'-10px', right:'-10px', fontSize:'60px', opacity:0.15 }}>🔥</div>
+            <div style={{ fontSize:'10px', color:'rgba(255,255,255,0.7)', fontWeight:'700', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'4px' }}>📣 COMUNICADO DA BARBEARIA</div>
+            <div style={{ fontWeight:'700', fontSize:'15px', color:'#fff', marginBottom:'4px' }}>{promo.titulo || 'Promoção especial!'}</div>
+            <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.85)', lineHeight:'1.5', marginBottom:'10px' }}>{promo.mensagem}</div>
+            <div style={{ background:'rgba(255,255,255,0.2)', borderRadius:'10px', padding:'8px 14px', display:'inline-block', fontSize:'12px', color:'#fff', fontWeight:'700' }}>
+              📲 Acessar o app e aproveitar →
+            </div>
+          </div>
+        )}
+
         <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'600', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'10px' }}>Nossos barbeiros</div>
         {barbeiros.map(b => (
           <div key={b.id} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'14px', background:'#231410', borderRadius:'14px', border:'1px solid #3A2018', marginBottom:'8px' }}>
@@ -190,7 +219,6 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
   const s = getStyles(dark);
   const [lembrete, setLembrete] = React.useState(null);
 
-  // ✅ P14 — Verificar agendamento nas próximas 2h
   React.useEffect(() => {
     if (!cliente?.cpf) return;
     const chave = cliente.cpf;
@@ -232,7 +260,6 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
     <div style={{ ...s.app, paddingBottom:'80px' }}>
       <div style={{ ...s.header }}>
         <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-          {/* ✅ Avatar clicável → Perfil */}
           <div onClick={() => onNavegar('perfil_cliente')}
             style={{ ...s.avatar, width:'40px', height:'40px', fontSize:'16px', overflow:'hidden', cursor:'pointer', border:'2px solid #C9A84C' }}>
             {cliente.foto ? <img src={cliente.foto} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : cliente.nome[0].toUpperCase()}
@@ -245,8 +272,6 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
         <button onClick={onLogout} style={{ background:'#2E1A14', border:'none', borderRadius:'8px', padding:'6px 12px', fontSize:'12px', color:'#9A8880', cursor:'pointer' }}>Sair</button>
       </div>
       <div style={{ padding:'20px' }}>
-
-        {/* ✅ P14 — Banner lembrete de agendamento */}
         {lembrete && (
           <div style={{ background:'linear-gradient(135deg,#A07830,#C9A84C)', borderRadius:'14px', padding:'14px', marginBottom:'14px', display:'flex', alignItems:'center', gap:'12px' }}>
             <span style={{ fontSize:'28px' }}>🔔</span>
@@ -260,7 +285,6 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
             </button>
           </div>
         )}
-
         <div style={{ background:'linear-gradient(135deg,#5C2218,#8B3A2A)', borderRadius:'18px', padding:'20px', marginBottom:'20px' }}>
           <div style={{ fontSize:'12px', color:'rgba(245,239,230,0.6)', marginBottom:'4px', fontWeight:'600' }}>BEM-VINDO DE VOLTA!</div>
           <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'20px', color:'#F5EFE6', fontWeight:'700' }}>{cliente.nome.split(' ')[0]}</div>
@@ -271,7 +295,7 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
           { icon:'📅', label:'Fazer Agendamento', sub:'Escolha barbeiro, dia e horário', acao:()=>onNavegar('agendamento')       },
           { icon:'📋', label:'Minhas Reservas',   sub:'Ver, cancelar ou reagendar',      acao:()=>onNavegar('minhas_reservas')   },
           { icon:'💳', label:'Planos Mensais',    sub:'Assine e economize nos cortes',   acao:()=>onNavegar('assinatura_plano') },
-          { icon:'👤', label:'Meu Perfil',        sub:'Dados, histórico e avaliações',   acao:()=>onNavegar('perfil_cliente')   }, // ✅ P14
+          { icon:'👤', label:'Meu Perfil',        sub:'Dados, histórico e avaliações',   acao:()=>onNavegar('perfil_cliente')   },
         ].map(item => (
           <div key={item.label} onClick={item.acao||undefined} style={{ display:'flex', alignItems:'center', gap:'14px', padding:'14px', background:s.cardBg, borderRadius:'14px', border:`1px solid ${s.border}`, marginBottom:'10px', cursor:item.acao?'pointer':'default' }}>
             <div style={{ fontSize:'24px' }}>{item.icon}</div>
@@ -298,8 +322,8 @@ function HomeGerente({ usuario, onLogout, onNavegar, dark }) {
     { id:'comparativo',    icon:'📊',  label:'Comparativo',       sub:'Ranking de barbeiros',    passo:9  },
     { id:'permissoes',     icon:'🔑',  label:'Permissões',        sub:'Acesso da recepção',      passo:10 },
     { id:'planos_mensais', icon:'💳',  label:'Planos Mensais',    sub:'Criar e gerir planos',    passo:12 },
-    { id:'promocao',      icon:'🔴',  label:'Promoção / Novidade', sub:'Disparar para clientes',  passo:14 },
-    { id:'clientes',      icon:'👥',  label:'Clientes',            sub:'Lista e assinaturas',     passo:14 },
+    { id:'promocao',       icon:'🔴',  label:'Promoção / Novidade',sub:'Disparar para clientes', passo:14 },
+    { id:'clientes',       icon:'👥',  label:'Clientes',           sub:'Lista e assinaturas',    passo:14 },
   ];
   return (
     <div style={{ ...s.app, paddingBottom:'24px' }}>
@@ -359,14 +383,14 @@ function HomeBarbeiro({ usuario, onLogout, onNavegar, dark }) {
 // ── APP PRINCIPAL ──────────────────────────────────────────────
 export default function App() {
   React.useEffect(() => {
-    // 🔧 Fix: typo corrigido __removeSplash (era __removeSpash)
+    // 🔧 Fix typo: era __removeSpash
     if (window.__removeSplash) window.__removeSplash();
   }, []);
 
-  const [dark, setDark]       = React.useState(true);
-  const [tela, setTela]       = React.useState('splash');
-  const [usuario, setUsuario] = React.useState(null);
-  const [cliente, setCliente] = React.useState(null);
+  const [dark, setDark]           = React.useState(true);
+  const [tela, setTela]           = React.useState('splash');
+  const [usuario, setUsuario]     = React.useState(null);
+  const [cliente, setCliente]     = React.useState(null);
   const [emBreveInfo, setEmBreveInfo] = React.useState(null);
   const [configAbaInicial, setConfigAbaInicial] = React.useState('horarios');
 
@@ -374,8 +398,8 @@ export default function App() {
 
   function handleStaffLogin(usuarioLogado) {
     setUsuario(usuarioLogado);
-    if (usuarioLogado.perfil===PERFIL.GERENTE)           setTela('home_gerente');
-    else if (usuarioLogado.perfil===PERFIL.BARBEIRO)     setTela('home_barbeiro');
+    if (usuarioLogado.perfil===PERFIL.GERENTE)            setTela('home_gerente');
+    else if (usuarioLogado.perfil===PERFIL.BARBEIRO)      setTela('home_barbeiro');
     else if (usuarioLogado.perfil===PERFIL.RECEPCIONISTA) setTela('recepcao');
   }
 
@@ -383,13 +407,13 @@ export default function App() {
     if (modulo==='config')         { setConfigAbaInicial('horarios'); setTela('config_barbearia'); return; }
     if (modulo==='servicos')       { setConfigAbaInicial('servicos'); setTela('config_barbearia'); return; }
     if (modulo==='equipe')         { setTela('gestao_equipe');   return; }
-    if (modulo==='financeiro')   { setTela('financeiro');   return; }
-    if (modulo==='comparativo') { setTela('comparativo');  return; }
+    if (modulo==='financeiro')     { setTela('financeiro');      return; }
+    if (modulo==='comparativo')    { setTela('comparativo');     return; }
     if (modulo==='agenda')         { setTela('agenda_geral');    return; }
     if (modulo==='permissoes')     { setTela('recepcao');        return; }
     if (modulo==='planos_mensais') { setTela('planos_mensais');  return; }
-    if (modulo==='promocao')      { setTela('promocao');        return; }
-    if (modulo==='clientes')      { setTela('clientes');        return; }
+    if (modulo==='promocao')       { setTela('promocao');        return; }
+    if (modulo==='clientes')       { setTela('clientes');        return; }
     setEmBreveInfo({ titulo:modulo, descricao:'Módulo em desenvolvimento.', passo:'?' });
     setTela('em_breve');
   }
@@ -418,7 +442,13 @@ export default function App() {
       {toggleTema}
       <ErrorBoundary modulo="App">
 
-        {tela==='splash' && <SplashScreen onClienteNovo={()=>setTela('login_cliente')} onClienteCadastrado={()=>setTela('login_cliente')} onStaff={()=>setTela('staff_login')} dark={dark} />}
+        {tela==='splash' && <SplashScreen
+          onClienteNovo={()=>setTela('login_cliente')}
+          onClienteCadastrado={()=>setTela('login_cliente')}
+          onStaff={()=>setTela('staff_login')}
+          dark={dark}
+          onVerPromo={()=>setTela('login_cliente')}
+        />}
 
         {tela==='login_cliente' && (
           <ErrorBoundary modulo="LoginCliente">
@@ -519,36 +549,27 @@ export default function App() {
           </ErrorBoundary>
         )}
 
-        {/* ✅ Clientes */}
         {tela==='clientes' && usuario && (
           <ErrorBoundary modulo="Clientes">
             <ListaClientes onBack={()=>setTela('home_gerente')} dark={dark} />
           </ErrorBoundary>
         )}
 
-        {/* ✅ Promoção */}
         {tela==='promocao' && usuario && (
           <ErrorBoundary modulo="Promocao">
             <Promocao onBack={()=>setTela('home_gerente')} dark={dark} />
           </ErrorBoundary>
         )}
 
-        {/* ✅ P14 — Comparativo */}
         {tela==='comparativo' && usuario && (
           <ErrorBoundary modulo="Comparativo">
             <Comparativo onBack={()=>setTela('home_gerente')} dark={dark} />
           </ErrorBoundary>
         )}
 
-        {/* ✅ P14 — Perfil do Cliente */}
         {tela==='perfil_cliente' && cliente && (
           <ErrorBoundary modulo="PerfilCliente">
-            <PerfilCliente
-              cliente={cliente}
-              onBack={()=>setTela('home_cliente')}
-              dark={dark}
-              onNavegar={setTela}
-            />
+            <PerfilCliente cliente={cliente} onBack={()=>setTela('home_cliente')} dark={dark} onNavegar={setTela} />
           </ErrorBoundary>
         )}
 

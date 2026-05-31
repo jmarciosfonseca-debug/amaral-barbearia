@@ -1,5 +1,6 @@
 // MinhasReservas.jsx — Flyguer BarberShop
 // ✅ Passo 14 — botão Avaliar após atendimento concluído
+// 🔧 Fix: botão "Ocultar do histórico" (ocultadoPorCliente)
 
 import React from 'react';
 import { db } from './firebase';
@@ -9,7 +10,7 @@ import {
 } from 'firebase/firestore';
 import { getStyles } from './getStyles';
 import { notificarBarbeariaCancel } from './notificacoes';
-import AvaliacaoServico from './AvaliacaoServico'; // ✅ P14
+import AvaliacaoServico from './AvaliacaoServico';
 
 function hoje() { return new Date().toISOString().split('T')[0]; }
 function formatarData(dataStr) {
@@ -109,13 +110,15 @@ function ModalCancelar({ agendamento, onConfirmar, onFechar }) {
   );
 }
 
-function CardAgendamento({ ag, onCancelar, onReagendar, onAvaliar }) {
+function CardAgendamento({ ag, onCancelar, onReagendar, onAvaliar, onExcluir }) {
   const passado = isPassado(ag.data, ag.hora);
+  const ehHistorico = passado || ag.status?.includes('cancelado');
   const podeCancelar = !passado && ag.status !== 'cancelado_cliente' && ag.status !== 'cancelado_barbeiro' && ag.status !== 'concluido';
-  const podeAvaliar  = ag.status === 'concluido' && !ag.avaliado; // ✅ P14
+  const podeAvaliar  = ag.status === 'concluido' && !ag.avaliado;
+  const podeExcluir  = ehHistorico;
 
   return (
-    <div style={{ background:'#231410', borderRadius:'16px', border:passado?'1px solid #2A1208':'1px solid #3A2018', marginBottom:'12px', overflow:'hidden', opacity:passado?0.7:1 }}>
+    <div style={{ background:'#231410', borderRadius:'16px', border:passado?'1px solid #2A1208':'1px solid #3A2018', marginBottom:'12px', overflow:'hidden', opacity:passado?0.85:1 }}>
       <div style={{ height:'3px', background:ag.status==='confirmado'?'#4CAF50':ag.status==='concluido'?'#2E7D7A':ag.status?.includes('cancelado')?'#F44336':'#FFC107' }} />
       <div style={{ padding:'14px' }}>
         <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'10px' }}>
@@ -125,7 +128,6 @@ function CardAgendamento({ ag, onCancelar, onReagendar, onAvaliar }) {
           </div>
           <BadgeStatus status={ag.status} pagamento={ag.pagamento} />
         </div>
-
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'12px', background:'#1A0F0D', borderRadius:'10px', padding:'10px' }}>
           {[
             { label:'Data',      value:`${diaSemana(ag.data)}, ${formatarData(ag.data)}` },
@@ -139,32 +141,29 @@ function CardAgendamento({ ag, onCancelar, onReagendar, onAvaliar }) {
             </div>
           ))}
         </div>
-
         {ag.sinal > 0 && (
           <div style={{ fontSize:'11px', color:'#2E7D7A', background:'rgba(46,125,122,0.1)', borderRadius:'8px', padding:'6px 10px', marginBottom:'10px' }}>
             💳 Sinal pago: R$ {ag.sinal.toFixed(2).replace('.',',')} · será abatido no total
           </div>
         )}
-
-        {/* ✅ Botão Avaliar */}
         {podeAvaliar && (
-          <button onClick={() => onAvaliar(ag)}
-            style={{ width:'100%', padding:'10px', borderRadius:'10px', border:'none', background:'linear-gradient(135deg,#A07830,#C9A84C)', color:'#1A0F0D', fontSize:'13px', fontWeight:'700', cursor:'pointer', marginBottom:'8px', fontFamily:"'DM Sans',sans-serif" }}>
+          <button onClick={() => onAvaliar(ag)} style={{ width:'100%', padding:'10px', borderRadius:'10px', border:'none', background:'linear-gradient(135deg,#A07830,#C9A84C)', color:'#1A0F0D', fontSize:'13px', fontWeight:'700', cursor:'pointer', marginBottom:'8px', fontFamily:"'DM Sans',sans-serif" }}>
             ⭐ Avaliar atendimento
           </button>
         )}
-
         {ag.avaliado && (
-          <div style={{ fontSize:'11px', color:'#E8C96A', textAlign:'center', padding:'6px', marginBottom:'8px' }}>
-            ⭐ Avaliação enviada — obrigado!
-          </div>
+          <div style={{ fontSize:'11px', color:'#E8C96A', textAlign:'center', padding:'6px', marginBottom:'8px' }}>⭐ Avaliação enviada — obrigado!</div>
         )}
-
         {podeCancelar && (
           <div style={{ display:'flex', gap:'8px' }}>
             <button onClick={() => onReagendar(ag)} style={{ flex:1, padding:'10px', borderRadius:'10px', border:'1px solid #3A2018', background:'#2E1A14', color:'#E8C96A', fontSize:'13px', fontWeight:'600', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>🔄 Reagendar</button>
             <button onClick={() => onCancelar(ag)} style={{ flex:1, padding:'10px', borderRadius:'10px', border:'none', background:'rgba(244,67,54,0.15)', color:'#F44336', fontSize:'13px', fontWeight:'600', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>✗ Cancelar</button>
           </div>
+        )}
+        {podeExcluir && (
+          <button onClick={() => onExcluir(ag)} style={{ width:'100%', marginTop:'8px', padding:'8px', borderRadius:'10px', border:'1px solid #2A1208', background:'transparent', color:'#555', fontSize:'11px', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+            🗑 Ocultar do histórico
+          </button>
         )}
       </div>
     </div>
@@ -176,7 +175,7 @@ export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
   const [agendamentos, setAgendamentos] = React.useState([]);
   const [carregando, setCarregando]     = React.useState(true);
   const [cancelando, setCancelando]     = React.useState(null);
-  const [avaliando, setAvaliando]       = React.useState(null); // ✅ P14
+  const [avaliando, setAvaliando]       = React.useState(null);
   const [aba, setAba]                   = React.useState('proximos');
 
   React.useEffect(() => {
@@ -188,27 +187,25 @@ export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
       orderBy('hora', 'desc'),
     );
     const unsub = onSnapshot(q, snap => {
-      setAgendamentos(snap.docs.map(d => ({ firestoreId: d.id, ...d.data() })));
+      const todos = snap.docs.map(d => ({ firestoreId: d.id, ...d.data() }));
+      setAgendamentos(todos.filter(ag => !ag.ocultadoPorCliente));
       setCarregando(false);
     }, err => { console.error(err); setCarregando(false); });
     return () => unsub();
   }, [cliente?.cpf]);
 
+  async function handleExcluir(ag) {
+    try {
+      await updateDoc(doc(db, 'agendamentos', ag.firestoreId), { ocultadoPorCliente: true });
+    } catch(e) { console.error(e); }
+  }
+
   const proximos  = agendamentos.filter(ag => !isPassado(ag.data, ag.hora) && !ag.status?.includes('cancelado'));
   const historico = agendamentos.filter(ag => isPassado(ag.data, ag.hora) || ag.status?.includes('cancelado'));
   const lista = aba === 'proximos' ? proximos : historico;
 
-  // ✅ Se está avaliando, mostra tela de avaliação
   if (avaliando) {
-    return (
-      <AvaliacaoServico
-        agendamento={avaliando}
-        cliente={cliente}
-        dark={dark}
-        onConcluir={() => setAvaliando(null)}
-        onPular={() => setAvaliando(null)}
-      />
-    );
+    return <AvaliacaoServico agendamento={avaliando} cliente={cliente} dark={dark} onConcluir={() => setAvaliando(null)} onPular={() => setAvaliando(null)} />;
   }
 
   return (
@@ -220,7 +217,6 @@ export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
           <div style={{ fontSize:'11px', color:'rgba(245,239,230,0.6)' }}>{cliente.nome.split(' ')[0]}</div>
         </div>
       </div>
-
       <div style={{ display:'flex', borderBottom:'1px solid #3A2018' }}>
         {[
           { id:'proximos',  label:`Próximos (${proximos.length})`  },
@@ -231,43 +227,21 @@ export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
           </button>
         ))}
       </div>
-
       <div style={{ padding:'16px' }}>
         {carregando ? (
-          <div style={{ textAlign:'center', padding:'60px 20px', color:'#9A8880' }}>
-            <div style={{ fontSize:'32px', marginBottom:'12px' }}>⏳</div>Carregando reservas...
-          </div>
+          <div style={{ textAlign:'center', padding:'60px 20px', color:'#9A8880' }}><div style={{ fontSize:'32px', marginBottom:'12px' }}>⏳</div>Carregando reservas...</div>
         ) : lista.length === 0 ? (
           <div style={{ textAlign:'center', padding:'60px 20px' }}>
             <div style={{ fontSize:'48px', marginBottom:'16px' }}>{aba==='proximos'?'📅':'📋'}</div>
-            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#E8C96A', marginBottom:'8px' }}>
-              {aba==='proximos'?'Nenhuma reserva ativa':'Nenhum histórico'}
-            </div>
-            <div style={{ fontSize:'13px', color:'#9A8880', marginBottom:'24px' }}>
-              {aba==='proximos'?'Que tal agendar agora?':'Seus agendamentos anteriores aparecerão aqui'}
-            </div>
-            {aba==='proximos' && (
-              <button onClick={onReagendar} style={{ padding:'12px 24px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontSize:'14px', fontWeight:'700', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-                📅 Fazer Agendamento
-              </button>
-            )}
+            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#E8C96A', marginBottom:'8px' }}>{aba==='proximos'?'Nenhuma reserva ativa':'Nenhum histórico'}</div>
+            <div style={{ fontSize:'13px', color:'#9A8880', marginBottom:'24px' }}>{aba==='proximos'?'Que tal agendar agora?':'Seus agendamentos anteriores aparecerão aqui'}</div>
+            {aba==='proximos' && <button onClick={onReagendar} style={{ padding:'12px 24px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontSize:'14px', fontWeight:'700', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>📅 Fazer Agendamento</button>}
           </div>
         ) : (
-          lista.map(ag => (
-            <CardAgendamento
-              key={ag.firestoreId}
-              ag={ag}
-              onCancelar={ag => setCancelando(ag)}
-              onReagendar={onReagendar}
-              onAvaliar={ag => setAvaliando(ag)} // ✅ P14
-            />
-          ))
+          lista.map(ag => <CardAgendamento key={ag.firestoreId} ag={ag} onCancelar={ag => setCancelando(ag)} onReagendar={onReagendar} onAvaliar={ag => setAvaliando(ag)} onExcluir={handleExcluir} />)
         )}
       </div>
-
-      {cancelando && (
-        <ModalCancelar agendamento={cancelando} onConfirmar={() => setCancelando(null)} onFechar={() => setCancelando(null)} />
-      )}
+      {cancelando && <ModalCancelar agendamento={cancelando} onConfirmar={() => setCancelando(null)} onFechar={() => setCancelando(null)} />}
     </div>
   );
 }

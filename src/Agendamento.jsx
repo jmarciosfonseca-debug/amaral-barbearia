@@ -1,10 +1,8 @@
 // Agendamento.jsx — Flyguer BarberShop
 // ✅ Passo 13 — Pix Avançado
-// ✅ QR Code gerado no app (padrão EMV Banco Central)
+// 🔧 Fix: removido QR Code — apenas Copia e Cola
 // ✅ Copia e cola automático
 // ✅ Botão WhatsApp com mensagem pré-pronta
-// ✅ Mensagem revisada: "Apresente na chegada ou envie comprovante"
-// ✅ Configurações Pix completas (banco, nome, chave)
 
 import React from 'react';
 import { db } from './firebase';
@@ -37,17 +35,6 @@ function gerarPixPayload({ chave, nome, cidade, valor, descricao }) {
     (vStr ? campo('54',vStr) : '') + campo('58','BR') + campo('59',nomeFmt) + campo('60',cidFmt) +
     (descFmt ? campo('62',campo('05',descFmt)) : '') + '6304';
   return p + crc16(p);
-}
-
-function QRCodePix({ payload, size = 180 }) {
-  const url = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(payload)}&bgcolor=ffffff&color=1A0F0D&margin=8`;
-  return (
-    <div style={{ display:'flex', justifyContent:'center', margin:'12px 0' }}>
-      <div style={{ background:'#fff', borderRadius:'16px', padding:'10px', display:'inline-block', boxShadow:'0 4px 20px rgba(0,0,0,0.3)' }}>
-        <img src={url} alt="QR Code Pix" width={size} height={size} style={{ display:'block', borderRadius:'8px' }} />
-      </div>
-    </div>
-  );
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -302,7 +289,7 @@ function EscolherDataHora({ barbeiro, servico, onEscolher, onBack, dark }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// PASSO D: Pagamento — ✅ PIX AVANÇADO
+// PASSO D: Pagamento — 🔧 Sem QR Code, apenas Copia e Cola
 // ─────────────────────────────────────────────────────────────
 function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, dark }) {
   const s = getStyles(dark);
@@ -313,7 +300,6 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
   const [pixCopiado, setPixCopiado]   = React.useState(false);
   const [travado, setTravado]         = React.useState(false);
   const [verificando, setVerificando] = React.useState(true);
-  const [mostrarQR, setMostrarQR]     = React.useState(false);
 
   React.useEffect(() => {
     async function verificar() {
@@ -342,7 +328,7 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
   const valorSinal = (valorTotal * 0.5).toFixed(2).replace('.',',');
   const valorPix   = travado ? valorTotal * 0.5 : valorTotal;
 
-  // Gera payload Pix
+  // Gera payload Pix (copia e cola)
   const pixPayload = pixConfig.chave ? gerarPixPayload({
     chave:     pixConfig.chave,
     nome:      pixConfig.nome,
@@ -351,9 +337,8 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
     descricao: `Flyguer ${barbeiro.nome}`,
   }) : '';
 
-  // Mensagem WhatsApp pré-pronta
   function abrirWhatsApp() {
-    const tel = '5511939089988'; // WhatsApp da barbearia
+    const tel = '5511939089988';
     const msg = encodeURIComponent(
       `Olá! Sou ${cliente.nome}, tenho agendamento dia ${formatarData(dataHora.data)} às ${dataHora.hora} com ${barbeiro.nome}.\n` +
       `Serviço: ${servico.nome}\n` +
@@ -441,7 +426,7 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
         </div>
       </Card>
 
-      {/* ✅ PIX AVANÇADO */}
+      {/* PIX — apenas copia e cola */}
       <Card onClick={() => setPagPref('pix')} style={{ border:mostrandoPix?'1.5px solid #2E7D7A':'1px solid #3A2018' }}>
         <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
           <div style={{ fontSize:'24px' }}>💜</div>
@@ -456,7 +441,7 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
           <div style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${mostrandoPix?'#2E7D7A':'#3A2018'}`, background:mostrandoPix?'#2E7D7A':'transparent' }} />
         </div>
 
-        {/* ✅ BLOCO PIX EXPANDIDO */}
+        {/* BLOCO PIX — somente copia e cola */}
         {mostrandoPix && pixConfig.chave && (
           <div style={{ marginTop:'14px' }}>
 
@@ -467,37 +452,17 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
               <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>{pixConfig.nome} · {pixConfig.banco}</div>
             </div>
 
-            {/* Toggle QR Code */}
-            <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
-              <button onClick={() => setMostrarQR(false)} style={{ flex:1, padding:'8px', borderRadius:'8px', border:'none', background:!mostrarQR?'#2E7D7A':'#2E1A14', color:!mostrarQR?'#fff':'#9A8880', fontSize:'12px', fontWeight:'600', cursor:'pointer' }}>
-                📋 Copia e Cola
-              </button>
-              <button onClick={() => setMostrarQR(true)} style={{ flex:1, padding:'8px', borderRadius:'8px', border:'none', background:mostrarQR?'#2E7D7A':'#2E1A14', color:mostrarQR?'#fff':'#9A8880', fontSize:'12px', fontWeight:'600', cursor:'pointer' }}>
-                📷 QR Code
+            {/* 🔧 Apenas copia e cola — sem QR Code */}
+            <div style={{ background:'#1A0F0D', borderRadius:'10px', padding:'12px', marginBottom:'12px' }}>
+              <div style={{ fontSize:'10px', color:'#9A8880', marginBottom:'4px' }}>Chave Pix ({pixConfig.banco})</div>
+              <div style={{ fontSize:'15px', fontWeight:'700', color:'#2E7D7A', letterSpacing:'1px', marginBottom:'8px', wordBreak:'break-all' }}>{pixConfig.chave}</div>
+              <button onClick={() => { navigator.clipboard?.writeText(pixPayload||pixConfig.chave); setPixCopiado(true); setTimeout(()=>setPixCopiado(false),3000); }}
+                style={{ padding:'10px 14px', borderRadius:'8px', border:'1px solid #2E7D7A', background:pixCopiado?'#2E7D7A':'transparent', color:pixCopiado?'#fff':'#2E7D7A', fontSize:'13px', cursor:'pointer', fontWeight:'700', width:'100%' }}>
+                {pixCopiado ? '✅ Copiado!' : '📋 Copiar código Pix'}
               </button>
             </div>
 
-            {/* QR Code */}
-            {mostrarQR && pixPayload && (
-              <div>
-                <QRCodePix payload={pixPayload} size={180} />
-                <div style={{ fontSize:'11px', color:'#9A8880', textAlign:'center', marginBottom:'8px' }}>Abra seu banco e escaneie o QR Code</div>
-              </div>
-            )}
-
-            {/* Copia e cola */}
-            {!mostrarQR && (
-              <div style={{ background:'#1A0F0D', borderRadius:'10px', padding:'12px', marginBottom:'12px' }}>
-                <div style={{ fontSize:'10px', color:'#9A8880', marginBottom:'4px' }}>Chave Pix ({pixConfig.banco})</div>
-                <div style={{ fontSize:'15px', fontWeight:'700', color:'#2E7D7A', letterSpacing:'1px', marginBottom:'8px', wordBreak:'break-all' }}>{pixConfig.chave}</div>
-                <button onClick={() => { navigator.clipboard?.writeText(pixPayload||pixConfig.chave); setPixCopiado(true); setTimeout(()=>setPixCopiado(false),3000); }}
-                  style={{ padding:'8px 14px', borderRadius:'8px', border:'1px solid #2E7D7A', background:pixCopiado?'#2E7D7A':'transparent', color:pixCopiado?'#fff':'#2E7D7A', fontSize:'12px', cursor:'pointer', fontWeight:'600', width:'100%' }}>
-                  {pixCopiado ? '✅ Copiado!' : '📋 Copiar chave Pix'}
-                </button>
-              </div>
-            )}
-
-            {/* ✅ MENSAGEM REVISADA */}
+            {/* Instruções */}
             <div style={{ background:'rgba(201,168,76,0.1)', border:'1px solid rgba(201,168,76,0.3)', borderRadius:'12px', padding:'14px', marginBottom:'12px' }}>
               <div style={{ fontSize:'13px', fontWeight:'700', color:'#E8C96A', marginBottom:'6px' }}>✅ Após realizar o Pix:</div>
               <div style={{ fontSize:'12px', color:'#F5EFE6', lineHeight:'1.7' }}>
@@ -507,7 +472,7 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, onConfirmar, onBack, 
               </div>
             </div>
 
-            {/* ✅ BOTÃO WHATSAPP */}
+            {/* Botão WhatsApp */}
             <button onClick={abrirWhatsApp}
               style={{ width:'100%', padding:'12px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#25D366,#128C7E)', color:'#fff', fontSize:'13px', fontWeight:'700', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
               <span style={{ fontSize:'18px' }}>📲</span>
