@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { getStyles } from './getStyles';
 import { notificarClienteAgendamentoManual } from './notificacoes';
+import LembretesRecepcao from './LembretesRecepcao'; // ✅ P14
 
 function hoje() { return new Date().toISOString().split('T')[0]; }
 function moeda(valor) { return `R$ ${(valor || 0).toFixed(2).replace('.', ',')}`; }
@@ -282,10 +283,11 @@ function BuscaCliente({ onAgendarParaCliente }) {
   const [buscando, setBuscando]     = React.useState(false);
   const [erro, setErro]             = React.useState('');
   const [expandido, setExpandido]   = React.useState(false);
+  const [assinatura, setAssinatura] = React.useState(null);
 
   async function buscarCliente() {
     if (!busca.trim()) { setErro('Digite nome ou telefone para buscar.'); return; }
-    setBuscando(true); setErro(''); setResultado(null); setHistorico([]);
+    setBuscando(true); setErro(''); setResultado(null); setHistorico([]); setAssinatura(null);
     try {
       const { collection: col, query: q, where: w, getDocs: gd, orderBy: ob } = await import('firebase/firestore');
       const snap = await gd(col(db, 'clientes'));
@@ -302,6 +304,13 @@ function BuscaCliente({ onAgendarParaCliente }) {
       const snapAg = await gd(q(col(db, 'agendamentos'), w('clienteCpf', '==', cliente.cpf || cliente.id)));
       const ags = snapAg.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => b.data?.localeCompare(a.data));
       setHistorico(ags.slice(0, 5));
+
+      // ✅ Buscar assinatura do cliente
+      const snapAs = await gd(q(col(db, 'assinaturas'), w('clienteId', '==', cliente.cpf || cliente.id)));
+      const todasAssin = snapAs.docs.map(d => ({ id: d.id, ...d.data() }));
+      const assinAtiva    = todasAssin.find(a => a.status === 'ativa');
+      const assinPendente = todasAssin.find(a => a.status === 'pendente_pagamento');
+      setAssinatura(assinAtiva || assinPendente || null);
     } catch(e) { setErro('Erro ao buscar: ' + e.message); }
     setBuscando(false);
   }
@@ -475,6 +484,7 @@ export default function PainelRecepcao({ onBack, dark, onNavegarAssinaturas }) {
   const [clientePreencher, setClientePreencher] = React.useState(null); // ✅ P14
   const [aba, setAba]                       = React.useState('fila');
   const [toast, setToast]                   = React.useState('');
+  const [modalLembretes, setModalLembretes] = React.useState(false); // ✅ P14
 
   React.useEffect(() => {
     const q = query(collection(db,'agendamentos'), where('data','==',hoje()));
@@ -517,6 +527,9 @@ export default function PainelRecepcao({ onBack, dark, onNavegarAssinaturas }) {
             💳 Planos
           </button>
         )}
+        <button onClick={() => setModalLembretes(true)} style={{ background:'rgba(255,193,7,0.15)', border:'1px solid rgba(255,193,7,0.3)', borderRadius:'10px', padding:'8px 10px', color:'#FFC107', fontSize:'11px', fontWeight:'700', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+          🔔
+        </button>
         <button onClick={() => setModalNovo(true)} style={{ background:'rgba(245,239,230,0.15)', border:'1px solid rgba(245,239,230,0.3)', borderRadius:'10px', padding:'8px 12px', color:'#F5EFE6', fontSize:'12px', fontWeight:'700', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
           ➕ Novo
         </button>
@@ -589,6 +602,7 @@ export default function PainelRecepcao({ onBack, dark, onNavegarAssinaturas }) {
 
       {modalPagamento && <ModalPagamento agendamento={modalPagamento} onConfirmar={handlePagamentoConfirmado} onFechar={() => setModalPagamento(null)} />}
       {modalNovo && <ModalNovoAgendamento agendamentosHoje={agendamentos} onSalvar={handleAgendamentoSalvo} onFechar={() => { setModalNovo(false); setClientePreencher(null); }} clientePreencher={clientePreencher} />}
+      {modalLembretes && <LembretesRecepcao onFechar={() => setModalLembretes(false)} dark={dark} />}
       {toast && <Toast mensagem={toast} onClose={() => setToast('')} />}
     </div>
   );
