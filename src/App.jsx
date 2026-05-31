@@ -415,7 +415,7 @@ export default function App() {
   const [configAbaInicial, setConfigAbaInicial] = React.useState('horarios');
   const [promoParaResgatar, setPromoParaResgatar] = React.useState(null);
 
-  function handleLoginClienteSucesso(clienteLogado) { setCliente(clienteLogado); if (promoParaResgatar) { setTela('agendamento'); } else { setTela('home_cliente'); } }
+  function handleLoginClienteSucesso(clienteLogado) { setCliente(clienteLogado); if (promoParaResgatar) { setTela('agendamento_promo'); } else { setTela('home_cliente'); } }
 
   function handleStaffLogin(usuarioLogado) {
     setUsuario(usuarioLogado);
@@ -506,9 +506,15 @@ export default function App() {
           </ErrorBoundary>
         )}
 
+        {tela==='agendamento_promo' && cliente && promoParaResgatar && (
+          <ErrorBoundary modulo="AgendamentoPromo">
+            <Agendamento cliente={cliente} onBack={()=>setTela('home_cliente')} dark={dark} promoParaResgatar={promoParaResgatar} />
+          </ErrorBoundary>
+        )}
+
         {tela==='agendamento' && cliente && (
           <ErrorBoundary modulo="Agendamento">
-            <Agendamento cliente={cliente} onBack={()=>setTela('home_cliente')} dark={dark} promoParaResgatar={promoParaResgatar} />
+            <Agendamento cliente={cliente} onBack={()=>setTela('home_cliente')} dark={dark} promoParaResgatar={null} />
           </ErrorBoundary>
         )}
 
