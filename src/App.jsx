@@ -101,18 +101,38 @@ function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark, onVer
       <div style={{ padding:'20px 20px 0' }}>
 
         {/* 🔧 Banner promoção ativa */}
-        {promo && (
-          <div onClick={() => onVerPromo && onVerPromo(promo)}
-            style={{ background:'linear-gradient(135deg,#8B0000,#F44336)', borderRadius:'16px', padding:'16px', marginBottom:'16px', cursor:'pointer', border:'1px solid rgba(255,100,100,0.3)', position:'relative', overflow:'hidden' }}>
-            <div style={{ position:'absolute', top:'-10px', right:'-10px', fontSize:'60px', opacity:0.15 }}>🔥</div>
-            <div style={{ fontSize:'10px', color:'rgba(255,255,255,0.7)', fontWeight:'700', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'4px' }}>📣 COMUNICADO DA BARBEARIA</div>
-            <div style={{ fontWeight:'700', fontSize:'15px', color:'#fff', marginBottom:'4px' }}>{promo.titulo || 'Promoção especial!'}</div>
-            <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.85)', lineHeight:'1.5', marginBottom:'10px' }}>{promo.mensagem}</div>
-            <div style={{ background:'rgba(255,255,255,0.2)', borderRadius:'10px', padding:'8px 14px', display:'inline-block', fontSize:'12px', color:'#fff', fontWeight:'700' }}>
-              📲 Acessar o app e aproveitar →
+        {promo && (()=>{
+          const vagasRest = promo.ehRelampago ? (promo.vagas - (promo.resgatados||0)) : null;
+          const encerrada = promo.ehRelampago && vagasRest <= 0;
+          return (
+            <div onClick={() => !encerrada && onVerPromo && onVerPromo(promo)}
+              style={{ background: encerrada ? 'linear-gradient(135deg,#333,#555)' : 'linear-gradient(135deg,#8B0000,#F44336)', borderRadius:'16px', padding:'16px', marginBottom:'16px', cursor:encerrada?'default':'pointer', border:'1px solid rgba(255,100,100,0.3)', position:'relative', overflow:'hidden' }}>
+              <div style={{ position:'absolute', top:'-10px', right:'-10px', fontSize:'60px', opacity:0.15 }}>{encerrada?'🔒':'🔥'}</div>
+              <div style={{ fontSize:'10px', color:'rgba(255,255,255,0.7)', fontWeight:'700', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'4px' }}>📣 COMUNICADO DA BARBEARIA</div>
+              <div style={{ fontWeight:'700', fontSize:'15px', color:'#fff', marginBottom:'4px' }}>{promo.titulo || 'Promoção especial!'}</div>
+              <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.85)', lineHeight:'1.5', marginBottom:'10px' }}>{promo.mensagem}</div>
+              {promo.ehRelampago && (
+                <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
+                  <div style={{ background:'rgba(255,255,255,0.25)', borderRadius:'8px', padding:'5px 12px', fontSize:'13px', fontWeight:'900', color:'#fff' }}>
+                    {encerrada ? '🔒 Encerrada' : `⚡ ${vagasRest} vaga${vagasRest!==1?'s':''} restante${vagasRest!==1?'s':''}`}
+                  </div>
+                  {!encerrada && promo.descricao && (
+                    <div style={{ fontSize:'11px', color:'rgba(255,255,255,0.8)' }}>🎁 {promo.descricao}</div>
+                  )}
+                </div>
+              )}
+              {encerrada ? (
+                <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:'10px', padding:'8px 14px', display:'inline-block', fontSize:'12px', color:'rgba(255,255,255,0.7)' }}>
+                  🎉 Parabéns a quem pegou!
+                </div>
+              ) : (
+                <div style={{ background:'rgba(255,255,255,0.2)', borderRadius:'10px', padding:'8px 14px', display:'inline-block', fontSize:'12px', color:'#fff', fontWeight:'700' }}>
+                  {promo.ehRelampago ? '🔥 Pegar agora →' : '📲 Acessar o app →'}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'600', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'10px' }}>Nossos barbeiros</div>
         {barbeiros.map(b => (
@@ -395,7 +415,7 @@ export default function App() {
   const [configAbaInicial, setConfigAbaInicial] = React.useState('horarios');
   const [promoParaResgatar, setPromoParaResgatar] = React.useState(null);
 
-  function handleLoginClienteSucesso(clienteLogado) { setCliente(clienteLogado); setTela('home_cliente'); }
+  function handleLoginClienteSucesso(clienteLogado) { setCliente(clienteLogado); if (promoParaResgatar) { setTela('agendamento'); } else { setTela('home_cliente'); } }
 
   function handleStaffLogin(usuarioLogado) {
     setUsuario(usuarioLogado);
