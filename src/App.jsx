@@ -1,5 +1,7 @@
 // App.jsx — Flyguer BarberShop
 // ✅ Passo 14 — PerfilCliente + AvaliacaoServico
+// 🔧 Fix: removido dynamic import Firebase da SplashScreen (travamento mobile)
+// 🔧 Fix: typo __removeSplash corrigido
 
 import React from 'react';
 import { db } from './firebase';
@@ -60,23 +62,16 @@ function Divider({ style }) {
   return <div style={{ height:'1px', background:'#3A2018', margin:'16px 0', ...style }} />;
 }
 
+// 🔧 FIX: SplashScreen sem dynamic import Firebase — abre instantaneamente
 function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark }) {
   const s = getStyles(dark);
-  const [barbeiros, setBarbeiros] = React.useState([
+
+  // Dados fixos — sem Firebase na splash para garantir abertura imediata no mobile
+  const barbeiros = [
     { id:'b1', nome:'Amaral', cargo:'👑 Gerente · Barbeiro', disponivel:true  },
     { id:'b2', nome:'Jotace', cargo:'✂️ Barbeiro',            disponivel:true  },
     { id:'b3', nome:'Júnior', cargo:'✂️ Barbeiro',            disponivel:false },
-  ]);
-
-  React.useEffect(() => {
-    import('firebase/firestore').then(({ collection, onSnapshot, query, where }) => {
-      const q = query(collection(db,'barbeiros'), where('ativo','==',true));
-      const unsub = onSnapshot(q, snap => {
-        if (!snap.empty) setBarbeiros(snap.docs.map(d=>({id:d.id,...d.data()})).filter(b=>b.papel!=='recepcao'));
-      });
-      return () => unsub();
-    }).catch(console.error);
-  }, []);
+  ];
 
   return (
     <div style={{ ...s.app, paddingBottom:'80px' }}>
@@ -364,8 +359,8 @@ function HomeBarbeiro({ usuario, onLogout, onNavegar, dark }) {
 // ── APP PRINCIPAL ──────────────────────────────────────────────
 export default function App() {
   React.useEffect(() => {
-    // Remove splash screen quando app montar
-    if (window.__removeSpash) window.__removeSpash();
+    // 🔧 Fix: typo corrigido __removeSplash (era __removeSpash)
+    if (window.__removeSplash) window.__removeSplash();
   }, []);
 
   const [dark, setDark]       = React.useState(true);
@@ -389,7 +384,7 @@ export default function App() {
     if (modulo==='servicos')       { setConfigAbaInicial('servicos'); setTela('config_barbearia'); return; }
     if (modulo==='equipe')         { setTela('gestao_equipe');   return; }
     if (modulo==='financeiro')   { setTela('financeiro');   return; }
-    if (modulo==='comparativo') { setTela('comparativo');  return; } // ✅ P14
+    if (modulo==='comparativo') { setTela('comparativo');  return; }
     if (modulo==='agenda')         { setTela('agenda_geral');    return; }
     if (modulo==='permissoes')     { setTela('recepcao');        return; }
     if (modulo==='planos_mensais') { setTela('planos_mensais');  return; }
