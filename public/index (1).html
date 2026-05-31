@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+
+    <!-- PWA Essencial -->
+    <meta name="theme-color" content="#8B3A2A" />
+    <meta name="description" content="Flyguer BarberShop — Agendamentos online, planos mensais e muito mais." />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- iOS PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="BarberApp" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192x192.png" />
+
+    <!-- Android / Chrome -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon.png" />
+    <link rel="shortcut icon" href="/icons/favicon.png" />
+
+    <!-- Open Graph — preview ao compartilhar no WhatsApp -->
+    <meta property="og:title" content="Flyguer BarberShop" />
+    <meta property="og:description" content="Agende seu horário, assine planos e muito mais!" />
+    <meta property="og:image" content="https://flyguer-barbershop.vercel.app/icons/icon-512x512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://flyguer-barbershop.vercel.app" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Flyguer BarberShop" />
+    <meta name="twitter:description" content="Agende seu horário e assine planos!" />
+    <meta name="twitter:image" content="https://flyguer-barbershop.vercel.app/icons/icon-512x512.png" />
+
+    <!-- Fontes -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <title>Flyguer BarberShop</title>
+
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; overflow: hidden; }
+      body {
+        background: #1A0F0D;
+        font-family: 'DM Sans', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        overscroll-behavior: none;
+        -webkit-overflow-scrolling: touch;
+      }
+      #root { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+      /* Splash enquanto React carrega */
+      #splash {
+        position: fixed; inset: 0; z-index: 9999;
+        background: linear-gradient(160deg, #1A0F0D 0%, #2E1A14 60%, #1A0F0D 100%);
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        transition: opacity 0.6s ease;
+      }
+      #splash img {
+        width: 140px; height: 140px;
+        object-fit: contain;
+        border-radius: 28px;
+        box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+        margin-bottom: 20px;
+      }
+      #splash h1 {
+        font-family: 'Playfair Display', serif;
+        color: #E8C96A; font-size: 24px; font-weight: 900;
+        letter-spacing: 1px;
+      }
+      #splash p { color: #9A8880; font-size: 13px; margin-top: 6px; font-style: italic; }
+      #splash .bar {
+        width: 120px; height: 3px;
+        background: #3A2018; border-radius: 2px;
+        margin-top: 28px; overflow: hidden;
+      }
+      #splash .bar::after {
+        content: ''; display: block; height: 100%;
+        width: 30%; background: linear-gradient(90deg, #8B3A2A, #E8C96A);
+        border-radius: 2px;
+        animation: slide 1.2s ease-in-out infinite alternate;
+      }
+      @keyframes slide {
+        0%   { transform: translateX(0);    opacity: 0.7; }
+        100% { transform: translateX(280%); opacity: 1;   }
+      }
+    </style>
+  </head>
+  <body>
+
+    <!-- Splash Screen -->
+    <div id="splash">
+      <img
+        src="/icons/icon-192x192.png"
+        alt="BarberApp"
+        onerror="this.src='/logo-flyguer.png'"
+      />
+      <h1>Flyguer BarberShop</h1>
+      <p>Nossa Arte, Seu Estilo.</p>
+      <div class="bar"></div>
+    </div>
+
+    <!-- App React -->
+    <div id="root"></div>
+
+    <script>
+      // ── Remove splash quando React montar ──────────────────
+      window.__removeSplash = function() {
+        var s = document.getElementById('splash');
+        if (!s) return;
+        s.style.opacity = '0';
+        setTimeout(function() { s && s.remove(); }, 600);
+      };
+
+      // ── Captura evento de instalação ───────────────────────
+      // Android/Chrome: evento nativo
+      var _pwaPrompt = null;
+      window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        _pwaPrompt = e;
+        window.__pwaPrompt = e;
+        console.log('[PWA] Pronto para instalar');
+        // Disparar evento customizado para o React saber
+        window.dispatchEvent(new Event('pwa-ready'));
+      });
+
+      // Detectar se já está instalado
+      window.addEventListener('appinstalled', function() {
+        console.log('[PWA] App instalado com sucesso!');
+        _pwaPrompt = null;
+        window.__pwaPrompt = null;
+        window.dispatchEvent(new Event('pwa-installed'));
+      });
+
+      // ── Registra Service Worker ────────────────────────────
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          // Registrar SW principal (cache + push)
+          navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .then(function(reg) {
+              console.log('[SW] Registrado com sucesso. Scope:', reg.scope);
+            })
+            .catch(function(err) {
+              console.warn('[SW] Erro ao registrar:', err);
+            });
+        });
+      }
+
+      // ── Solicitar permissão de notificação ─────────────────
+      window.__pedirPermissaoNotificacao = function() {
+        if ('Notification' in window && Notification.permission === 'default') {
+          Notification.requestPermission().then(function(result) {
+            console.log('[Notif] Permissão:', result);
+          });
+        }
+      };
+    </script>
+
+  </body>
+</html>
