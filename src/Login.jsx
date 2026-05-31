@@ -1,15 +1,9 @@
-// Login.jsx — Amaral Barbearia
-// ─────────────────────────────────────────────────────────────
-// Passo 3: Cadastro e Login do Cliente
-// Firebase Firestore: collection clientes/{cpf}
-// ✅ Fix: logo-flyguer + permissão notificação
-// ─────────────────────────────────────────────────────────────
+// Login.jsx — Flyguer BarberShop
+// 🔧 Fix: CPF salvo no localStorage — não digita de novo
 
 import React from 'react';
 import { db } from './firebase';
-import {
-  doc, getDoc, setDoc, serverTimestamp
-} from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { getStyles, PREFERENCIAS } from './getStyles';
 
 function limparCPF(cpf) { return cpf.replace(/\D/g, ''); }
@@ -22,6 +16,11 @@ function formatarCPF(cpf) {
 }
 function senhaPadrao(cpf) { const c = limparCPF(cpf); return c.slice(-5); }
 function cpfValido(cpf) { return limparCPF(cpf).length === 11; }
+
+// 🔧 CPF salvo no localStorage
+const CPF_KEY = 'flyguer_ultimo_cpf';
+function salvarCPF(cpf) { try { localStorage.setItem(CPF_KEY, cpf); } catch(e) {} }
+function lerCPF() { try { return localStorage.getItem(CPF_KEY) || ''; } catch(e) { return ''; } }
 
 function comprimirFoto(file, callback) {
   const reader = new FileReader();
@@ -42,21 +41,15 @@ function comprimirFoto(file, callback) {
   reader.readAsDataURL(file);
 }
 
-// ── Logo component ── evita código duplicado e sempre funciona
 function LogoApp({ size = 100 }) {
   return (
-    <img
-      src="/icons/icon-128x128.png"
-      alt="Flyguer BarberShop"
+    <img src="/icons/icon-128x128.png" alt="Flyguer BarberShop"
       onError={e => { e.target.onerror = null; e.target.src = '/logo-flyguer.png'; }}
       style={{ width: size, height: size, objectFit: 'contain', borderRadius: size * 0.2, filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.5))', marginBottom: '12px' }}
     />
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// TELA 1: ESCOLHA
-// ─────────────────────────────────────────────────────────────
 export function TelaEntradaCliente({ onNovo, onCadastrado, onBack, dark }) {
   const s = getStyles(dark);
   return (
@@ -81,9 +74,6 @@ export function TelaEntradaCliente({ onNovo, onCadastrado, onBack, dark }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// TELA 2: CADASTRO
-// ─────────────────────────────────────────────────────────────
 export function TelaCadastro({ onProximo, onBack, dark }) {
   const s = getStyles(dark);
   const [form, setForm] = React.useState({ nome: '', telefone: '', cpf: '', idade: '', preferencia: '', foto: null });
@@ -145,7 +135,7 @@ export function TelaCadastro({ onProximo, onBack, dark }) {
           <label style={s.label}>Preferência de serviço *</label>
           <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
             {PREFERENCIAS.map(p => (
-              <div key={p.id} onClick={() => set('preferencia', p.id)} style={{ padding:'8px 14px', borderRadius:'20px', cursor:'pointer', fontSize:'12px', fontWeight:'600', background:form.preferencia===p.id?'rgba(201,168,76,0.2)':'#2A2A2A', border:`1.5px solid ${form.preferencia===p.id?'#C9A84C':'#333'}`, color:form.preferencia===p.id?'#C9A84C':'#888', transition:'all .2s' }}>
+              <div key={p.id} onClick={() => set('preferencia', p.id)} style={{ padding:'8px 14px', borderRadius:'20px', cursor:'pointer', fontSize:'12px', fontWeight:'600', background:form.preferencia===p.id?'rgba(201,168,76,0.2)':'#2A2A2A', border:`1.5px solid ${form.preferencia===p.id?'#C9A84C':'#333'}`, color:form.preferencia===p.id?'#C9A84C':'#888' }}>
                 {p.label}
               </div>
             ))}
@@ -158,9 +148,6 @@ export function TelaCadastro({ onProximo, onBack, dark }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// TELA 3: CRIAR SENHA
-// ─────────────────────────────────────────────────────────────
 export function TelaCriarSenha({ dadosCliente, onProximo, onBack, dark }) {
   const s = getStyles(dark);
   const [opcao, setOpcao] = React.useState('padrao');
@@ -193,13 +180,11 @@ export function TelaCriarSenha({ dadosCliente, onProximo, onBack, dark }) {
           </div>
           <div style={{ fontSize:'12px', color:s.textSub, marginBottom:'12px' }}>Últimos 5 dígitos do seu CPF:</div>
           <div style={{ display:'flex', justifyContent:'center', gap:'8px' }}>
-            {padrao.split('').map((d,i) => <div key={i} style={{ width:'44px', height:'52px', background:'#C9A84C', color:'#0A0A0A', borderRadius:'10px', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'700', fontSize:'22px', fontFamily:"'Playfair Display',serif" }}>{d}</div>)}
+            {padrao.split('').map((d,i) => <div key={i} style={{ width:'44px', height:'52px', background:'#C9A84C', color:'#0A0A0A', borderRadius:'10px', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'700', fontSize:'22px' }}>{d}</div>)}
           </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'12px' }}>
-          <div style={{ flex:1, height:'1px', background:'#2A2A2A' }} />
-          <span style={{ fontSize:'12px', color:s.textSub }}>ou</span>
-          <div style={{ flex:1, height:'1px', background:'#2A2A2A' }} />
+          <div style={{ flex:1, height:'1px', background:'#2A2A2A' }} /><span style={{ fontSize:'12px', color:s.textSub }}>ou</span><div style={{ flex:1, height:'1px', background:'#2A2A2A' }} />
         </div>
         <div onClick={() => { setOpcao('custom'); setErro(''); }} style={{ ...s.card, borderColor:opcao==='custom'?'#C9A84C':s.border, cursor:'pointer', marginBottom:'16px' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:opcao==='custom'?'12px':'0' }}>
@@ -215,9 +200,6 @@ export function TelaCriarSenha({ dadosCliente, onProximo, onBack, dark }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// TELA 4: PAGAMENTO
-// ─────────────────────────────────────────────────────────────
 export function TelaPagamentoPref({ dadosCliente, onConcluir, onBack, dark }) {
   const s = getStyles(dark);
   const [pagPref, setPagPref] = React.useState('local');
@@ -235,9 +217,9 @@ export function TelaPagamentoPref({ dadosCliente, onConcluir, onBack, dark }) {
         dataCadastro: serverTimestamp(), ultimoAcesso: serverTimestamp(),
         ultimoAgendamento: null, ultimoPagamento: null,
       });
-      // ✅ Pedir permissão de notificação após cadastro
+      salvarCPF(dadosCliente.cpf); // 🔧 Salva CPF
       if (window.__pedirPermissaoNotificacao) window.__pedirPermissaoNotificacao();
-      onConcluir({ cpf: dadosCliente.cpf, nome: dadosCliente.nome, foto: dadosCliente.foto });
+      onConcluir({ cpf: dadosCliente.cpf, nome: dadosCliente.nome, foto: dadosCliente.foto, telefone: dadosCliente.telefone });
     } catch(e) { setErro('Erro ao salvar cadastro. Tente novamente.'); }
     setLoading(false);
   }
@@ -255,20 +237,14 @@ export function TelaPagamentoPref({ dadosCliente, onConcluir, onBack, dark }) {
         <div style={{ width:'24px', height:'8px', borderRadius:'4px', background:'#C9A84C' }} />
       </div>
       <div style={{ padding:'16px 20px 0' }}>
-        <div style={{ fontSize:'14px', color:s.textSub, marginBottom:'20px', textAlign:'center' }}>Como você prefere pagar? (pode mudar a cada agendamento)</div>
-        {[{ id:'local', icon:'💵', label:'Pagar no local', sub:'No dia do atendimento — sem burocracia' },{ id:'pix', icon:'📱', label:'Pagar via Pix', sub:'Antecipado · garante sua vaga' }].map(op => (
-          <div key={op.id} onClick={() => setPagPref(op.id)} style={{ display:'flex', alignItems:'center', gap:'14px', padding:'16px', borderRadius:'14px', cursor:'pointer', background:pagPref===op.id?'rgba(201,168,76,0.08)':s.cardBg, border:`1.5px solid ${pagPref===op.id?'#C9A84C':s.border}`, marginBottom:'10px', transition:'all .2s' }}>
+        <div style={{ fontSize:'14px', color:s.textSub, marginBottom:'20px', textAlign:'center' }}>Como você prefere pagar?</div>
+        {[{ id:'local', icon:'💵', label:'Pagar no local', sub:'No dia do atendimento' },{ id:'pix', icon:'📱', label:'Pagar via Pix', sub:'Antecipado · garante sua vaga' }].map(op => (
+          <div key={op.id} onClick={() => setPagPref(op.id)} style={{ display:'flex', alignItems:'center', gap:'14px', padding:'16px', borderRadius:'14px', cursor:'pointer', background:pagPref===op.id?'rgba(201,168,76,0.08)':s.cardBg, border:`1.5px solid ${pagPref===op.id?'#C9A84C':s.border}`, marginBottom:'10px' }}>
             <div style={{ fontSize:'24px' }}>{op.icon}</div>
-            <div style={{ flex:1 }}>
-              <div style={{ fontWeight:'600', fontSize:'14px' }}>{op.label}</div>
-              <div style={{ fontSize:'11px', color:s.textSub, marginTop:'2px' }}>{op.sub}</div>
-            </div>
+            <div style={{ flex:1 }}><div style={{ fontWeight:'600', fontSize:'14px' }}>{op.label}</div><div style={{ fontSize:'11px', color:s.textSub, marginTop:'2px' }}>{op.sub}</div></div>
             <div style={{ width:'22px', height:'22px', borderRadius:'50%', border:`2px solid ${pagPref===op.id?'#C9A84C':'#444'}`, background:pagPref===op.id?'#C9A84C':'transparent', flexShrink:0 }} />
           </div>
         ))}
-        <div style={{ background:'rgba(255,193,7,0.08)', border:'1px solid rgba(255,193,7,0.2)', borderRadius:'10px', padding:'10px 14px', fontSize:'12px', color:'#FFC107', marginTop:'8px', marginBottom:'20px' }}>
-          ℹ️ O Pix antecipado é sempre opcional. Você decide a cada agendamento.
-        </div>
         {erro && <div style={{ fontSize:'13px', color:'#F44336', marginBottom:'12px', textAlign:'center' }}>⚠️ {erro}</div>}
         <button style={{ ...s.btnGold, opacity:loading?0.7:1 }} onClick={handleConcluir} disabled={loading}>{loading?'Salvando...':'✅ Concluir cadastro'}</button>
       </div>
@@ -277,14 +253,23 @@ export function TelaPagamentoPref({ dadosCliente, onConcluir, onBack, dark }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// TELA 5: LOGIN
+// TELA LOGIN — 🔧 CPF salvo automaticamente
 // ─────────────────────────────────────────────────────────────
 export function TelaLoginCliente({ onSucesso, onRecuperar, onBack, dark }) {
   const s = getStyles(dark);
-  const [cpf, setCpf] = React.useState('');
+  const cpfSalvo = lerCPF();
+  const [cpf, setCpf]     = React.useState(cpfSalvo);
   const [senha, setSenha] = React.useState('');
-  const [erro, setErro] = React.useState('');
+  const [erro, setErro]   = React.useState('');
   const [loading, setLoading] = React.useState(false);
+  const senhaRef = React.useRef(null);
+
+  // Se CPF salvo, foca direto na senha
+  React.useEffect(() => {
+    if (cpfSalvo && senhaRef.current) {
+      setTimeout(() => senhaRef.current?.focus(), 100);
+    }
+  }, []);
 
   async function handleLogin() {
     const cpfLimpo = limparCPF(cpf);
@@ -295,9 +280,9 @@ export function TelaLoginCliente({ onSucesso, onRecuperar, onBack, dark }) {
       const snap = await getDoc(doc(db, 'clientes', cpfLimpo));
       if (!snap.exists()) { setErro('CPF não encontrado. Faça seu cadastro primeiro.'); setLoading(false); return; }
       const cliente = snap.data();
-      if (cliente.senha !== senha) { setErro('Senha incorreta. Tente novamente.'); setLoading(false); return; }
+      if (cliente.senha !== senha) { setErro('Senha incorreta.'); setLoading(false); return; }
       await setDoc(doc(db, 'clientes', cpfLimpo), { ultimoAcesso: serverTimestamp() }, { merge: true });
-      // ✅ Pedir permissão de notificação após login
+      salvarCPF(cpfLimpo); // 🔧 Salva/atualiza CPF
       if (window.__pedirPermissaoNotificacao) window.__pedirPermissaoNotificacao();
       onSucesso({ cpf: cpfLimpo, nome: cliente.nome, foto: cliente.foto||null, ...cliente });
     } catch(e) { setErro('Erro ao fazer login. Tente novamente.'); }
@@ -316,17 +301,43 @@ export function TelaLoginCliente({ onSucesso, onRecuperar, onBack, dark }) {
           <LogoApp size={100} />
           <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#C9A84C' }}>Flyguer BarberShop</div>
         </div>
+
         <div style={{ marginBottom:'14px' }}>
           <label style={s.label}>CPF</label>
-          <input style={s.input} type="text" placeholder="000.000.000-00" value={formatarCPF(cpf)} onChange={e => { setCpf(e.target.value); setErro(''); }} maxLength={14} />
+          <input style={s.input} type="text" placeholder="000.000.000-00"
+            value={formatarCPF(cpf)}
+            onChange={e => { setCpf(e.target.value); setErro(''); }}
+            maxLength={14} />
+          {cpfSalvo && cpf === cpfSalvo && (
+            <div style={{ fontSize:'11px', color:'#4CAF50', marginTop:'4px' }}>✅ CPF salvo automaticamente</div>
+          )}
         </div>
+
         <div style={{ marginBottom:'8px' }}>
           <label style={s.label}>Senha (5 dígitos)</label>
-          <input style={{ ...s.input, textAlign:'center', fontSize:'24px', letterSpacing:'8px', fontWeight:'700' }} type="password" placeholder="• • • • •" maxLength={5} value={senha} onChange={e => { setSenha(e.target.value.replace(/\D/g,'')); setErro(''); }} onKeyDown={e => e.key==='Enter'&&handleLogin()} />
+          <input
+            ref={senhaRef}
+            style={{ ...s.input, textAlign:'center', fontSize:'24px', letterSpacing:'8px', fontWeight:'700' }}
+            type="password" placeholder="• • • • •" maxLength={5}
+            value={senha}
+            onChange={e => { setSenha(e.target.value.replace(/\D/g,'')); setErro(''); }}
+            onKeyDown={e => e.key==='Enter'&&handleLogin()} />
         </div>
+
         <div style={{ textAlign:'right', marginBottom:'20px' }}>
           <button onClick={onRecuperar} style={{ background:'none', border:'none', color:'#C9A84C', fontSize:'12px', cursor:'pointer' }}>Esqueci minha senha</button>
         </div>
+
+        {/* 🔧 Trocar conta */}
+        {cpfSalvo && (
+          <div style={{ textAlign:'center', marginBottom:'16px' }}>
+            <button onClick={() => { setCpf(''); setSenha(''); try { localStorage.removeItem(CPF_KEY); } catch(e) {} }}
+              style={{ background:'none', border:'none', color:'#9A8880', fontSize:'12px', cursor:'pointer' }}>
+              🔄 Entrar com outra conta
+            </button>
+          </div>
+        )}
+
         {erro && <div style={{ fontSize:'13px', color:'#F44336', marginBottom:'12px', textAlign:'center', padding:'10px', background:'rgba(244,67,54,0.1)', borderRadius:'10px' }}>⚠️ {erro}</div>}
         <button style={{ ...s.btnGold, opacity:loading?0.7:1 }} onClick={handleLogin} disabled={loading}>{loading?'Entrando...':'Entrar →'}</button>
       </div>
@@ -334,15 +345,12 @@ export function TelaLoginCliente({ onSucesso, onRecuperar, onBack, dark }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// TELA 6: RECUPERAR SENHA
-// ─────────────────────────────────────────────────────────────
 export function TelaRecuperarSenha({ onBack, onLogin, dark }) {
   const s = getStyles(dark);
-  const [cpf, setCpf] = React.useState('');
+  const [cpf, setCpf]           = React.useState('');
   const [resultado, setResultado] = React.useState(null);
-  const [erro, setErro] = React.useState('');
-  const [loading, setLoading] = React.useState(false);
+  const [erro, setErro]         = React.useState('');
+  const [loading, setLoading]   = React.useState(false);
 
   async function handleBuscar() {
     const cpfLimpo = limparCPF(cpf);
@@ -352,7 +360,7 @@ export function TelaRecuperarSenha({ onBack, onLogin, dark }) {
       const snap = await getDoc(doc(db, 'clientes', cpfLimpo));
       if (!snap.exists()) { setErro('CPF não encontrado.'); setLoading(false); return; }
       setResultado(senhaPadrao(cpfLimpo)); setErro('');
-    } catch(e) { setErro('Erro ao buscar. Tente novamente.'); }
+    } catch(e) { setErro('Erro ao buscar.'); }
     setLoading(false);
   }
 
@@ -373,11 +381,10 @@ export function TelaRecuperarSenha({ onBack, onLogin, dark }) {
         <button style={{ ...s.btnGold, marginBottom:'16px', opacity:loading?0.7:1 }} onClick={handleBuscar} disabled={loading}>{loading?'Buscando...':'Buscar →'}</button>
         {resultado && (
           <div style={{ ...s.card, borderColor:'#C9A84C', textAlign:'center', background:'rgba(201,168,76,0.05)' }}>
-            <div style={{ fontSize:'13px', color:s.textSub, marginBottom:'12px' }}>Sua senha padrão (últimos 5 dígitos do CPF):</div>
+            <div style={{ fontSize:'13px', color:s.textSub, marginBottom:'12px' }}>Sua senha padrão:</div>
             <div style={{ display:'flex', justifyContent:'center', gap:'8px', marginBottom:'16px' }}>
-              {resultado.split('').map((d,i) => <div key={i} style={{ width:'44px', height:'52px', background:'#C9A84C', color:'#0A0A0A', borderRadius:'10px', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'700', fontSize:'22px', fontFamily:"'Playfair Display',serif" }}>{d}</div>)}
+              {resultado.split('').map((d,i) => <div key={i} style={{ width:'44px', height:'52px', background:'#C9A84C', color:'#0A0A0A', borderRadius:'10px', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'700', fontSize:'22px' }}>{d}</div>)}
             </div>
-            <div style={{ fontSize:'11px', color:s.textSub, marginBottom:'14px' }}>Se você criou uma senha personalizada, use ela. Caso não lembre, entre em contato com a barbearia.</div>
             <button style={s.btnGold} onClick={onLogin}>Entrar agora →</button>
           </div>
         )}
@@ -386,18 +393,15 @@ export function TelaRecuperarSenha({ onBack, onLogin, dark }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// CONTROLADOR PRINCIPAL
-// ─────────────────────────────────────────────────────────────
 export default function LoginFlow({ onSucesso, onBack, dark }) {
   const [tela, setTela] = React.useState('entrada');
   const [dadosCadastro, setDadosCadastro] = React.useState({});
 
-  if (tela==='entrada') return <TelaEntradaCliente onNovo={() => setTela('cadastro1')} onCadastrado={() => setTela('login')} onBack={onBack} dark={dark} />;
+  if (tela==='entrada')   return <TelaEntradaCliente onNovo={() => setTela('cadastro1')} onCadastrado={() => setTela('login')} onBack={onBack} dark={dark} />;
   if (tela==='cadastro1') return <TelaCadastro onProximo={dados => { setDadosCadastro(dados); setTela('cadastro2'); }} onBack={() => setTela('entrada')} dark={dark} />;
   if (tela==='cadastro2') return <TelaCriarSenha dadosCliente={dadosCadastro} onProximo={dados => { setDadosCadastro(dados); setTela('cadastro3'); }} onBack={() => setTela('cadastro1')} dark={dark} />;
   if (tela==='cadastro3') return <TelaPagamentoPref dadosCliente={dadosCadastro} onConcluir={cliente => onSucesso(cliente)} onBack={() => setTela('cadastro2')} dark={dark} />;
-  if (tela==='login') return <TelaLoginCliente onSucesso={cliente => onSucesso(cliente)} onRecuperar={() => setTela('recuperar')} onBack={() => setTela('entrada')} dark={dark} />;
+  if (tela==='login')     return <TelaLoginCliente onSucesso={cliente => onSucesso(cliente)} onRecuperar={() => setTela('recuperar')} onBack={() => setTela('entrada')} dark={dark} />;
   if (tela==='recuperar') return <TelaRecuperarSenha onBack={() => setTela('login')} onLogin={() => setTela('login')} dark={dark} />;
   return null;
 }

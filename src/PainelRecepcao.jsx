@@ -418,6 +418,25 @@ export default function PainelRecepcao({ onBack, dark, onNavegarAssinaturas }) {
   const [modalLemb, setModalLemb]   = React.useState(false);
   const countRef                    = React.useRef(0);
 
+  // 🔧 Listener resgates de promoção
+  React.useEffect(()=>{
+    let unsub = ()=>{};
+    import('firebase/firestore').then(({ collection: col, query: q, where: w, onSnapshot: os, orderBy: ob }) => {
+      const qr = q(col(db,'resgates_promo'), w('utilizado','==',false));
+      unsub = os(qr, snap => {
+        snap.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const r = change.doc.data();
+            if (r.clienteNome) {
+              setToast({ msg: `🔥 ${r.clienteNome.split(' ')[0]} resgatou: ${r.promoTitulo}`, tipo: 'novo' });
+            }
+          }
+        });
+      }, ()=>{});
+    }).catch(()=>{});
+    return () => unsub();
+  },[]);
+
   React.useEffect(()=>{
     const q=query(collection(db,'agendamentos'),where('data','==',hoje()));
     const unsub=onSnapshot(q,snap=>{
