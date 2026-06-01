@@ -1,6 +1,9 @@
 // GerenciarAssinaturas.jsx — Flyguer BarberShop
 // ✅ Baixa por serviço individual
 // ✅ Contador por serviço (cortes, barbas, sobrancelhas, etc)
+// ✅ Fase 3: aba "Planos" — todos os planos ativos do gerente
+// ✅ Fase 3: aba "Clientes" — todos os clientes com planos ativos
+// ✅ Fase 3: Reativar plano cancelado
 
 import React from 'react';
 import { db } from './firebase';
@@ -18,9 +21,8 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
   const [busca, setBusca]           = React.useState('');
   const [modalAtivar, setModalAtivar] = React.useState(null);
   const [dataPagamento, setDataPagamento] = React.useState('');
-  const [modalBaixa, setModalBaixa] = React.useState(null);
+  const [modalReativar, setModalReativar] = React.useState(null); // ✅ Fase 3
 
-  // vincular
   const [clienteNome, setClienteNome] = React.useState('');
   const [clienteTel, setClienteTel]   = React.useState('');
   const [planoSel, setPlanoSel]       = React.useState('');
@@ -46,14 +48,14 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
     return () => { unsubA?.(); unsubP?.(); };
   }, []);
 
-  const pendentes = assinaturas.filter(a => a.status === 'pendente_pagamento');
-  const ativas    = assinaturas.filter(a => a.status === 'ativa');
-  const filtrar   = lista => !busca ? lista : lista.filter(a =>
+  const pendentes  = assinaturas.filter(a => a.status === 'pendente_pagamento');
+  const ativas     = assinaturas.filter(a => a.status === 'ativa');
+  const canceladas = assinaturas.filter(a => a.status === 'cancelada');
+
+  const filtrar = lista => !busca ? lista : lista.filter(a =>
     a.clienteNome?.toLowerCase().includes(busca.toLowerCase()) || a.clienteTelefone?.includes(busca)
   );
 
-  // ── Cancelamentos do cliente (visão barbearia) ──
-  // Busca agendamentos incluindo os ocultados pelo cliente
   const [cancelamentosPorCliente, setCancelamentosPorCliente] = React.useState({});
   React.useEffect(() => {
     (async () => {
@@ -68,11 +70,9 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
     })();
   }, []);
 
-  // ── Calcular uso por serviço ──
   function calcularUso(assinatura) {
     const servicos = assinatura.servicosInclusos || [];
     const uso = assinatura.usoServicos || {};
-    // Cada serviço tem limite de 4 (padrão) ou definido no plano
     return servicos.map(sv => ({
       nome: sv,
       usado: uso[sv] || 0,
@@ -80,7 +80,6 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
     }));
   }
 
-  // ── Dar baixa por serviço ──
   async function darBaixaServico(assinatura, servico) {
     setSalvando(true);
     try {
@@ -88,13 +87,12 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
       const usoAtual = assinatura.usoServicos || {};
       const novoUso = { ...usoAtual, [servico]: (usoAtual[servico] || 0) + 1 };
       await updateDoc(doc(db, 'assinaturas', assinatura.id), { usoServicos: novoUso });
-      setSucesso('✅ Baixa registrada: ' + servico + ' para ' + assinatura.clienteNome);
+      setSucesso('✅ Baixa: ' + servico + ' — ' + assinatura.clienteNome);
       setTimeout(() => setSucesso(''), 3000);
     } catch(e) { setErro('Erro: ' + e.message); }
     setSalvando(false);
   }
 
-  // ── Ativar plano ──
   async function ativarPlano() {
     if (!modalAtivar || !dataPagamento) { setErro('Informe a data de pagamento.'); return; }
     setSalvando(true); setErro('');
@@ -105,7 +103,7 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
       await updateDoc(doc(db, 'assinaturas', modalAtivar.id), {
         status: 'ativa', dataPagamento, vencimento: venc.toISOString(),
         ativadoEm: serverTimestamp(), ativadoPor: 'recepcao',
-        usoServicos: {}, // resetar uso ao ativar
+        usoServicos: {},
       });
       setModalAtivar(null); setDataPagamento('');
       setSucesso('✅ Plano ativado para ' + modalAtivar.clienteNome + '!');
@@ -115,17 +113,41 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
     setSalvando(false);
   }
 
-  // ── Cancelar ──
+  // ✅ Fase 3: Reativar plano cancelado
+  async function reativarPlano() {
+    if (!modalReativar || !dataPagamento) { setErro('Informe a data de pagamento.'); return; }
+    setSalvando(true); setErro('');
+    try {
+      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+      const venc = new Date(dataPagamento + 'T12:00:00');
+      venc.setMonth(venc.getMonth() + 1);
+      await updateDoc(doc(db, 'assinaturas', modalReativar.id), {
+        status: 'ativa',
+        dataPagamento,
+        vencimento: venc.toISOString(),
+        reativadoEm: serverTimestamp(),
+        reativadoPor: 'recepcao',
+        usoServicos: {},
+      });
+      setModalReativar(null); setDataPagamento('');
+      setSucesso('✅ Plano reativado para ' + modalReativar.clienteNome + '!');
+      setTimeout(() => setSucesso(''), 4000);
+      setAba('ativas');
+    } catch(e) { setErro('Erro: ' + e.message); }
+    setSalvando(false);
+  }
+
   async function cancelar(a) {
     setSalvando(true);
     try {
       const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
       await updateDoc(doc(db, 'assinaturas', a.id), { status: 'cancelada', canceladaEm: serverTimestamp() });
+      setSucesso('Assinatura de ' + a.clienteNome + ' cancelada.');
+      setTimeout(() => setSucesso(''), 3000);
     } catch(e) { setErro('Erro: ' + e.message); }
     setSalvando(false);
   }
 
-  // ── Buscar cliente ──
   async function buscarCliente() {
     if (!clienteTel.trim()) { setErro('Informe o telefone.'); return; }
     setErro('');
@@ -138,7 +160,6 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
     } catch(e) { setErro('Erro: ' + e.message); }
   }
 
-  // ── Vincular ──
   async function vincular() {
     if (!clienteId || !planoSel) { setErro('Busque o cliente e selecione um plano.'); return; }
     setSalvando(true); setErro('');
@@ -155,8 +176,7 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
         planoCor: plano.cor || '#C9A84C', preco: plano.preco,
         servicosInclusos: plano.servicosInclusos || [],
         cortesInclusos: plano.cortesInclusos || 0,
-        usoServicos: {},
-        cortesUsados: 0, status: 'ativa',
+        usoServicos: {}, cortesUsados: 0, status: 'ativa',
         assinadoEm: serverTimestamp(), vencimento: venc.toISOString(),
         dataPagamento: new Date().toISOString().split('T')[0],
         vinculadoPor: 'recepcao', renovacaoAuto: false,
@@ -169,31 +189,60 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
     setSalvando(false);
   }
 
-  // ── Card de assinatura ──
-  function CardAssinatura({ a, showAtivar }) {
+  // ✅ Fase 3: card de plano do gerente
+  function CardPlano({ p }) {
+    return (
+      <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:'14px', marginBottom:'10px', overflow:'hidden' }}>
+        <div style={{ height:'3px', background:p.cor||'#C9A84C' }} />
+        <div style={{ padding:'14px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'10px' }}>
+            <div style={{ fontSize:'32px' }}>{p.icone||'💈'}</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:'700', fontSize:'15px', color:textMain }}>{p.nome}</div>
+              <div style={{ fontSize:'13px', color:p.cor||'#C9A84C', fontWeight:'700' }}>R$ {Number(p.preco).toFixed(2).replace('.',',')}/mês</div>
+            </div>
+            <div style={{ background:`${p.cor||'#C9A84C'}22`, borderRadius:'8px', padding:'4px 10px', fontSize:'11px', color:p.cor||'#C9A84C', fontWeight:'700' }}>
+              {ativas.filter(a=>a.planoId===p.id).length} ativo{ativas.filter(a=>a.planoId===p.id).length!==1?'s':''}
+            </div>
+          </div>
+          {(p.servicosInclusos||[]).length > 0 && (
+            <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+              {(p.servicosInclusos||[]).map(sv => (
+                <div key={sv} style={{ background:dark?'#2E1A14':'#f5efe6', border:`1px solid ${border}`, borderRadius:'8px', padding:'4px 8px', fontSize:'11px', color:textMain }}>
+                  💈 {sv}
+                </div>
+              ))}
+            </div>
+          )}
+          {p.descricao && <div style={{ fontSize:'12px', color:textSub, marginTop:'8px' }}>{p.descricao}</div>}
+        </div>
+      </div>
+    );
+  }
+
+  function CardAssinatura({ a, showAtivar, showReativar }) {
     const usos = calcularUso(a);
     const [expandido, setExpandido] = React.useState(false);
+    const vencido = a.vencimento && new Date(a.vencimento) < new Date();
 
     return (
-      <div style={{ background: cardBg, border: '1px solid ' + border, borderRadius: '14px', marginBottom: '10px', overflow: 'hidden' }}>
-        <div style={{ height: '3px', background: a.planoCor || '#C9A84C' }} />
-        <div style={{ padding: '14px' }}>
-          {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-            <div style={{ ...s.avatar, width: '40px', height: '40px', fontSize: '16px', flexShrink: 0 }}>
+      <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:'14px', marginBottom:'10px', overflow:'hidden' }}>
+        <div style={{ height:'3px', background:a.planoCor||'#C9A84C' }} />
+        <div style={{ padding:'14px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'10px' }}>
+            <div style={{ ...s.avatar, width:'40px', height:'40px', fontSize:'16px', flexShrink:0 }}>
               {(a.clienteNome||'?')[0]}
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: '700', fontSize: '14px', color: textMain }}>{a.clienteNome}</div>
-              <div style={{ fontSize: '11px', color: textSub }}>{a.clienteTelefone}</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:'700', fontSize:'14px', color:textMain }}>{a.clienteNome}</div>
+              <div style={{ fontSize:'11px', color:textSub }}>{a.clienteTelefone}</div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '12px', color: a.planoCor || '#C9A84C', fontWeight: '700' }}>{a.planoIcone} {a.planoNome}</div>
-              <div style={{ fontSize: '10px', color: textSub }}>R$ {Number(a.preco).toFixed(2)}/mês</div>
+            <div style={{ textAlign:'right' }}>
+              <div style={{ fontSize:'12px', color:a.planoCor||'#C9A84C', fontWeight:'700' }}>{a.planoIcone} {a.planoNome}</div>
+              <div style={{ fontSize:'10px', color:textSub }}>R$ {Number(a.preco).toFixed(2)}/mês</div>
             </div>
           </div>
 
-          {/* Badge cancelamentos — visão barbearia */}
           {cancelamentosPorCliente[a.clienteId] > 0 && (
             <div style={{ background:'rgba(244,67,54,0.1)', border:'1px solid rgba(244,67,54,0.3)', borderRadius:'8px', padding:'6px 10px', marginBottom:'8px', fontSize:'11px', color:'#F44336', display:'flex', alignItems:'center', gap:'6px' }}>
               <span>⚠️</span>
@@ -201,11 +250,16 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
             </div>
           )}
 
-          {/* Datas */}
+          {vencido && !showAtivar && !showReativar && (
+            <div style={{ background:'rgba(255,193,7,0.1)', border:'1px solid rgba(255,193,7,0.3)', borderRadius:'8px', padding:'6px 10px', marginBottom:'8px', fontSize:'11px', color:'#FFC107' }}>
+              ⚠️ Vencimento expirado
+            </div>
+          )}
+
           {(a.dataPagamento || a.vencimento) && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '10px' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px', marginBottom:'10px' }}>
               {a.dataPagamento && (
-                <div style={{ background: dark?'#1A0F0D':'#f9f5f0', borderRadius:'8px', padding:'6px 10px' }}>
+                <div style={{ background:dark?'#1A0F0D':'#f9f5f0', borderRadius:'8px', padding:'6px 10px' }}>
                   <div style={{ fontSize:'10px', color:textSub }}>Pagamento</div>
                   <div style={{ fontSize:'12px', color:textMain, fontWeight:'600' }}>
                     {new Date(a.dataPagamento+'T12:00:00').toLocaleDateString('pt-BR')}
@@ -213,9 +267,9 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
                 </div>
               )}
               {a.vencimento && (
-                <div style={{ background: dark?'#1A0F0D':'#f9f5f0', borderRadius:'8px', padding:'6px 10px' }}>
+                <div style={{ background:dark?'#1A0F0D':'#f9f5f0', borderRadius:'8px', padding:'6px 10px' }}>
                   <div style={{ fontSize:'10px', color:textSub }}>Vencimento</div>
-                  <div style={{ fontSize:'12px', color:textMain, fontWeight:'600' }}>
+                  <div style={{ fontSize:'12px', color:vencido?'#F44336':textMain, fontWeight:'600' }}>
                     {new Date(a.vencimento).toLocaleDateString('pt-BR')}
                   </div>
                 </div>
@@ -223,28 +277,23 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
             </div>
           )}
 
-          {/* Uso por serviço */}
-          {!showAtivar && usos.length > 0 && (
-            <div style={{ background: dark?'#1A0F0D':'#f9f5f0', borderRadius:'10px', padding:'10px', marginBottom:'10px' }}>
-              <div style={{ fontSize:'11px', color:textSub, fontWeight:'600', marginBottom:'8px', textTransform:'uppercase' }}>
-                Uso do mês
-              </div>
+          {!showAtivar && !showReativar && usos.length > 0 && (
+            <div style={{ background:dark?'#1A0F0D':'#f9f5f0', borderRadius:'10px', padding:'10px', marginBottom:'10px' }}>
+              <div style={{ fontSize:'11px', color:textSub, fontWeight:'600', marginBottom:'8px', textTransform:'uppercase' }}>Uso do mês</div>
               {usos.map(sv => {
                 const restante = Math.max(0, sv.limite - sv.usado);
                 const pct = Math.min(100, (sv.usado / sv.limite) * 100);
                 return (
-                  <div key={sv.nome} style={{ marginBottom: '8px' }}>
+                  <div key={sv.nome} style={{ marginBottom:'8px' }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px' }}>
                       <span style={{ fontSize:'12px', color:textMain, fontWeight:'600' }}>{sv.nome}</span>
                       <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
                         <span style={{ fontSize:'11px', color:restante===0?'#F44336':'#4CAF50', fontWeight:'700' }}>
-                          {restante === 0 ? '✗ Esgotado' : restante + ' restante' + (restante!==1?'s':'')}
+                          {restante===0?'✗ Esgotado':restante+' restante'+(restante!==1?'s':'')}
                         </span>
                         <span style={{ fontSize:'10px', color:textSub }}>{sv.usado}/{sv.limite}</span>
                         {restante > 0 && (
-                          <button
-                            onClick={() => darBaixaServico(a, sv.nome)}
-                            disabled={salvando}
+                          <button onClick={() => darBaixaServico(a, sv.nome)} disabled={salvando}
                             style={{ background:'linear-gradient(135deg,#5C2218,#8B3A2A)', border:'none', borderRadius:'6px', padding:'4px 8px', fontSize:'11px', color:'#F5EFE6', cursor:'pointer', fontWeight:'700', whiteSpace:'nowrap' }}>
                             + Usar
                           </button>
@@ -261,14 +310,24 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
           )}
 
           {/* Ações */}
-          {showAtivar ? (
+          {showAtivar && (
             <button onClick={() => { setModalAtivar(a); setDataPagamento(new Date().toISOString().split('T')[0]); setErro(''); }}
               style={{ width:'100%', background:'linear-gradient(135deg,#2E7D7A,#3A9E9A)', border:'none', borderRadius:'10px', padding:'10px', fontSize:'13px', color:'#fff', cursor:'pointer', fontWeight:'700' }}>
               ✅ Ativar — Confirmar data de pagamento
             </button>
-          ) : (
+          )}
+
+          {/* ✅ Fase 3: botão reativar */}
+          {showReativar && (
+            <button onClick={() => { setModalReativar(a); setDataPagamento(new Date().toISOString().split('T')[0]); setErro(''); }}
+              style={{ width:'100%', background:'linear-gradient(135deg,#A07830,#C9A84C)', border:'none', borderRadius:'10px', padding:'10px', fontSize:'13px', color:'#1A0F0D', cursor:'pointer', fontWeight:'700' }}>
+              🔄 Reativar plano a pedido do cliente
+            </button>
+          )}
+
+          {!showAtivar && !showReativar && (
             <button onClick={() => cancelar(a)}
-              style={{ width:'100%', background:'transparent', border:'1px solid #8B3A2A', borderRadius:'8px', padding:'8px', fontSize:'12px', color:'#F44336', cursor:'pointer' }}>
+              style={{ width:'100%', background:'transparent', border:'1px solid #8B3A2A', borderRadius:'8px', padding:'8px', fontSize:'12px', color:'#F44336', cursor:'pointer', marginTop:'4px' }}>
               ✕ Cancelar assinatura
             </button>
           )}
@@ -277,8 +336,16 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
     );
   }
 
+  const abas = [
+    { id:'pendentes', label:'⏳ Pendentes', badge: pendentes.length },
+    { id:'ativas',    label:'✅ Clientes',  badge: ativas.length    },
+    { id:'planos',    label:'📋 Planos',    badge: 0                }, // ✅ Fase 3
+    { id:'canceladas',label:'✕ Canceladas', badge: canceladas.length }, // ✅ Fase 3
+    { id:'vincular',  label:'➕',           badge: 0                },
+  ];
+
   return (
-    <div style={{ ...s.app, paddingBottom: '80px' }}>
+    <div style={{ ...s.app, paddingBottom:'80px' }}>
 
       {/* HEADER */}
       <div style={{ background:'linear-gradient(135deg,#5C2218,#8B3A2A)', padding:'16px 20px 0', display:'flex', alignItems:'center', gap:'12px' }}>
@@ -286,14 +353,10 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
         <div style={{ flex:1 }}>
           <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#F5EFE6', fontWeight:'700' }}>Assinaturas</div>
         </div>
-        <div style={{ display:'flex', gap:'4px' }}>
-          {[
-            { id:'pendentes', label:'⏳ Pendentes', badge: pendentes.length },
-            { id:'ativas',    label:'✅ Ativas',    badge: ativas.length    },
-            { id:'vincular',  label:'➕',            badge: 0                },
-          ].map(a => (
+        <div style={{ display:'flex', gap:'4px', overflowX:'auto' }}>
+          {abas.map(a => (
             <button key={a.id} onClick={() => setAba(a.id)}
-              style={{ background:aba===a.id?'#C9A84C':'rgba(0,0,0,0.2)', border:'none', borderRadius:'8px 8px 0 0', padding:'6px 10px', color:aba===a.id?'#1A0F0D':'#F5EFE6', fontSize:'11px', cursor:'pointer', fontWeight:aba===a.id?'700':'400', position:'relative' }}>
+              style={{ background:aba===a.id?'#C9A84C':'rgba(0,0,0,0.2)', border:'none', borderRadius:'8px 8px 0 0', padding:'6px 10px', color:aba===a.id?'#1A0F0D':'#F5EFE6', fontSize:'11px', cursor:'pointer', fontWeight:aba===a.id?'700':'400', position:'relative', whiteSpace:'nowrap' }}>
               {a.label}
               {a.badge > 0 && <span style={{ position:'absolute', top:'-4px', right:'-4px', background:'#F44336', color:'#fff', borderRadius:'50%', width:'16px', height:'16px', fontSize:'9px', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'700' }}>{a.badge}</span>}
             </button>
@@ -305,12 +368,13 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
         {sucesso && <div style={{ background:'rgba(76,175,80,0.15)', border:'1px solid #4CAF50', borderRadius:'12px', padding:'12px 16px', marginBottom:'14px', fontSize:'13px', color:'#4CAF50', fontWeight:'600' }}>{sucesso}</div>}
         {erro && <div style={{ background:'rgba(244,67,54,0.1)', border:'1px solid #F44336', borderRadius:'10px', padding:'10px', fontSize:'12px', color:'#F44336', marginBottom:'12px' }}>{erro}</div>}
 
-        {(aba==='pendentes'||aba==='ativas') && (
+        {(aba==='pendentes'||aba==='ativas'||aba==='canceladas') && (
           <input value={busca} onChange={e => setBusca(e.target.value)}
             placeholder="🔍 Buscar por nome ou telefone..."
             style={{ ...s.input, width:'100%', boxSizing:'border-box', marginBottom:'14px' }} />
         )}
 
+        {/* PENDENTES */}
         {aba==='pendentes' && (
           <>
             {loading && <div style={{ textAlign:'center', padding:'40px', color:textSub }}>Carregando...</div>}
@@ -320,10 +384,11 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
                 <div>Nenhum plano aguardando ativação.</div>
               </div>
             )}
-            {filtrar(pendentes).map(a => <CardAssinatura key={a.id} a={a} showAtivar={true} />)}
+            {filtrar(pendentes).map(a => <CardAssinatura key={a.id} a={a} showAtivar={true} showReativar={false} />)}
           </>
         )}
 
+        {/* CLIENTES COM PLANOS ATIVOS */}
         {aba==='ativas' && (
           <>
             {loading && <div style={{ textAlign:'center', padding:'40px', color:textSub }}>Carregando...</div>}
@@ -334,12 +399,51 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
                 <button onClick={() => setAba('vincular')} style={{ marginTop:'12px', background:'#8B3A2A', border:'none', borderRadius:'10px', padding:'10px 20px', color:'#F5EFE6', fontWeight:'700', cursor:'pointer', fontSize:'13px' }}>+ Vincular cliente</button>
               </div>
             )}
-            {filtrar(ativas).map(a => <CardAssinatura key={a.id} a={a} showAtivar={false} />)}
+            {filtrar(ativas).map(a => <CardAssinatura key={a.id} a={a} showAtivar={false} showReativar={false} />)}
           </>
         )}
 
+        {/* ✅ Fase 3: ABA PLANOS DO GERENTE */}
+        {aba==='planos' && (
+          <>
+            <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'600', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'12px' }}>
+              Planos cadastrados pelo gerente
+            </div>
+            {planos.length===0 && (
+              <div style={{ textAlign:'center', padding:'40px', color:textSub }}>
+                <div style={{ fontSize:'32px', marginBottom:'8px' }}>📋</div>
+                <div>Nenhum plano cadastrado ainda.</div>
+                <div style={{ fontSize:'12px', marginTop:'8px' }}>O gerente deve criar planos em Configurações → Planos Mensais.</div>
+              </div>
+            )}
+            {planos.map(p => <CardPlano key={p.id} p={p} />)}
+            {planos.length > 0 && (
+              <div style={{ background:dark?'#231410':'#f9f5f0', border:`1px solid ${border}`, borderRadius:'12px', padding:'12px 14px', marginTop:'8px' }}>
+                <div style={{ fontSize:'12px', color:textSub, textAlign:'center' }}>
+                  Total: <strong style={{ color:textMain }}>{planos.length} plano{planos.length!==1?'s':''}</strong> ativos · <strong style={{ color:'#4CAF50' }}>{ativas.length} assinatura{ativas.length!==1?'s':''}</strong> ativas
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ✅ Fase 3: ABA CANCELADAS COM OPÇÃO REATIVAR */}
+        {aba==='canceladas' && (
+          <>
+            {loading && <div style={{ textAlign:'center', padding:'40px', color:textSub }}>Carregando...</div>}
+            {!loading && filtrar(canceladas).length===0 && (
+              <div style={{ textAlign:'center', padding:'40px', color:textSub }}>
+                <div style={{ fontSize:'32px', marginBottom:'8px' }}>✅</div>
+                <div>Nenhuma assinatura cancelada.</div>
+              </div>
+            )}
+            {filtrar(canceladas).map(a => <CardAssinatura key={a.id} a={a} showAtivar={false} showReativar={true} />)}
+          </>
+        )}
+
+        {/* VINCULAR */}
         {aba==='vincular' && (
-          <div style={{ background:cardBg, border:'1px solid '+border, borderRadius:'16px', padding:'20px' }}>
+          <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:'16px', padding:'20px' }}>
             <div style={{ fontWeight:'700', fontSize:'15px', color:textMain, marginBottom:'16px' }}>➕ Vincular cliente a plano</div>
             <div style={{ marginBottom:'12px' }}>
               <label style={{ fontSize:'12px', color:textSub, fontWeight:'600', display:'block', marginBottom:'6px' }}>Telefone do cliente</label>
@@ -358,13 +462,13 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
               <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
                 {planos.map(p => (
                   <div key={p.id} onClick={() => setPlanoSel(p.id)}
-                    style={{ display:'flex', alignItems:'center', gap:'12px', padding:'12px', background:planoSel===p.id?(dark?'#3A2018':'#fdf0dc'):(dark?'#2E1A14':'#f5efe6'), border:'1px solid '+(planoSel===p.id?(p.cor||'#C9A84C'):border), borderRadius:'10px', cursor:'pointer' }}>
+                    style={{ display:'flex', alignItems:'center', gap:'12px', padding:'12px', background:planoSel===p.id?(dark?'#3A2018':'#fdf0dc'):(dark?'#2E1A14':'#f5efe6'), border:`1px solid ${planoSel===p.id?(p.cor||'#C9A84C'):border}`, borderRadius:'10px', cursor:'pointer' }}>
                     <span style={{ fontSize:'24px' }}>{p.icone}</span>
                     <div style={{ flex:1 }}>
                       <div style={{ fontWeight:'700', fontSize:'13px', color:textMain }}>{p.nome}</div>
                       <div style={{ fontSize:'11px', color:textSub }}>{(p.servicosInclusos||[]).join(', ')||'Serviços inclusos'} — R$ {Number(p.preco).toFixed(2)}/mês</div>
                     </div>
-                    <div style={{ width:'20px', height:'20px', borderRadius:'50%', border:'2px solid '+(planoSel===p.id?(p.cor||'#C9A84C'):border), background:planoSel===p.id?(p.cor||'#C9A84C'):'transparent' }} />
+                    <div style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${planoSel===p.id?(p.cor||'#C9A84C'):border}`, background:planoSel===p.id?(p.cor||'#C9A84C'):'transparent' }} />
                   </div>
                 ))}
               </div>
@@ -388,16 +492,44 @@ export default function GerenciarAssinaturas({ onBack, dark }) {
             </div>
             <div style={{ marginBottom:'16px' }}>
               <label style={{ fontSize:'12px', color:textSub, fontWeight:'600', display:'block', marginBottom:'8px' }}>Data do pagamento *</label>
-              <input type="date" value={dataPagamento} onChange={e => setDataPagamento(e.target.value)}
-                style={{ ...s.input, width:'100%', boxSizing:'border-box' }} />
+              <input type="date" value={dataPagamento} onChange={e => setDataPagamento(e.target.value)} style={{ ...s.input, width:'100%', boxSizing:'border-box' }} />
               <div style={{ fontSize:'11px', color:textSub, marginTop:'4px' }}>Vencimento = 1 mês após esta data.</div>
             </div>
             {erro && <div style={{ background:'rgba(244,67,54,0.1)', border:'1px solid #F44336', borderRadius:'10px', padding:'10px', fontSize:'12px', color:'#F44336', marginBottom:'12px' }}>{erro}</div>}
             <div style={{ display:'flex', gap:'10px' }}>
-              <button onClick={() => { setModalAtivar(null); setErro(''); }} style={{ flex:1, background:dark?'#2E1A14':'#f5efe6', border:'1px solid '+border, borderRadius:'12px', padding:'14px', color:textSub, cursor:'pointer' }}>Cancelar</button>
+              <button onClick={() => { setModalAtivar(null); setErro(''); }} style={{ flex:1, background:dark?'#2E1A14':'#f5efe6', border:`1px solid ${border}`, borderRadius:'12px', padding:'14px', color:textSub, cursor:'pointer' }}>Cancelar</button>
               <button onClick={ativarPlano} disabled={salvando}
                 style={{ flex:2, background:'linear-gradient(135deg,#2E7D7A,#3A9E9A)', border:'none', borderRadius:'12px', padding:'14px', color:'#fff', fontWeight:'700', fontSize:'14px', cursor:'pointer' }}>
                 {salvando?'Ativando...':'✅ Ativar Plano'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ Fase 3: MODAL REATIVAR */}
+      {modalReativar && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:200, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
+          <div style={{ background:dark?'#1A0F0D':'#fff', borderRadius:'24px 24px 0 0', padding:'28px 20px 40px', width:'100%', maxWidth:'430px' }}>
+            <div style={{ textAlign:'center', marginBottom:'20px' }}>
+              <div style={{ fontSize:'48px', marginBottom:'8px' }}>🔄</div>
+              <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:textMain, fontWeight:'700' }}>Reativar Plano</div>
+              <div style={{ fontSize:'13px', color:textSub, marginTop:'4px' }}>{modalReativar.clienteNome} · {modalReativar.planoNome}</div>
+            </div>
+            <div style={{ background:'rgba(201,168,76,0.1)', border:'1px solid rgba(201,168,76,0.3)', borderRadius:'10px', padding:'10px 14px', marginBottom:'16px', fontSize:'12px', color:'#C9A84C' }}>
+              ℹ️ O uso do mês será zerado e um novo ciclo de 1 mês iniciará a partir da data de pagamento.
+            </div>
+            <div style={{ marginBottom:'16px' }}>
+              <label style={{ fontSize:'12px', color:textSub, fontWeight:'600', display:'block', marginBottom:'8px' }}>Data do pagamento *</label>
+              <input type="date" value={dataPagamento} onChange={e => setDataPagamento(e.target.value)} style={{ ...s.input, width:'100%', boxSizing:'border-box' }} />
+              <div style={{ fontSize:'11px', color:textSub, marginTop:'4px' }}>Vencimento = 1 mês após esta data.</div>
+            </div>
+            {erro && <div style={{ background:'rgba(244,67,54,0.1)', border:'1px solid #F44336', borderRadius:'10px', padding:'10px', fontSize:'12px', color:'#F44336', marginBottom:'12px' }}>{erro}</div>}
+            <div style={{ display:'flex', gap:'10px' }}>
+              <button onClick={() => { setModalReativar(null); setErro(''); }} style={{ flex:1, background:dark?'#2E1A14':'#f5efe6', border:`1px solid ${border}`, borderRadius:'12px', padding:'14px', color:textSub, cursor:'pointer' }}>Cancelar</button>
+              <button onClick={reativarPlano} disabled={salvando}
+                style={{ flex:2, background:'linear-gradient(135deg,#A07830,#C9A84C)', border:'none', borderRadius:'12px', padding:'14px', color:'#1A0F0D', fontWeight:'700', fontSize:'14px', cursor:'pointer' }}>
+                {salvando?'Reativando...':'🔄 Reativar Plano'}
               </button>
             </div>
           </div>
