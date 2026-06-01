@@ -831,20 +831,37 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, promoAtiva, onConfirm
 
 function Confirmado({ agendamento, onVoltar, dark }) {
   const s = getStyles(dark);
+  const [copiado, setCopiado] = React.useState(false);
+
+  // 🔧 Adicionar ao Google Calendar
+  function abrirCalendario() {
+    const dataInicio = `${agendamento.data.replace(/-/g,'')}T${agendamento.hora.replace(':','')}00`;
+    const durMin = agendamento.duracao || 30;
+    const fim = new Date(`${agendamento.data}T${agendamento.hora}:00`);
+    fim.setMinutes(fim.getMinutes() + durMin);
+    const dataFim = fim.toISOString().replace(/[-:]/g,'').split('.')[0];
+    const texto = encodeURIComponent(`Flyguer BarberShop — ${agendamento.servico} com ${agendamento.barbeiroNome}`);
+    const local = encodeURIComponent('Shopping Cidade das Artes — Piso 2, Nº 22');
+    window.open(`https://calendar.google.com/calendar/r/eventedit?text=${texto}&dates=${dataInicio}/${dataFim}&location=${local}&details=Agendado+pelo+app+Flyguer+BarberShop`, '_blank');
+  }
+
   return (
-    <div style={{ ...s.app, padding:'40px 20px', textAlign:'center' }}>
+    <div style={{ ...s.app, padding:'32px 20px 60px', textAlign:'center' }}>
       <div style={{ fontSize:'64px', marginBottom:'16px' }}>🎉</div>
       <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'24px', color:'#E8C96A', marginBottom:'8px' }}>Agendado!</div>
-      <div style={{ fontSize:'14px', color:'#9A8880', marginBottom:'32px' }}>Seu horário está confirmado</div>
-      <div style={{ background:'#231410', borderRadius:'16px', padding:'20px', border:'1.5px solid #8B3A2A', marginBottom:'24px', textAlign:'left' }}>
+      <div style={{ fontSize:'14px', color:'#9A8880', marginBottom:'24px' }}>Seu horário está confirmado</div>
+
+      {/* Resumo */}
+      <div style={{ background:'#231410', borderRadius:'16px', padding:'20px', border:'1.5px solid #8B3A2A', marginBottom:'16px', textAlign:'left' }}>
         {[
           { icon:'✂️', label:'Barbeiro', value:agendamento.barbeiroNome },
           { icon:'💈', label:'Serviço',  value:agendamento.servico      },
-          { icon:'📅', label:'Data',     value:formatarData(agendamento.data) },
+          { icon:'📅', label:'Data',     value:`${diaSemana(agendamento.data)}, ${formatarData(agendamento.data)}` },
           { icon:'🕐', label:'Horário',  value:agendamento.hora         },
-          { icon:'💰', label:'Valor',    value:`R$ ${agendamento.valor.toFixed(2).replace('.',',')}` },
+          { icon:'⏱',  label:'Duração',  value:`${agendamento.duracao||30} min` },
+          { icon:'💰', label:'Valor',    value:`R$ ${(agendamento.valor||0).toFixed(2).replace('.',',')}` },
         ].map(item => (
-          <div key={item.label} style={{ display:'flex', gap:'10px', marginBottom:'10px', alignItems:'center' }}>
+          <div key={item.label} style={{ display:'flex', gap:'10px', marginBottom:'8px', alignItems:'center' }}>
             <span style={{ fontSize:'16px' }}>{item.icon}</span>
             <span style={{ fontSize:'13px', color:'#9A8880', width:'70px' }}>{item.label}</span>
             <span style={{ fontSize:'13px', color:'#F5EFE6', fontWeight:'600' }}>{item.value}</span>
@@ -857,6 +874,22 @@ function Confirmado({ agendamento, onVoltar, dark }) {
           </div>
         )}
       </div>
+
+      {/* 🔧 Aviso de lembrete */}
+      <div style={{ background:'rgba(46,125,122,0.1)', border:'1px solid rgba(46,125,122,0.3)', borderRadius:'14px', padding:'14px', marginBottom:'16px', textAlign:'left' }}>
+        <div style={{ fontSize:'12px', fontWeight:'700', color:'#2E7D7A', marginBottom:'6px' }}>📲 Lembretes automáticos</div>
+        <div style={{ fontSize:'12px', color:'#9A8880', lineHeight:'1.6' }}>
+          Você receberá um lembrete pelo <strong style={{ color:'#F5EFE6' }}>WhatsApp 2 horas antes</strong> do atendimento.<br/>
+          Confirme sua presença pelo botão que será enviado.
+        </div>
+      </div>
+
+      {/* 🔧 Botão Google Calendar */}
+      <button onClick={abrirCalendario}
+        style={{ width:'100%', padding:'12px', borderRadius:'12px', border:'1px solid rgba(66,133,244,0.4)', background:'rgba(66,133,244,0.08)', color:'#4285F4', fontSize:'13px', fontWeight:'700', cursor:'pointer', marginBottom:'10px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
+        📅 Adicionar ao Google Calendar
+      </button>
+
       <button onClick={onVoltar} style={{ width:'100%', padding:'14px', borderRadius:'14px', border:'none', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontSize:'15px', fontWeight:'700', cursor:'pointer' }}>
         Voltar ao início
       </button>
