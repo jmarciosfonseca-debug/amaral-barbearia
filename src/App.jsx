@@ -3,6 +3,7 @@
 // 🔧 Fix: splash instantânea (sem Firebase)
 // 🔧 Fix: __removeSplash typo
 // 🔧 Nova: banner promoção na splash (ativo/inativo pelo gerente)
+// ✅ Fase 3: alerta de agendamento com som + visual + vibração
 
 import React from 'react';
 import { db } from './firebase';
@@ -24,6 +25,7 @@ import Comparativo from './Comparativo';
 import Promocao from './Promocao';
 import ListaClientes from './ListaClientes';
 import InstalarApp from './InstalarApp';
+import ComunicadoGerente from './ComunicadoGerente';
 import { GlobalErrorBoundary, BannerOffline } from './OfflineGuard';
 
 class ErrorBoundary extends React.Component {
@@ -63,19 +65,90 @@ function Divider({ style }) {
   return <div style={{ height:'1px', background:'#3A2018', margin:'16px 0', ...style }} />;
 }
 
+// ✅ Fase 3: Toca bip via Web Audio API
+function tocarBip() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.setValueAtTime(660, ctx.currentTime + 0.1);
+    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.2);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.5);
+  } catch(e) { console.log('Audio não suportado'); }
+}
+
+// ✅ Fase 3: Banner de alerta de agendamento animado
+function AlertaAgendamento({ agendamento, onFechar }) {
+  const [pisca, setPisca] = React.useState(true);
+
+  React.useEffect(() => {
+    const interval = setInterval(() => setPisca(p => !p), 800);
+    return () => clearInterval(interval);
+  }, []);
+
+  const min = React.useMemo(() => {
+    const [h, m] = agendamento.hora.split(':').map(Number);
+    const alvo = new Date(); alvo.setHours(h, m, 0, 0);
+    return Math.round((alvo - new Date()) / 1000 / 60);
+  }, [agendamento.hora]);
+
+  const tempo = min <= 0 ? 'AGORA!' : min < 60 ? `em ${min} min` : `em ${Math.floor(min/60)}h${min%60>0?` e ${min%60}min`:''}`;
+
+  return (
+    <div style={{
+      position:'fixed', top:0, left:'50%', transform:'translateX(-50%)',
+      width:'100%', maxWidth:'430px', zIndex:9999,
+      background: pisca ? 'linear-gradient(135deg,#8B3A2A,#C9A84C)' : 'linear-gradient(135deg,#C9A84C,#8B3A2A)',
+      transition:'background 0.4s',
+      padding:'16px 20px', borderRadius:'0 0 20px 20px',
+      boxShadow:'0 8px 32px rgba(0,0,0,0.6)',
+    }}>
+      <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+        <div style={{ fontSize:'32px', animation:'none' }}>⏰</div>
+        <div style={{ flex:1 }}>
+          <div style={{ fontWeight:'800', fontSize:'14px', color:'#1A0F0D', letterSpacing:'0.5px' }}>
+            SEU HORÁRIO {tempo.toUpperCase()}
+          </div>
+          <div style={{ fontSize:'12px', color:'rgba(26,15,13,0.8)', marginTop:'2px' }}>
+            ✂️ {agendamento.barbeiroNome} · {agendamento.servico} · {agendamento.hora}
+          </div>
+        </div>
+        <button onClick={onFechar}
+          style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:'50%', width:'28px', height:'28px', color:'#1A0F0D', fontSize:'14px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+          ✕
+        </button>
+      </div>
+      <div style={{ marginTop:'10px', display:'flex', gap:'8px' }}>
+        <button onClick={() => {
+          const msg = encodeURIComponent(`Olá! Confirmando presença:\n✂️ ${agendamento.barbeiroNome}\n💈 ${agendamento.servico}\n🕐 ${agendamento.hora}\nEstou a caminho! 👋`);
+          window.open(`https://wa.me/5511977643509?text=${msg}`, '_blank');
+        }} style={{ flex:1, padding:'8px', borderRadius:'10px', border:'none', background:'#25D366', color:'#fff', fontSize:'12px', fontWeight:'700', cursor:'pointer' }}>
+          📲 Confirmar presença
+        </button>
+        <button onClick={onFechar}
+          style={{ flex:1, padding:'8px', borderRadius:'10px', border:'none', background:'rgba(0,0,0,0.2)', color:'#1A0F0D', fontSize:'12px', fontWeight:'700', cursor:'pointer' }}>
+          OK, ciente
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── SPLASH com banner promoção ──────────────────────────────
 function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark, onVerPromo }) {
   const s = getStyles(dark);
   const [promo, setPromo] = React.useState(null);
 
-  // Busca promoção ativa do Firestore (leve, só 1 doc)
   React.useEffect(() => {
     import('firebase/firestore').then(({ doc, getDoc }) => {
       getDoc(doc(db, 'config', 'promocao_ativa')).then(snap => {
-        if (snap.exists()) {
-          const d = snap.data();
-          if (d.ativo) setPromo(d);
-        }
+        if (snap.exists()) { const d = snap.data(); if (d.ativo) setPromo(d); }
       }).catch(() => {});
     }).catch(() => {});
   }, []);
@@ -99,8 +172,6 @@ function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark, onVer
       </div>
 
       <div style={{ padding:'20px 20px 0' }}>
-
-        {/* 🔧 Banner promoção ativa */}
         {promo && (()=>{
           const vagasRest = promo.ehRelampago ? (promo.vagas - (promo.resgatados||0)) : null;
           const encerrada = promo.ehRelampago && vagasRest <= 0;
@@ -238,6 +309,7 @@ function EmBreve({ titulo, descricao, passo, onBack, dark }) {
 function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
   const s = getStyles(dark);
   const [lembrete, setLembrete] = React.useState(null);
+  const [alertaVisivel, setAlertaVisivel] = React.useState(false); // ✅ Fase 3
 
   React.useEffect(() => {
     if (!cliente?.cpf) return;
@@ -257,10 +329,21 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
           const [h, m] = a.hora.split(':').map(Number);
           const alvo = new Date(); alvo.setHours(h, m, 0, 0);
           const diff = (alvo - agora) / 1000 / 60;
-          return diff > 0 && diff <= 120;
+          return diff > -30 && diff <= 120; // até 30min após o horário
         })
         .sort((a, b) => a.hora.localeCompare(b.hora))[0];
-      if (proximo) setLembrete(proximo);
+
+      if (proximo) {
+        setLembrete(proximo);
+        // ✅ Fase 3: dispara alerta som+visual apenas uma vez por agendamento
+        const chaveAlerta = `alerta_${chave}_${proximo.data}_${proximo.hora}`;
+        if (!localStorage.getItem(chaveAlerta)) {
+          localStorage.setItem(chaveAlerta, '1');
+          setAlertaVisivel(true);
+          tocarBip();
+          if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+        }
+      }
     })();
   }, [cliente?.cpf]);
 
@@ -278,6 +361,12 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
 
   return (
     <div style={{ ...s.app, paddingBottom:'80px' }}>
+
+      {/* ✅ Fase 3: Alerta animado de agendamento */}
+      {alertaVisivel && lembrete && (
+        <AlertaAgendamento agendamento={lembrete} onFechar={() => setAlertaVisivel(false)} />
+      )}
+
       <div style={{ ...s.header }}>
         <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
           <div onClick={() => onNavegar('perfil_cliente')}
@@ -292,7 +381,7 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
         <button onClick={onLogout} style={{ background:'#2E1A14', border:'none', borderRadius:'8px', padding:'6px 12px', fontSize:'12px', color:'#9A8880', cursor:'pointer' }}>Sair</button>
       </div>
       <div style={{ padding:'20px' }}>
-        {lembrete && (
+        {lembrete && !alertaVisivel && (
           <div style={{ background:'linear-gradient(135deg,#A07830,#C9A84C)', borderRadius:'14px', padding:'14px', marginBottom:'14px', display:'flex', alignItems:'center', gap:'12px' }}>
             <span style={{ fontSize:'28px' }}>🔔</span>
             <div style={{ flex:1 }}>
@@ -344,6 +433,7 @@ function HomeGerente({ usuario, onLogout, onNavegar, dark }) {
     { id:'planos_mensais', icon:'💳',  label:'Planos Mensais',    sub:'Criar e gerir planos',    passo:12 },
     { id:'promocao',       icon:'🔴',  label:'Promoção / Novidade',sub:'Disparar para clientes', passo:14 },
     { id:'clientes',       icon:'👥',  label:'Clientes',           sub:'Lista e assinaturas',    passo:14 },
+    { id:'comunicado',     icon:'📢',  label:'Reunião / Comunicado', sub:'Mensagem para a equipe', passo:15 }, // ✅ Fase 3
   ];
   return (
     <div style={{ ...s.app, paddingBottom:'24px' }}>
@@ -403,7 +493,6 @@ function HomeBarbeiro({ usuario, onLogout, onNavegar, dark }) {
 // ── APP PRINCIPAL ──────────────────────────────────────────────
 export default function App() {
   React.useEffect(() => {
-    // 🔧 Fix typo: era __removeSpash
     if (window.__removeSplash) window.__removeSplash();
   }, []);
 
@@ -435,6 +524,7 @@ export default function App() {
     if (modulo==='planos_mensais') { setTela('planos_mensais');  return; }
     if (modulo==='promocao')       { setTela('promocao');        return; }
     if (modulo==='clientes')       { setTela('clientes');        return; }
+    if (modulo==='comunicado')     { setTela('comunicado');      return; } // ✅ Fase 3
     setEmBreveInfo({ titulo:modulo, descricao:'Módulo em desenvolvimento.', passo:'?' });
     setTela('em_breve');
   }
@@ -597,6 +687,13 @@ export default function App() {
         {tela==='perfil_cliente' && cliente && (
           <ErrorBoundary modulo="PerfilCliente">
             <PerfilCliente cliente={cliente} onBack={()=>setTela('home_cliente')} dark={dark} onNavegar={setTela} />
+          </ErrorBoundary>
+        )}
+
+        {/* ✅ Fase 3: Comunicado/Reunião do gerente */}
+        {tela==='comunicado' && usuario && (
+          <ErrorBoundary modulo="ComunicadoGerente">
+            <ComunicadoGerente onBack={()=>setTela('home_gerente')} dark={dark} />
           </ErrorBoundary>
         )}
 
