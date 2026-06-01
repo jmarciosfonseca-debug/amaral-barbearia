@@ -271,9 +271,14 @@ function ModalNovoAgendamento({ onSalvar, onFechar, clientePreencher }) {
         <div style={{ background:'rgba(255,193,7,0.08)', border:'1px solid rgba(255,193,7,0.2)', borderRadius:'10px', padding:'10px 12px', marginBottom:'12px', fontSize:'12px', color:'#FFC107' }}>
           📲 O WhatsApp abrirá para notificar o cliente ao salvar.
         </div>
-        <button onClick={salvar} disabled={salvando} style={{ width:'100%', padding:'14px', borderRadius:'14px', border:'none', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontSize:'15px', fontWeight:'700', cursor:salvando?'wait':'pointer' }}>
-          {salvando?'⏳ Salvando...':'✅ Criar e Notificar Cliente'}
-        </button>
+        <div style={{ display:'flex', gap:'8px' }}>
+          <button onClick={onFechar} style={{ flex:1, padding:'14px', borderRadius:'14px', border:'1px solid #3A2018', background:'#231410', color:'#9A8880', fontSize:'14px', fontWeight:'600', cursor:'pointer' }}>
+            Cancelar
+          </button>
+          <button onClick={salvar} disabled={salvando} style={{ flex:2, padding:'14px', borderRadius:'14px', border:'none', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontSize:'15px', fontWeight:'700', cursor:salvando?'wait':'pointer' }}>
+            {salvando?'⏳ Salvando...':'✅ Criar e Notificar'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -281,39 +286,87 @@ function ModalNovoAgendamento({ onSalvar, onFechar, clientePreencher }) {
 
 function BuscaCliente({ onAgendarParaCliente }) {
   const [busca, setBusca]       = React.useState('');
-  const [res, setRes]           = React.useState(null);
+  const [resultados, setResultados] = React.useState([]);
   const [hist, setHist]         = React.useState([]);
   const [buscando, setBuscando] = React.useState(false);
   const [erro, setErro]         = React.useState('');
   const [exp, setExp]           = React.useState(false);
+  const [res, setRes]           = React.useState(null);
+  const [promoCliente, setPromoCliente] = React.useState(null);
 
-  async function buscar(){
-    if(!busca.trim()){ setErro('Digite nome ou telefone'); return; }
-    setBuscando(true); setErro(''); setRes(null); setHist([]);
+  // 🔧 Debounce automático — busca 400ms após parar de digitar
+  React.useEffect(() => {
+    setRes(null); setHist([]); setErro(''); setPromoCliente(null);
+    if (busca.trim().length < 2) { setResultados([]); setBuscando(false); return; }
+    setBuscando(true);
+    const timer = setTimeout(async () => {
+      try {
+        const { collection: col, getDocs: gd, query: q, where: w, doc: fd, getDoc } = await import('firebase/firestore');
+        const snap = await gd(col(db, 'clientes'));
+        const bl = busca.toLowerCase().trim();
+        const nums = busca.replace(/\D/g, '');
+        const lista = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c =>
+          c.nome?.toLowerCase().includes(bl) ||
+          c.telefone?.includes(busca.trim()) ||
+          (nums && (c.telefone?.replace(/\D/g,'').includes(nums) || c.cpf?.includes(nums)))
+        );
+        setResultados(lista);
+        if (!lista.length) { setErro('Nenhum cliente encontrado.'); }
+        // Se só 1 resultado, carrega histórico automaticamente
+        if (lista.length === 1) {
+          const cl = lista[0];
+          setRes(cl);
+          const sa = await gd(q(col(db,'agendamentos'), w('clienteCpf','==',cl.cpf||cl.id)));
+          const ags = sa.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.data?.localeCompare(a.data)).slice(0,5);
+          setHist(ags);
+          // 🔧 Verifica promo resgatada ativa
+          try {
+            const snapPromo = await getDoc(fd(db,'resgates_promo',`${cl.cpf}_ativa`));
+            if (snapPromo.exists() && !snapPromo.data().utilizado) setPromoCliente(snapPromo.data());
+          } catch(e) {}
+        }
+      } catch(e) { setErro('Erro: ' + e.message); }
+      setBuscando(false);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [busca]);
+
+  async function selecionarCliente(cl) {
+    setRes(cl); setHist([]); setPromoCliente(null);
     try {
-      const {collection:col,getDocs:gd,query:q,where:w}=await import('firebase/firestore');
-      const snap=await gd(col(db,'clientes'));
-      const bl=busca.toLowerCase().trim();
-      const lista=snap.docs.map(d=>({id:d.id,...d.data()})).filter(c=>c.nome?.toLowerCase().includes(bl)||c.telefone?.includes(busca.trim()));
-      if(!lista.length){ setErro('Nenhum cliente encontrado.'); setBuscando(false); return; }
-      const cl=lista[0]; setRes(cl);
-      const sa=await gd(q(col(db,'agendamentos'),w('clienteCpf','==',cl.cpf||cl.id)));
+      const { collection: col, getDocs: gd, query: q, where: w, doc: fd, getDoc } = await import('firebase/firestore');
+      const sa = await gd(q(col(db,'agendamentos'), w('clienteCpf','==',cl.cpf||cl.id)));
       setHist(sa.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.data?.localeCompare(a.data)).slice(0,5));
-    } catch(e){ setErro('Erro: '+e.message); } setBuscando(false);
+      try {
+        const snapPromo = await getDoc(fd(db,'resgates_promo',`${cl.cpf}_ativa`));
+        if (snapPromo.exists() && !snapPromo.data().utilizado) setPromoCliente(snapPromo.data());
+      } catch(e) {}
+    } catch(e) {}
   }
 
   const conc=hist.filter(a=>a.status==='concluido');
   const gasto=conc.reduce((a,x)=>a+(x.valorFinal||x.valor||0),0);
+  const cancelados=hist.filter(a=>a.status?.includes('cancelado'));
 
   return (
     <div>
-      <div style={{ display:'flex', gap:'8px', marginBottom:'16px' }}>
-        <input value={busca} onChange={e=>{setBusca(e.target.value);setErro('');}} onKeyDown={e=>e.key==='Enter'&&buscar()} placeholder="🔍 Nome ou telefone..."
-          style={{ flex:1, background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'10px', padding:'10px 14px', color:'#F5EFE6', fontSize:'14px', outline:'none' }} />
-        <button onClick={buscar} disabled={buscando} style={{ background:'linear-gradient(135deg,#5C2218,#8B3A2A)', border:'none', borderRadius:'10px', padding:'10px 16px', color:'#F5EFE6', fontWeight:'700', fontSize:'13px', cursor:'pointer', flexShrink:0 }}>
-          {buscando?'...':'Buscar'}
-        </button>
+      <div style={{ marginBottom:'16px', position:'relative' }}>
+        <input value={busca} onChange={e=>{setBusca(e.target.value);setErro('');}}
+          placeholder="🔍 Nome, telefone ou CPF..."
+          style={{ width:'100%', background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'10px', padding:'10px 14px', color:'#F5EFE6', fontSize:'14px', outline:'none', boxSizing:'border-box' }} />
+        {buscando && <div style={{ position:'absolute', right:'12px', top:'50%', transform:'translateY(-50%)', color:'#9A8880', fontSize:'12px' }}>⏳</div>}
       </div>
+      {/* Lista de múltiplos resultados */}
+      {resultados.length > 1 && !res && resultados.map(cl => (
+        <div key={cl.id} onClick={() => selecionarCliente(cl)}
+          style={{ display:'flex', alignItems:'center', gap:'12px', padding:'12px 14px', background:'#231410', border:'1px solid #3A2018', borderRadius:'12px', marginBottom:'8px', cursor:'pointer' }}>
+          <div style={{ width:'36px', height:'36px', borderRadius:'50%', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', fontWeight:'700', color:'#F5EFE6', flexShrink:0 }}>{(cl.nome||'?')[0].toUpperCase()}</div>
+          <div>
+            <div style={{ fontWeight:'700', fontSize:'14px', color:'#F5EFE6' }}>{cl.nome}</div>
+            <div style={{ fontSize:'11px', color:'#9A8880' }}>📞 {cl.telefone||'—'}</div>
+          </div>
+        </div>
+      ))}
       {erro&&<div style={{ background:'rgba(244,67,54,0.1)', border:'1px solid #F44336', borderRadius:'10px', padding:'10px', fontSize:'12px', color:'#F44336', marginBottom:'12px', textAlign:'center' }}>{erro}</div>}
       {res&&(
         <div style={{ background:'#231410', border:'1px solid #3A2018', borderRadius:'16px', overflow:'hidden' }}>
@@ -326,6 +379,21 @@ function BuscaCliente({ onAgendarParaCliente }) {
                 <div style={{ fontSize:'12px', color:'#9A8880' }}>📞 {res.telefone||'—'}</div>
               </div>
             </div>
+            {/* 🔧 Badge promoção resgatada */}
+            {promoCliente && (
+              <div style={{ background:'linear-gradient(135deg,rgba(139,0,0,0.3),rgba(244,67,54,0.15))', border:'1px solid rgba(244,67,54,0.4)', borderRadius:'10px', padding:'10px 12px', marginBottom:'12px', display:'flex', alignItems:'center', gap:'8px' }}>
+                <span style={{ fontSize:'18px' }}>🔥</span>
+                <div>
+                  <div style={{ fontSize:'12px', fontWeight:'700', color:'#F44336' }}>Promoção resgatada — não utilizada!</div>
+                  <div style={{ fontSize:'11px', color:'#F5EFE6' }}>{promoCliente.promoDescricao || promoCliente.promoTitulo}</div>
+                </div>
+              </div>
+            )}
+            {cancelados.length > 2 && (
+              <div style={{ background:'rgba(255,193,7,0.08)', border:'1px solid rgba(255,193,7,0.2)', borderRadius:'10px', padding:'8px 10px', marginBottom:'10px', fontSize:'11px', color:'#FFC107' }}>
+                ⚠️ {cancelados.length}x cancelamentos no histórico
+              </div>
+            )}
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'12px' }}>
               {[{l:'Visitas',v:conc.length,c:'#E8C96A'},{l:'Total gasto',v:`R$${gasto.toFixed(0)}`,c:'#4CAF50'}].map(x=>(
                 <div key={x.l} style={{ background:'#1A0F0D', borderRadius:'10px', padding:'8px', textAlign:'center' }}>
@@ -406,6 +474,120 @@ function CardFila({ ag, onPagar }) {
   );
 }
 
+
+// 🔧 ABA PROMOÇÃO NA RECEPÇÃO — resgates em tempo real
+function AbaPromocaoRecepcao() {
+  const [resgates, setResgates] = React.useState([]);
+  const [promo, setPromo]       = React.useState(null);
+  const [carregando, setCarr]   = React.useState(true);
+
+  React.useEffect(() => {
+    let unsubR;
+    import('firebase/firestore').then(({ collection: col, query: q, onSnapshot: os, doc: fd, getDoc, orderBy: ob }) => {
+      // Carrega promo ativa
+      getDoc(fd(db,'config','promocao_ativa')).then(snap => {
+        if (snap.exists()) setPromo(snap.data());
+      });
+      // Listener de resgates
+      unsubR = os(col(db,'resgates_promo'), snap => {
+        setResgates(snap.docs.map(d => ({ id: d.id, ...d.data() }))
+          .sort((a,b) => (b.resgatadoEm?.seconds||0) - (a.resgatadoEm?.seconds||0)));
+        setCarr(false);
+      }, () => setCarr(false));
+    });
+    return () => unsubR?.();
+  }, []);
+
+  async function limparHistorico() {
+    if (!window.confirm('Limpar histórico de resgates? Os dados serão arquivados.')) return;
+    try {
+      const { collection: col, getDocs: gd, doc: fd, updateDoc } = await import('firebase/firestore');
+      const snap = await gd(col(db,'resgates_promo'));
+      await Promise.all(snap.docs.map(d => updateDoc(fd(db,'resgates_promo',d.id), { arquivado: true })));
+    } catch(e) { console.error(e); }
+  }
+
+  const ativos    = resgates.filter(r => !r.utilizado && !r.arquivado);
+  const utilizados = resgates.filter(r => r.utilizado && !r.arquivado);
+
+  return (
+    <div>
+      {/* Status da promo */}
+      {promo ? (
+        <div style={{ background: promo.ativo ? 'linear-gradient(135deg,rgba(139,0,0,0.3),rgba(244,67,54,0.15))' : '#231410', border: `1px solid ${promo.ativo?'rgba(244,67,54,0.4)':'#3A2018'}`, borderRadius:'14px', padding:'14px', marginBottom:'16px' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'8px' }}>
+            <div style={{ fontSize:'13px', fontWeight:'700', color: promo.ativo ? '#F44336' : '#9A8880' }}>
+              {promo.ativo ? '🔥 Promoção ATIVA' : '⚫ Sem promoção ativa'}
+            </div>
+            {promo.ativo && <div style={{ fontSize:'11px', background:'rgba(255,255,255,0.1)', borderRadius:'8px', padding:'3px 8px', color:'#fff' }}>⚡ {(promo.vagas||0)-(promo.resgatados||0)} vagas restantes</div>}
+          </div>
+          {promo.titulo && <div style={{ fontWeight:'700', fontSize:'15px', color:'#F5EFE6', marginBottom:'4px' }}>{promo.titulo}</div>}
+          {promo.descricao && <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.8)' }}>🎁 {promo.descricao}</div>}
+          <div style={{ marginTop:'8px', display:'flex', justifyContent:'space-between', fontSize:'11px', color:'#9A8880' }}>
+            <span>{promo.resgatados||0} resgataram</span>
+            {promo.expiracao && <span>até {new Date(promo.expiracao).toLocaleDateString('pt-BR')}</span>}
+          </div>
+        </div>
+      ) : (
+        <div style={{ textAlign:'center', padding:'20px', color:'#9A8880', fontSize:'13px' }}>Nenhuma promoção configurada</div>
+      )}
+
+      {/* Resgates pendentes */}
+      {ativos.length > 0 && (
+        <>
+          <div style={{ fontSize:'11px', color:'#FFC107', fontWeight:'700', marginBottom:'8px', textTransform:'uppercase' }}>⏳ Pendentes ({ativos.length})</div>
+          {ativos.map(r => (
+            <div key={r.id} style={{ background:'rgba(244,67,54,0.1)', border:'1px solid rgba(244,67,54,0.3)', borderRadius:'12px', padding:'12px 14px', marginBottom:'8px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div>
+                  <div style={{ fontWeight:'700', fontSize:'14px', color:'#F5EFE6' }}>{r.clienteNome}</div>
+                  <div style={{ fontSize:'11px', color:'#9A8880' }}>📞 {r.clienteTel||'—'}</div>
+                  <div style={{ fontSize:'11px', color:'#F44336', marginTop:'2px' }}>🎁 {r.promoDescricao||r.promoTitulo}</div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontSize:'10px', color:'#FFC107', fontWeight:'600', background:'rgba(255,193,7,0.1)', borderRadius:'6px', padding:'3px 6px' }}>Pendente</div>
+                  {r.resgatadoEm?.toDate && <div style={{ fontSize:'10px', color:'#555', marginTop:'4px' }}>{r.resgatadoEm.toDate().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* Resgates utilizados */}
+      {utilizados.length > 0 && (
+        <>
+          <div style={{ fontSize:'11px', color:'#4CAF50', fontWeight:'700', marginBottom:'8px', textTransform:'uppercase', marginTop:'16px' }}>✅ Utilizados ({utilizados.length})</div>
+          {utilizados.map(r => (
+            <div key={r.id} style={{ background:'rgba(76,175,80,0.08)', border:'1px solid rgba(76,175,80,0.2)', borderRadius:'12px', padding:'12px 14px', marginBottom:'8px', opacity:0.8 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div>
+                  <div style={{ fontWeight:'700', fontSize:'14px', color:'#F5EFE6' }}>{r.clienteNome}</div>
+                  <div style={{ fontSize:'11px', color:'#9A8880' }}>🎁 {r.promoDescricao||r.promoTitulo}</div>
+                </div>
+                <div style={{ fontSize:'10px', color:'#4CAF50', fontWeight:'600', background:'rgba(76,175,80,0.15)', borderRadius:'6px', padding:'3px 6px' }}>✓ Usado</div>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {resgates.length === 0 && !carregando && (
+        <div style={{ textAlign:'center', padding:'30px', color:'#555' }}>
+          <div style={{ fontSize:'32px', marginBottom:'8px' }}>🎯</div>
+          <div style={{ fontSize:'13px' }}>Nenhum resgate ainda</div>
+        </div>
+      )}
+
+      {resgates.filter(r=>!r.arquivado).length > 0 && (
+        <button onClick={limparHistorico} style={{ width:'100%', marginTop:'16px', padding:'12px', borderRadius:'12px', border:'1px solid #3A2018', background:'transparent', color:'#9A8880', fontSize:'13px', cursor:'pointer' }}>
+          🗑️ Limpar histórico de resgates
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function PainelRecepcao({ onBack, dark, onNavegarAssinaturas }) {
   const s = getStyles(dark);
   const [ags, setAgs]               = React.useState([]);
@@ -481,9 +663,9 @@ export default function PainelRecepcao({ onBack, dark, onNavegarAssinaturas }) {
         ))}
       </div>
 
-      <div style={{ display:'flex', borderBottom:'1px solid #3A2018' }}>
-        {[{id:'fila',l:`🕐 Fila (${ativos.length})`},{id:'busca',l:'🔍 Buscar'},{id:'resumo',l:'💰 Caixa'}].map(a=>(
-          <button key={a.id} onClick={()=>setAba(a.id)} style={{ flex:1, padding:'12px 8px', border:'none', background:'transparent', borderBottom:aba===a.id?'2px solid #8B3A2A':'2px solid transparent', color:aba===a.id?'#F5EFE6':'#9A8880', fontSize:'12px', fontWeight:aba===a.id?'700':'400', cursor:'pointer', whiteSpace:'nowrap' }}>
+      <div style={{ display:'flex', borderBottom:'1px solid #3A2018', overflowX:'auto' }}>
+        {[{id:'fila',l:`🕐 Fila (${ativos.length})`},{id:'busca',l:'🔍 Buscar'},{id:'promo',l:'🔥 Promoção'},{id:'resumo',l:'💰 Caixa'}].map(a=>(
+          <button key={a.id} onClick={()=>setAba(a.id)} style={{ flex:1, padding:'12px 8px', border:'none', background:'transparent', borderBottom:aba===a.id?'2px solid #8B3A2A':'2px solid transparent', color:aba===a.id?'#F5EFE6':'#9A8880', fontSize:'12px', fontWeight:aba===a.id?'700':'400', cursor:'pointer', whiteSpace:'nowrap', minWidth:'70px' }}>
             {a.l}
           </button>
         ))}
@@ -508,6 +690,9 @@ export default function PainelRecepcao({ onBack, dark, onNavegarAssinaturas }) {
             ))}
           </div>
         )}
+
+        {/* 🔧 ABA PROMOÇÃO — acompanha resgates em tempo real */}
+        {aba==='promo'&&<AbaPromocaoRecepcao />}
       </div>
 
       {modalPag&&<ModalPagamento agendamento={modalPag} onConfirmar={()=>{setModalPag(null);setToast({msg:'💰 Pagamento confirmado!',tipo:'ok'});}} onFechar={()=>setModalPag(null)} />}
