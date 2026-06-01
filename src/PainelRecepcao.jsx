@@ -1,16 +1,12 @@
 // PainelRecepcao.jsx — Flyguer BarberShop
-// 🔧 Fix: notificação NOVO AGENDAMENTO em tempo real
-// 🔧 Fix: WhatsApp direto para cliente correto ao criar agendamento
-// 🔧 Fix: opção cliente sem cadastro com link cadastro
-// 🔧 Fix: botão vermelho Confirmar Pagamento Local
-// 🔧 Fix: fila não mostra cancelados
-// ✅ Fase 2: Encaixe Rápido — 3 campos (nome/tel, barbeiro, horário)
+// ✅ FINAL: Nome "RECEPÇÃO" | Excluir histórico | Ver clientes/valores/serviços/planos
+// ✅ Fase 2: Encaixe Rápido | Notificação tempo real
 
 import React from 'react';
 import { db } from './firebase';
 import {
   collection, query, where, onSnapshot,
-  doc, updateDoc, addDoc, getDocs,
+  doc, updateDoc, deleteDoc, addDoc, getDocs,
   serverTimestamp,
 } from 'firebase/firestore';
 import { getStyles } from './getStyles';
@@ -28,7 +24,7 @@ const FORMAS = [
 
 function Toast({ mensagem, tipo, onClose }) {
   React.useEffect(() => { const t = setTimeout(onClose, 4000); return () => clearTimeout(t); }, [onClose]);
-  const bg = tipo==='novo' ? 'linear-gradient(135deg,#8B3A2A,#C9A84C)' : 'linear-gradient(135deg,#2E7D7A,#3A9E9A)';
+  const bg = tipo==='novo' ? 'linear-gradient(135deg,#8B3A2A,#C9A84C)' : tipo==='erro' ? 'linear-gradient(135deg,#8B0000,#F44336)' : 'linear-gradient(135deg,#2E7D7A,#3A9E9A)';
   return (
     <div style={{ position:'fixed', top:'16px', left:'50%', transform:'translateX(-50%)', background:bg, color:'#F5EFE6', padding:'14px 24px', borderRadius:'16px', fontSize:'14px', fontWeight:'700', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,0.5)', whiteSpace:'nowrap' }}>
       {mensagem}
@@ -37,12 +33,12 @@ function Toast({ mensagem, tipo, onClose }) {
 }
 
 function ModalPagamento({ agendamento, onConfirmar, onFechar }) {
-  const [forma, setForma]     = React.useState('dinheiro');
-  const [valor, setValor]     = React.useState(agendamento.valor||0);
-  const [obs, setObs]         = React.useState('');
-  const [salvando, setSalv]   = React.useState(false);
-  const sinal     = agendamento.sinal||0;
-  const restante  = Math.max(0, valor-sinal);
+  const [forma, setForma]   = React.useState('dinheiro');
+  const [valor, setValor]   = React.useState(agendamento.valor||0);
+  const [obs, setObs]       = React.useState('');
+  const [salvando, setSalv] = React.useState(false);
+  const sinal    = agendamento.sinal||0;
+  const restante = Math.max(0, valor-sinal);
   const inp = { width:'100%', background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'10px', padding:'10px 12px', color:'#F5EFE6', fontSize:'14px', outline:'none', boxSizing:'border-box', fontFamily:"'DM Sans',sans-serif" };
 
   async function ok() {
@@ -52,6 +48,7 @@ function ModalPagamento({ agendamento, onConfirmar, onFechar }) {
       onConfirmar();
     } catch(e){ console.error(e); } finally { setSalv(false); }
   }
+
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'flex-end', justifyContent:'center', zIndex:999 }}>
       <div style={{ background:'#1A0F0D', borderRadius:'20px 20px 0 0', width:'100%', maxWidth:'430px', padding:'24px 20px 40px', border:'1px solid #3A2018', borderBottom:'none', maxHeight:'85vh', overflowY:'auto' }}>
@@ -101,28 +98,25 @@ function ModalPagamento({ agendamento, onConfirmar, onFechar }) {
   );
 }
 
-// ✅ Fase 2: ENCAIXE RÁPIDO — 3 campos apenas
+// ✅ FINAL: Encaixe Rápido com busca de cliente cadastrado
 function ModalEncaixeRapido({ onSalvar, onFechar }) {
   const [barbeiros, setBarbeiros] = React.useState([]);
   const [configH, setConfigH]     = React.useState(null);
   const [horasOcup, setHOcup]     = React.useState([]);
   const [salvando, setSalv]       = React.useState(false);
   const [erro, setErro]           = React.useState('');
-  const [form, setForm] = React.useState({
-    clienteNome: '',
-    clienteTel:  '',
-    barbeiroId:  '',
-    barbeiroNome:'',
-    hora:        '',
-  });
+  const [modoCliente, setModoCliente] = React.useState('novo'); // 'novo' | 'buscar'
+  const [buscaCliente, setBuscaCliente] = React.useState('');
+  const [clienteEncontrado, setClienteEncontrado] = React.useState(null);
+  const [buscando, setBuscando]   = React.useState(false);
+  const [form, setForm] = React.useState({ clienteNome:'', clienteTel:'', barbeiroId:'', barbeiroNome:'', hora:'' });
 
   const inp = { width:'100%', background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'10px', padding:'10px 12px', color:'#F5EFE6', fontSize:'14px', outline:'none', boxSizing:'border-box', fontFamily:"'DM Sans',sans-serif" };
   function setF(k,v){ setForm(f=>({...f,[k]:v})); setErro(''); }
   function setBarbeiro(id){ const b=barbeiros.find(b=>b.id===id); setF('barbeiroId',id); setF('barbeiroNome',b?.nome||''); }
 
   React.useEffect(() => {
-    getDocs(collection(db,'barbeiros'))
-      .then(s=>setBarbeiros(s.docs.map(d=>({id:d.id,...d.data()})).filter(b=>b.ativo&&b.papel!=='recepcao')));
+    getDocs(collection(db,'barbeiros')).then(s=>setBarbeiros(s.docs.map(d=>({id:d.id,...d.data()})).filter(b=>b.ativo&&b.papel!=='recepcao')));
     import('firebase/firestore').then(({getDoc,doc:fd})=>{
       getDoc(fd(db,'config','barbearia')).then(s=>{ if(s.exists()) setConfigH(s.data()); });
     });
@@ -135,6 +129,30 @@ function ModalEncaixeRapido({ onSalvar, onFechar }) {
     });
   },[form.barbeiroId]);
 
+  // Busca cliente cadastrado
+  React.useEffect(() => {
+    if (modoCliente !== 'buscar' || buscaCliente.trim().length < 2) { setClienteEncontrado(null); return; }
+    setBuscando(true);
+    const timer = setTimeout(async () => {
+      try {
+        const snap = await getDocs(collection(db,'clientes'));
+        const bl = buscaCliente.toLowerCase();
+        const nums = buscaCliente.replace(/\D/g,'');
+        const lista = snap.docs.map(d=>({id:d.id,...d.data()})).filter(c =>
+          c.nome?.toLowerCase().includes(bl) ||
+          (nums && c.telefone?.replace(/\D/g,'').includes(nums))
+        );
+        if (lista.length > 0) {
+          setClienteEncontrado(lista[0]);
+          setF('clienteNome', lista[0].nome);
+          setF('clienteTel', lista[0].telefone || '');
+        } else { setClienteEncontrado(null); }
+      } catch(e) {}
+      setBuscando(false);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [buscaCliente, modoCliente]);
+
   function gerarSlots(){
     const DK=['dom','seg','ter','qua','qui','sex','sab'];
     const ds=DK[new Date(hoje()+'T12:00:00').getDay()];
@@ -142,12 +160,7 @@ function ModalEncaixeRapido({ onSalvar, onFechar }) {
     const agora = new Date();
     const agoraMin = agora.getHours()*60 + agora.getMinutes();
     let ini=8*60, fim=24*60;
-    if(hc?.aberto){
-      const [hA,mA]=hc.abertura.split(':').map(Number);
-      const [hF,mF]=hc.fechamento.split(':').map(Number);
-      ini=hA*60+mA; fim=hF===0&&mF===0?24*60:hF*60+mF;
-    }
-    // Só mostra horários futuros (a partir de agora + 5min)
+    if(hc?.aberto){ const [hA,mA]=hc.abertura.split(':').map(Number); const [hF,mF]=hc.fechamento.split(':').map(Number); ini=hA*60+mA; fim=hF===0&&mF===0?24*60:hF*60+mF; }
     if(ini < agoraMin + 5) ini = Math.ceil((agoraMin + 5) / 30) * 30;
     const slots=[]; let a=ini;
     while(a<fim){ const h=`${String(Math.floor(a/60)).padStart(2,'0')}:${String(a%60).padStart(2,'0')}`; slots.push({hora:h,ocupado:horasOcup.includes(h)}); a+=30; }
@@ -170,26 +183,15 @@ function ModalEncaixeRapido({ onSalvar, onFechar }) {
     try {
       const telNorm = (form.clienteTel||'').replace(/\D/g,'').slice(-11);
       const ag = {
-        clienteNome:        form.clienteNome.trim(),
-        clienteTel:         telNorm,
-        clienteCpf:         'encaixe',
-        barbeiroId:         form.barbeiroId,
-        barbeiroNome:       form.barbeiroNome,
-        servico:            'Encaixe',
-        valor:              0,
-        duracao:            30,
-        data:               hoje(),
-        hora:               form.hora,
-        pagamento:          'local',
-        sinal:              0,
-        status:             'confirmado',
-        agendadoPor:        'recepcao',
-        encaixeRapido:      true,
-        semCadastro:        true,
-        // ✅ Fase 2: campos lembrete
-        lembrete24hEnviado: false,
-        lembrete2hEnviado:  false,
-        criadoEm:           serverTimestamp(),
+        clienteNome: form.clienteNome.trim(), clienteTel: telNorm,
+        clienteCpf: clienteEncontrado?.cpf || clienteEncontrado?.id || 'encaixe',
+        barbeiroId: form.barbeiroId, barbeiroNome: form.barbeiroNome,
+        servico: 'Encaixe', valor: 0, duracao: 30,
+        data: hoje(), hora: form.hora, pagamento: 'local', sinal: 0,
+        status: 'confirmado', agendadoPor: 'recepcao',
+        encaixeRapido: true, semCadastro: !clienteEncontrado,
+        lembrete24hEnviado: false, lembrete2hEnviado: false,
+        criadoEm: serverTimestamp(),
       };
       await addDoc(collection(db,'agendamentos'), ag);
       notificarCliente(ag);
@@ -205,24 +207,54 @@ function ModalEncaixeRapido({ onSalvar, onFechar }) {
         <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'16px' }}>
           <div>
             <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#E8C96A' }}>⚡ Encaixe Rápido</div>
-            <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>Hoje · 3 campos apenas</div>
+            <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>Hoje · rápido e direto</div>
           </div>
           <button onClick={onFechar} style={{ background:'none', border:'none', color:'#9A8880', fontSize:'20px', cursor:'pointer' }}>✕</button>
         </div>
 
-        {/* Campo 1: Nome */}
-        <div style={{ marginBottom:'12px' }}>
-          <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'5px' }}>Nome do cliente *</label>
-          <input type="text" style={inp} placeholder="Nome completo" value={form.clienteNome} onChange={e=>setF('clienteNome',e.target.value)} autoFocus />
+        {/* Modo cliente */}
+        <div style={{ display:'flex', gap:'8px', marginBottom:'14px' }}>
+          <button onClick={()=>setModoCliente('novo')} style={{ flex:1, padding:'10px', borderRadius:'10px', border:modoCliente==='novo'?'2px solid #8B3A2A':'1px solid #3A2018', background:modoCliente==='novo'?'rgba(139,58,42,0.2)':'#231410', color:modoCliente==='novo'?'#E8C96A':'#9A8880', fontSize:'12px', fontWeight:'600', cursor:'pointer' }}>
+            ✏️ Digitar nome
+          </button>
+          <button onClick={()=>setModoCliente('buscar')} style={{ flex:1, padding:'10px', borderRadius:'10px', border:modoCliente==='buscar'?'2px solid #2E7D7A':'1px solid #3A2018', background:modoCliente==='buscar'?'rgba(46,125,122,0.2)':'#231410', color:modoCliente==='buscar'?'#2E7D7A':'#9A8880', fontSize:'12px', fontWeight:'600', cursor:'pointer' }}>
+            🔍 Buscar cadastrado
+          </button>
         </div>
 
-        {/* Campo 2: WhatsApp (opcional no encaixe) */}
-        <div style={{ marginBottom:'12px' }}>
-          <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'5px' }}>WhatsApp <span style={{ color:'#555' }}>(opcional)</span></label>
-          <input type="tel" style={inp} placeholder="11999999999" value={form.clienteTel} onChange={e=>setF('clienteTel',e.target.value)} />
-        </div>
+        {modoCliente === 'buscar' ? (
+          <div style={{ marginBottom:'12px' }}>
+            <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'5px' }}>Nome ou telefone</label>
+            <div style={{ position:'relative' }}>
+              <input type="text" style={inp} placeholder="Digite para buscar..." value={buscaCliente} onChange={e=>setBuscaCliente(e.target.value)} autoFocus />
+              {buscando && <div style={{ position:'absolute', right:'12px', top:'50%', transform:'translateY(-50%)', color:'#9A8880', fontSize:'12px' }}>⏳</div>}
+            </div>
+            {clienteEncontrado && (
+              <div style={{ background:'rgba(76,175,80,0.1)', border:'1px solid rgba(76,175,80,0.3)', borderRadius:'10px', padding:'10px 12px', marginTop:'8px', display:'flex', alignItems:'center', gap:'10px' }}>
+                <div style={{ width:'36px', height:'36px', borderRadius:'50%', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', fontWeight:'700', color:'#F5EFE6', flexShrink:0 }}>
+                  {clienteEncontrado.nome[0]}
+                </div>
+                <div>
+                  <div style={{ fontWeight:'700', fontSize:'13px', color:'#F5EFE6' }}>{clienteEncontrado.nome}</div>
+                  <div style={{ fontSize:'11px', color:'#4CAF50' }}>✅ Cadastrado · {clienteEncontrado.telefone||'—'}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            <div style={{ marginBottom:'12px' }}>
+              <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'5px' }}>Nome do cliente *</label>
+              <input type="text" style={inp} placeholder="Nome completo" value={form.clienteNome} onChange={e=>setF('clienteNome',e.target.value)} autoFocus />
+            </div>
+            <div style={{ marginBottom:'12px' }}>
+              <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'5px' }}>WhatsApp <span style={{ color:'#555' }}>(opcional)</span></label>
+              <input type="tel" style={inp} placeholder="11999999999" value={form.clienteTel} onChange={e=>setF('clienteTel',e.target.value)} />
+            </div>
+          </>
+        )}
 
-        {/* Campo 3: Barbeiro */}
+        {/* Barbeiro */}
         <div style={{ marginBottom:'14px' }}>
           <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'8px' }}>Barbeiro *</label>
           <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
@@ -236,14 +268,12 @@ function ModalEncaixeRapido({ onSalvar, onFechar }) {
           </div>
         </div>
 
-        {/* Campo 4: Horário — só mostra se barbeiro selecionado */}
+        {/* Horário */}
         {form.barbeiroId && (
           <div style={{ marginBottom:'16px' }}>
             <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'8px' }}>Horário hoje *</label>
             {slots.length === 0 ? (
-              <div style={{ textAlign:'center', color:'#9A8880', fontSize:'13px', padding:'12px', background:'#231410', borderRadius:'10px' }}>
-                Sem horários disponíveis hoje
-              </div>
+              <div style={{ textAlign:'center', color:'#9A8880', fontSize:'13px', padding:'12px', background:'#231410', borderRadius:'10px' }}>Sem horários disponíveis hoje</div>
             ) : (
               <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'6px', maxHeight:'140px', overflowY:'auto' }}>
                 {slots.map(({hora,ocupado}) => (
@@ -259,16 +289,8 @@ function ModalEncaixeRapido({ onSalvar, onFechar }) {
 
         {erro && <div style={{ fontSize:'13px', color:'#F44336', marginBottom:'12px', textAlign:'center', background:'rgba(244,67,54,0.1)', borderRadius:'10px', padding:'10px' }}>{erro}</div>}
 
-        {form.clienteTel && (
-          <div style={{ background:'rgba(255,193,7,0.08)', border:'1px solid rgba(255,193,7,0.2)', borderRadius:'10px', padding:'10px 12px', marginBottom:'12px', fontSize:'12px', color:'#FFC107' }}>
-            📲 WhatsApp abrirá para notificar o cliente ao salvar.
-          </div>
-        )}
-
         <div style={{ display:'flex', gap:'8px' }}>
-          <button onClick={onFechar} style={{ flex:1, padding:'14px', borderRadius:'14px', border:'1px solid #3A2018', background:'#231410', color:'#9A8880', fontSize:'14px', fontWeight:'600', cursor:'pointer' }}>
-            Cancelar
-          </button>
+          <button onClick={onFechar} style={{ flex:1, padding:'14px', borderRadius:'14px', border:'1px solid #3A2018', background:'#231410', color:'#9A8880', fontSize:'14px', fontWeight:'600', cursor:'pointer' }}>Cancelar</button>
           <button onClick={salvar} disabled={salvando} style={{ flex:2, padding:'14px', borderRadius:'14px', border:'none', background:salvando?'#2E1A14':'linear-gradient(135deg,#2E7D7A,#3A9E9A)', color:salvando?'#555':'#fff', fontSize:'15px', fontWeight:'700', cursor:salvando?'wait':'pointer' }}>
             {salvando ? '⏳ Salvando...' : '⚡ Encaixar agora'}
           </button>
@@ -285,9 +307,8 @@ function ModalNovoAgendamento({ onSalvar, onFechar, clientePreencher }) {
   const [selSvs, setSelSvs]       = React.useState([]);
   const [semCad, setSemCad]       = React.useState(!clientePreencher);
   const [form, setForm] = React.useState({
-    clienteNome: clientePreencher?.nome||'',
-    clienteTel:  clientePreencher?.telefone||'',
-    clienteCpf:  clientePreencher?.cpf||'manual',
+    clienteNome: clientePreencher?.nome||'', clienteTel: clientePreencher?.telefone||'',
+    clienteCpf: clientePreencher?.cpf||'manual',
     barbeiroId:'', barbeiroNome:'', data:hoje(), hora:'09:00', pagamento:'local', observacao:'',
   });
   const [salvando, setSalv]   = React.useState(false);
@@ -347,10 +368,7 @@ function ModalNovoAgendamento({ onSalvar, onFechar, clientePreencher }) {
     setSalv(true); setErro('');
     try {
       const telNorm = (form.clienteTel||'').replace(/\D/g,'').slice(-11);
-      const ag={ ...form, servico:nomeSvs, valor:totalVal, duracao:totalDur, servicoIds:selSvs.map(s=>s.id).filter(Boolean), status:'confirmado', agendadoPor:'recepcao', sinal:0, semCadastro:semCad&&!clientePreencher, clienteTel:telNorm,
-        // ✅ Fase 2: campos lembrete
-        lembrete24hEnviado: false, lembrete2hEnviado: false,
-        criadoEm:serverTimestamp() };
+      const ag={ ...form, servico:nomeSvs, valor:totalVal, duracao:totalDur, servicoIds:selSvs.map(s=>s.id).filter(Boolean), status:'confirmado', agendadoPor:'recepcao', sinal:0, semCadastro:semCad&&!clientePreencher, clienteTel:telNorm, lembrete24hEnviado:false, lembrete2hEnviado:false, criadoEm:serverTimestamp() };
       await addDoc(collection(db,'agendamentos'),ag);
       notificarCliente(ag);
       onSalvar();
@@ -367,30 +385,18 @@ function ModalNovoAgendamento({ onSalvar, onFechar, clientePreencher }) {
           <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#E8C96A' }}>➕ Agendamento Manual</div>
           <button onClick={onFechar} style={{ background:'none', border:'none', color:'#9A8880', fontSize:'20px', cursor:'pointer' }}>✕</button>
         </div>
-
         {!clientePreencher && (
           <div style={{ display:'flex', gap:'8px', marginBottom:'14px' }}>
-            <button onClick={()=>setSemCad(false)} style={{ flex:1, padding:'10px', borderRadius:'10px', border:!semCad?'2px solid #8B3A2A':'1px solid #3A2018', background:!semCad?'rgba(139,58,42,0.2)':'#231410', color:!semCad?'#E8C96A':'#9A8880', fontSize:'12px', fontWeight:'600', cursor:'pointer' }}>
-              👤 Com app
-            </button>
-            <button onClick={()=>setSemCad(true)} style={{ flex:1, padding:'10px', borderRadius:'10px', border:semCad?'2px solid #2E7D7A':'1px solid #3A2018', background:semCad?'rgba(46,125,122,0.2)':'#231410', color:semCad?'#2E7D7A':'#9A8880', fontSize:'12px', fontWeight:'600', cursor:'pointer' }}>
-              📋 Sem cadastro
-            </button>
+            <button onClick={()=>setSemCad(false)} style={{ flex:1, padding:'10px', borderRadius:'10px', border:!semCad?'2px solid #8B3A2A':'1px solid #3A2018', background:!semCad?'rgba(139,58,42,0.2)':'#231410', color:!semCad?'#E8C96A':'#9A8880', fontSize:'12px', fontWeight:'600', cursor:'pointer' }}>👤 Com app</button>
+            <button onClick={()=>setSemCad(true)} style={{ flex:1, padding:'10px', borderRadius:'10px', border:semCad?'2px solid #2E7D7A':'1px solid #3A2018', background:semCad?'rgba(46,125,122,0.2)':'#231410', color:semCad?'#2E7D7A':'#9A8880', fontSize:'12px', fontWeight:'600', cursor:'pointer' }}>📋 Sem cadastro</button>
           </div>
         )}
-        {semCad&&!clientePreencher&&(
-          <div style={{ background:'rgba(46,125,122,0.08)', border:'1px solid rgba(46,125,122,0.2)', borderRadius:'10px', padding:'10px 12px', marginBottom:'12px', fontSize:'12px', color:'#2E7D7A' }}>
-            📲 Será enviado WhatsApp com link para o cliente se cadastrar no app.
-          </div>
-        )}
-
         {[{label:'Nome *',campo:'clienteNome',ph:'Nome completo',t:'text'},{label:'WhatsApp *',campo:'clienteTel',ph:'11999999999',t:'tel'}].map(f=>(
           <div key={f.campo} style={{ marginBottom:'12px' }}>
             <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'5px' }}>{f.label}</label>
             <input type={f.t} style={inp} placeholder={f.ph} value={form[f.campo]} onChange={e=>setF(f.campo,e.target.value)} />
           </div>
         ))}
-
         <div style={{ marginBottom:'12px' }}>
           <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'5px' }}>Barbeiro *</label>
           <select style={inp} value={form.barbeiroId} onChange={e=>setBarbeiro(e.target.value)}>
@@ -398,7 +404,6 @@ function ModalNovoAgendamento({ onSalvar, onFechar, clientePreencher }) {
             {barbeiros.map(b=><option key={b.id} value={b.id}>{b.nome}</option>)}
           </select>
         </div>
-
         <div style={{ marginBottom:'14px' }}>
           <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'8px' }}>Serviços *</label>
           <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
@@ -408,7 +413,7 @@ function ModalNovoAgendamento({ onSalvar, onFechar, clientePreencher }) {
                 <div key={sv.id} onClick={()=>togSv(sv)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 12px', borderRadius:'10px', cursor:'pointer', background:sel?'#2E1A14':'#1A0F0D', border:sel?'1.5px solid #8B3A2A':'1px solid #3A2018' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
                     <div style={{ width:'18px', height:'18px', borderRadius:'5px', flexShrink:0, border:`2px solid ${sel?'#8B3A2A':'#3A2018'}`, background:sel?'#8B3A2A':'transparent', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', color:'#F5EFE6' }}>{sel?'✓':''}</div>
-                    <div><div style={{ fontSize:'13px', fontWeight:sel?'700':'400', color:sel?'#F5EFE6':'#9A8880' }}>{sv.nome}</div></div>
+                    <div style={{ fontSize:'13px', fontWeight:sel?'700':'400', color:sel?'#F5EFE6':'#9A8880' }}>{sv.nome}</div>
                   </div>
                   <div style={{ fontSize:'14px', fontWeight:'700', color:sel?'#E8C96A':'#9A8880' }}>R$ {sv.valor.toFixed(2).replace('.',',')}</div>
                 </div>
@@ -420,12 +425,10 @@ function ModalNovoAgendamento({ onSalvar, onFechar, clientePreencher }) {
             <span style={{ fontSize:'15px', fontWeight:'700', color:'#E8C96A' }}>R$ {totalVal.toFixed(2).replace('.',',')}</span>
           </div>}
         </div>
-
         <div style={{ marginBottom:'12px' }}>
           <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'5px' }}>Data</label>
           <input type="date" style={inp} value={form.data} onChange={e=>setF('data',e.target.value)} />
         </div>
-
         <div style={{ marginBottom:'14px' }}>
           <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'8px' }}>Horário</label>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'6px', maxHeight:'160px', overflowY:'auto' }}>
@@ -437,7 +440,6 @@ function ModalNovoAgendamento({ onSalvar, onFechar, clientePreencher }) {
             ))}
           </div>
         </div>
-
         <div style={{ marginBottom:'14px' }}>
           <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'8px' }}>Pagamento</label>
           <div style={{ display:'flex', gap:'8px' }}>
@@ -446,15 +448,9 @@ function ModalNovoAgendamento({ onSalvar, onFechar, clientePreencher }) {
             ))}
           </div>
         </div>
-
         {erro&&<div style={{ fontSize:'13px', color:'#F44336', marginBottom:'12px', textAlign:'center', background:'rgba(244,67,54,0.1)', borderRadius:'10px', padding:'10px' }}>{erro}</div>}
-        <div style={{ background:'rgba(255,193,7,0.08)', border:'1px solid rgba(255,193,7,0.2)', borderRadius:'10px', padding:'10px 12px', marginBottom:'12px', fontSize:'12px', color:'#FFC107' }}>
-          📲 O WhatsApp abrirá para notificar o cliente ao salvar.
-        </div>
         <div style={{ display:'flex', gap:'8px' }}>
-          <button onClick={onFechar} style={{ flex:1, padding:'14px', borderRadius:'14px', border:'1px solid #3A2018', background:'#231410', color:'#9A8880', fontSize:'14px', fontWeight:'600', cursor:'pointer' }}>
-            Cancelar
-          </button>
+          <button onClick={onFechar} style={{ flex:1, padding:'14px', borderRadius:'14px', border:'1px solid #3A2018', background:'#231410', color:'#9A8880', fontSize:'14px', fontWeight:'600', cursor:'pointer' }}>Cancelar</button>
           <button onClick={salvar} disabled={salvando} style={{ flex:2, padding:'14px', borderRadius:'14px', border:'none', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontSize:'15px', fontWeight:'700', cursor:salvando?'wait':'pointer' }}>
             {salvando?'⏳ Salvando...':'✅ Criar e Notificar'}
           </button>
@@ -482,21 +478,17 @@ function BuscaCliente({ onAgendarParaCliente }) {
       try {
         const { collection: col, getDocs: gd, query: q, where: w, doc: fd, getDoc } = await import('firebase/firestore');
         const snap = await gd(col(db, 'clientes'));
-        const bl = busca.toLowerCase().trim();
-        const nums = busca.replace(/\D/g, '');
+        const bl = busca.toLowerCase().trim(), nums = busca.replace(/\D/g, '');
         const lista = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c =>
-          c.nome?.toLowerCase().includes(bl) ||
-          c.telefone?.includes(busca.trim()) ||
+          c.nome?.toLowerCase().includes(bl) || c.telefone?.includes(busca.trim()) ||
           (nums && (c.telefone?.replace(/\D/g,'').includes(nums) || c.cpf?.includes(nums)))
         );
         setResultados(lista);
         if (!lista.length) { setErro('Nenhum cliente encontrado.'); }
         if (lista.length === 1) {
-          const cl = lista[0];
-          setRes(cl);
+          const cl = lista[0]; setRes(cl);
           const sa = await gd(q(col(db,'agendamentos'), w('clienteCpf','==',cl.cpf||cl.id)));
-          const ags = sa.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.data?.localeCompare(a.data)).slice(0,5);
-          setHist(ags);
+          setHist(sa.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.data?.localeCompare(a.data)).slice(0,5));
           try {
             const snapPromo = await getDoc(fd(db,'resgates_promo',`${cl.cpf}_ativa`));
             if (snapPromo.exists() && !snapPromo.data().utilizado) setPromoCliente(snapPromo.data());
@@ -528,8 +520,7 @@ function BuscaCliente({ onAgendarParaCliente }) {
   return (
     <div>
       <div style={{ marginBottom:'16px', position:'relative' }}>
-        <input value={busca} onChange={e=>{setBusca(e.target.value);setErro('');}}
-          placeholder="🔍 Nome, telefone ou CPF..."
+        <input value={busca} onChange={e=>{setBusca(e.target.value);setErro('');}} placeholder="🔍 Nome, telefone ou CPF..."
           style={{ width:'100%', background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'10px', padding:'10px 14px', color:'#F5EFE6', fontSize:'14px', outline:'none', boxSizing:'border-box' }} />
         {buscando && <div style={{ position:'absolute', right:'12px', top:'50%', transform:'translateY(-50%)', color:'#9A8880', fontSize:'12px' }}>⏳</div>}
       </div>
@@ -537,10 +528,7 @@ function BuscaCliente({ onAgendarParaCliente }) {
         <div key={cl.id} onClick={() => selecionarCliente(cl)}
           style={{ display:'flex', alignItems:'center', gap:'12px', padding:'12px 14px', background:'#231410', border:'1px solid #3A2018', borderRadius:'12px', marginBottom:'8px', cursor:'pointer' }}>
           <div style={{ width:'36px', height:'36px', borderRadius:'50%', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', fontWeight:'700', color:'#F5EFE6', flexShrink:0 }}>{(cl.nome||'?')[0].toUpperCase()}</div>
-          <div>
-            <div style={{ fontWeight:'700', fontSize:'14px', color:'#F5EFE6' }}>{cl.nome}</div>
-            <div style={{ fontSize:'11px', color:'#9A8880' }}>📞 {cl.telefone||'—'}</div>
-          </div>
+          <div><div style={{ fontWeight:'700', fontSize:'14px', color:'#F5EFE6' }}>{cl.nome}</div><div style={{ fontSize:'11px', color:'#9A8880' }}>📞 {cl.telefone||'—'}</div></div>
         </div>
       ))}
       {erro&&<div style={{ background:'rgba(244,67,54,0.1)', border:'1px solid #F44336', borderRadius:'10px', padding:'10px', fontSize:'12px', color:'#F44336', marginBottom:'12px', textAlign:'center' }}>{erro}</div>}
@@ -550,18 +538,12 @@ function BuscaCliente({ onAgendarParaCliente }) {
           <div style={{ padding:'16px' }}>
             <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'14px' }}>
               <div style={{ width:'48px', height:'48px', borderRadius:'50%', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'18px', fontWeight:'700', color:'#F5EFE6', flexShrink:0 }}>{(res.nome||'?')[0].toUpperCase()}</div>
-              <div>
-                <div style={{ fontWeight:'700', fontSize:'16px', color:'#F5EFE6' }}>{res.nome}</div>
-                <div style={{ fontSize:'12px', color:'#9A8880' }}>📞 {res.telefone||'—'}</div>
-              </div>
+              <div><div style={{ fontWeight:'700', fontSize:'16px', color:'#F5EFE6' }}>{res.nome}</div><div style={{ fontSize:'12px', color:'#9A8880' }}>📞 {res.telefone||'—'}</div></div>
             </div>
             {promoCliente && (
               <div style={{ background:'linear-gradient(135deg,rgba(139,0,0,0.3),rgba(244,67,54,0.15))', border:'1px solid rgba(244,67,54,0.4)', borderRadius:'10px', padding:'10px 12px', marginBottom:'12px', display:'flex', alignItems:'center', gap:'8px' }}>
                 <span style={{ fontSize:'18px' }}>🔥</span>
-                <div>
-                  <div style={{ fontSize:'12px', fontWeight:'700', color:'#F44336' }}>Promoção resgatada — não utilizada!</div>
-                  <div style={{ fontSize:'11px', color:'#F5EFE6' }}>{promoCliente.promoDescricao || promoCliente.promoTitulo}</div>
-                </div>
+                <div><div style={{ fontSize:'12px', fontWeight:'700', color:'#F44336' }}>Promoção resgatada — não utilizada!</div><div style={{ fontSize:'11px', color:'#F5EFE6' }}>{promoCliente.promoDescricao || promoCliente.promoTitulo}</div></div>
               </div>
             )}
             {cancelados.length > 2 && (
@@ -580,8 +562,7 @@ function BuscaCliente({ onAgendarParaCliente }) {
             {hist.length>0&&(
               <div style={{ marginBottom:'12px' }}>
                 <div style={{ fontSize:'11px', color:'#9A8880', fontWeight:'600', marginBottom:'6px', textTransform:'uppercase' }}>
-                  Atendimentos
-                  <button onClick={()=>setExp(e=>!e)} style={{ background:'none', border:'none', color:'#E8C96A', fontSize:'11px', cursor:'pointer', marginLeft:'8px' }}>{exp?'▲':'▼'}</button>
+                  Atendimentos <button onClick={()=>setExp(e=>!e)} style={{ background:'none', border:'none', color:'#E8C96A', fontSize:'11px', cursor:'pointer', marginLeft:'8px' }}>{exp?'▲':'▼'}</button>
                 </div>
                 {hist.slice(0,exp?5:2).map(ag=>(
                   <div key={ag.id} style={{ display:'flex', justifyContent:'space-between', padding:'7px 10px', background:'#1A0F0D', borderRadius:'8px', marginBottom:'3px' }}>
@@ -605,10 +586,11 @@ function BuscaCliente({ onAgendarParaCliente }) {
   );
 }
 
-function CardFila({ ag, onPagar }) {
-  const isPago    = ag.status==='concluido';
-  const isCanel   = ag.status?.includes('cancelado');
-  const pixPago   = ag.pagamento==='pix'||ag.pagamento==='pix_sinal';
+// ✅ FINAL: CardFila com opção de excluir
+function CardFila({ ag, onPagar, onExcluir }) {
+  const isPago  = ag.status==='concluido';
+  const isCanel = ag.status?.includes('cancelado');
+  const pixPago = ag.pagamento==='pix'||ag.pagamento==='pix_sinal';
   if(isCanel) return null;
   return (
     <div style={{ background:'#231410', borderRadius:'16px', border:isPago?'1px solid #2E7D7A':'1px solid #3A2018', marginBottom:'10px', overflow:'hidden' }}>
@@ -622,19 +604,18 @@ function CardFila({ ag, onPagar }) {
               {ag.agendadoPor==='recepcao'&&<span style={{ fontSize:'10px', background:'rgba(46,125,122,0.2)', color:'#2E7D7A', padding:'2px 6px', borderRadius:'8px' }}>Manual</span>}
               {ag.encaixeRapido&&<span style={{ fontSize:'10px', background:'rgba(46,125,122,0.25)', color:'#3A9E9A', padding:'2px 6px', borderRadius:'8px' }}>⚡ Encaixe</span>}
               {ag.semCadastro&&<span style={{ fontSize:'10px', background:'rgba(255,193,7,0.15)', color:'#FFC107', padding:'2px 6px', borderRadius:'8px' }}>Sem app</span>}
+              {ag.amigoDeClienteNome&&<span style={{ fontSize:'10px', background:'rgba(76,175,80,0.15)', color:'#4CAF50', padding:'2px 6px', borderRadius:'8px' }}>👥 Amigo</span>}
             </div>
             <div style={{ fontSize:'12px', color:'#9A8880', marginTop:'2px' }}>✂️ {ag.barbeiroNome} · 💈 {ag.servico}</div>
           </div>
-          <div style={{ textAlign:'right' }}>
+          <div style={{ textAlign:'right', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'4px' }}>
             <div style={{ fontSize:'16px', fontWeight:'700', color:'#E8C96A' }}>{moeda(ag.valor)}</div>
             <div style={{ fontSize:'11px', color:pixPago?'#2E7D7A':'#9A8880' }}>{pixPago?'💳 Pix':'💵 Local'}</div>
+            {/* ✅ FINAL: botão excluir do histórico */}
+            <button onClick={() => onExcluir(ag)}
+              style={{ background:'none', border:'none', color:'#555', fontSize:'11px', cursor:'pointer', padding:'2px 0' }}>🗑</button>
           </div>
         </div>
-        {(pixPago)&&ag.status!=='concluido'&&(
-          <div style={{ background:'rgba(130,10,209,0.1)', border:'1px solid rgba(130,10,209,0.3)', borderRadius:'10px', padding:'8px 12px', marginBottom:'8px', fontSize:'12px', color:'#820AD1', fontWeight:'600' }}>
-            💜 Pix enviado — confirme ao receber comprovante
-          </div>
-        )}
         {isPago?(
           <div style={{ display:'flex', alignItems:'center', gap:'6px', background:'rgba(46,125,122,0.1)', borderRadius:'10px', padding:'8px 12px', fontSize:'13px', color:'#2E7D7A', fontWeight:'600' }}>
             ✅ Pagamento confirmado {ag.pagamentoFinal&&<span style={{ fontSize:'11px', color:'#9A8880' }}>· {ag.pagamentoFinal}</span>}
@@ -657,12 +638,9 @@ function AbaPromocaoRecepcao() {
   React.useEffect(() => {
     let unsubR;
     import('firebase/firestore').then(({ collection: col, onSnapshot: os, doc: fd, getDoc }) => {
-      getDoc(fd(db,'config','promocao_ativa')).then(snap => {
-        if (snap.exists()) setPromo(snap.data());
-      });
+      getDoc(fd(db,'config','promocao_ativa')).then(snap => { if (snap.exists()) setPromo(snap.data()); });
       unsubR = os(col(db,'resgates_promo'), snap => {
-        setResgates(snap.docs.map(d => ({ id: d.id, ...d.data() }))
-          .sort((a,b) => (b.resgatadoEm?.seconds||0) - (a.resgatadoEm?.seconds||0)));
+        setResgates(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.resgatadoEm?.seconds||0) - (a.resgatadoEm?.seconds||0)));
         setCarr(false);
       }, () => setCarr(false));
     });
@@ -670,7 +648,7 @@ function AbaPromocaoRecepcao() {
   }, []);
 
   async function limparHistorico() {
-    if (!window.confirm('Limpar histórico de resgates? Os dados serão arquivados.')) return;
+    if (!window.confirm('Limpar histórico de resgates?')) return;
     try {
       const { collection: col, getDocs: gd, doc: fd, updateDoc } = await import('firebase/firestore');
       const snap = await gd(col(db,'resgates_promo'));
@@ -684,39 +662,23 @@ function AbaPromocaoRecepcao() {
   return (
     <div>
       {promo ? (
-        <div style={{ background: promo.ativo ? 'linear-gradient(135deg,rgba(139,0,0,0.3),rgba(244,67,54,0.15))' : '#231410', border: `1px solid ${promo.ativo?'rgba(244,67,54,0.4)':'#3A2018'}`, borderRadius:'14px', padding:'14px', marginBottom:'16px' }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'8px' }}>
-            <div style={{ fontSize:'13px', fontWeight:'700', color: promo.ativo ? '#F44336' : '#9A8880' }}>
-              {promo.ativo ? '🔥 Promoção ATIVA' : '⚫ Sem promoção ativa'}
-            </div>
-            {promo.ativo && <div style={{ fontSize:'11px', background:'rgba(255,255,255,0.1)', borderRadius:'8px', padding:'3px 8px', color:'#fff' }}>⚡ {(promo.vagas||0)-(promo.resgatados||0)} vagas restantes</div>}
+        <div style={{ background:promo.ativo?'linear-gradient(135deg,rgba(139,0,0,0.3),rgba(244,67,54,0.15))':'#231410', border:`1px solid ${promo.ativo?'rgba(244,67,54,0.4)':'#3A2018'}`, borderRadius:'14px', padding:'14px', marginBottom:'16px' }}>
+          <div style={{ fontSize:'13px', fontWeight:'700', color:promo.ativo?'#F44336':'#9A8880', marginBottom:'8px' }}>
+            {promo.ativo ? '🔥 Promoção ATIVA' : '⚫ Sem promoção ativa'}
           </div>
           {promo.titulo && <div style={{ fontWeight:'700', fontSize:'15px', color:'#F5EFE6', marginBottom:'4px' }}>{promo.titulo}</div>}
-          {promo.descricao && <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.8)' }}>🎁 {promo.descricao}</div>}
-          <div style={{ marginTop:'8px', display:'flex', justifyContent:'space-between', fontSize:'11px', color:'#9A8880' }}>
-            <span>{promo.resgatados||0} resgataram</span>
-            {promo.expiracao && <span>até {new Date(promo.expiracao).toLocaleDateString('pt-BR')}</span>}
-          </div>
+          {promo.ativo && <div style={{ fontSize:'11px', color:'#9A8880' }}>{promo.resgatados||0} resgataram · {(promo.vagas||0)-(promo.resgatados||0)} vagas restantes</div>}
         </div>
-      ) : (
-        <div style={{ textAlign:'center', padding:'20px', color:'#9A8880', fontSize:'13px' }}>Nenhuma promoção configurada</div>
-      )}
+      ) : <div style={{ textAlign:'center', padding:'20px', color:'#9A8880', fontSize:'13px' }}>Nenhuma promoção configurada</div>}
+
       {ativos.length > 0 && (
         <>
           <div style={{ fontSize:'11px', color:'#FFC107', fontWeight:'700', marginBottom:'8px', textTransform:'uppercase' }}>⏳ Pendentes ({ativos.length})</div>
           {ativos.map(r => (
             <div key={r.id} style={{ background:'rgba(244,67,54,0.1)', border:'1px solid rgba(244,67,54,0.3)', borderRadius:'12px', padding:'12px 14px', marginBottom:'8px' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <div>
-                  <div style={{ fontWeight:'700', fontSize:'14px', color:'#F5EFE6' }}>{r.clienteNome}</div>
-                  <div style={{ fontSize:'11px', color:'#9A8880' }}>📞 {r.clienteTel||'—'}</div>
-                  <div style={{ fontSize:'11px', color:'#F44336', marginTop:'2px' }}>🎁 {r.promoDescricao||r.promoTitulo}</div>
-                </div>
-                <div style={{ textAlign:'right' }}>
-                  <div style={{ fontSize:'10px', color:'#FFC107', fontWeight:'600', background:'rgba(255,193,7,0.1)', borderRadius:'6px', padding:'3px 6px' }}>Pendente</div>
-                  {r.resgatadoEm?.toDate && <div style={{ fontSize:'10px', color:'#555', marginTop:'4px' }}>{r.resgatadoEm.toDate().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>}
-                </div>
-              </div>
+              <div style={{ fontWeight:'700', fontSize:'14px', color:'#F5EFE6' }}>{r.clienteNome}</div>
+              <div style={{ fontSize:'11px', color:'#9A8880' }}>📞 {r.clienteTel||'—'}</div>
+              <div style={{ fontSize:'11px', color:'#F44336', marginTop:'2px' }}>🎁 {r.promoDescricao||r.promoTitulo}</div>
             </div>
           ))}
         </>
@@ -726,27 +688,62 @@ function AbaPromocaoRecepcao() {
           <div style={{ fontSize:'11px', color:'#4CAF50', fontWeight:'700', marginBottom:'8px', textTransform:'uppercase', marginTop:'16px' }}>✅ Utilizados ({utilizados.length})</div>
           {utilizados.map(r => (
             <div key={r.id} style={{ background:'rgba(76,175,80,0.08)', border:'1px solid rgba(76,175,80,0.2)', borderRadius:'12px', padding:'12px 14px', marginBottom:'8px', opacity:0.8 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <div>
-                  <div style={{ fontWeight:'700', fontSize:'14px', color:'#F5EFE6' }}>{r.clienteNome}</div>
-                  <div style={{ fontSize:'11px', color:'#9A8880' }}>🎁 {r.promoDescricao||r.promoTitulo}</div>
-                </div>
-                <div style={{ fontSize:'10px', color:'#4CAF50', fontWeight:'600', background:'rgba(76,175,80,0.15)', borderRadius:'6px', padding:'3px 6px' }}>✓ Usado</div>
-              </div>
+              <div style={{ fontWeight:'700', fontSize:'14px', color:'#F5EFE6' }}>{r.clienteNome}</div>
+              <div style={{ fontSize:'11px', color:'#9A8880' }}>🎁 {r.promoDescricao||r.promoTitulo}</div>
             </div>
           ))}
         </>
       )}
       {resgates.length === 0 && !carregando && (
-        <div style={{ textAlign:'center', padding:'30px', color:'#555' }}>
-          <div style={{ fontSize:'32px', marginBottom:'8px' }}>🎯</div>
-          <div style={{ fontSize:'13px' }}>Nenhum resgate ainda</div>
-        </div>
+        <div style={{ textAlign:'center', padding:'30px', color:'#555' }}><div style={{ fontSize:'32px', marginBottom:'8px' }}>🎯</div><div style={{ fontSize:'13px' }}>Nenhum resgate ainda</div></div>
       )}
       {resgates.filter(r=>!r.arquivado).length > 0 && (
         <button onClick={limparHistorico} style={{ width:'100%', marginTop:'16px', padding:'12px', borderRadius:'12px', border:'1px solid #3A2018', background:'transparent', color:'#9A8880', fontSize:'13px', cursor:'pointer' }}>
           🗑️ Limpar histórico de resgates
         </button>
+      )}
+    </div>
+  );
+}
+
+// ✅ FINAL: Aba Serviços na recepção
+function AbaServicos() {
+  const [servicos, setServicos] = React.useState([]);
+  const [loading, setLoading]   = React.useState(true);
+
+  React.useEffect(() => {
+    import('firebase/firestore').then(({ getDoc, doc: fd }) => {
+      getDoc(fd(db,'config','servicos')).then(snap => {
+        if (snap.exists()) {
+          const d = snap.data();
+          setServicos([...(d.avulsos||[]).filter(s=>s.ativo), ...(d.combos||[]).filter(s=>s.ativo)]);
+        }
+        setLoading(false);
+      }).catch(() => setLoading(false));
+    });
+  }, []);
+
+  if (loading) return <div style={{ textAlign:'center', padding:'40px', color:'#9A8880' }}>⏳ Carregando...</div>;
+
+  return (
+    <div>
+      <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'600', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'12px' }}>
+        Serviços ativos — {servicos.length} no total
+      </div>
+      {servicos.map((sv, i) => (
+        <div key={i} style={{ background:'#231410', border:'1px solid #3A2018', borderRadius:'12px', padding:'12px 14px', marginBottom:'8px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div>
+            <div style={{ fontWeight:'700', fontSize:'14px', color:'#F5EFE6' }}>{sv.nome}</div>
+            <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>⏱ {sv.duracao} min</div>
+          </div>
+          <div style={{ fontSize:'16px', fontWeight:'700', color:'#E8C96A' }}>R$ {sv.valor.toFixed(2).replace('.',',')}</div>
+        </div>
+      ))}
+      {servicos.length === 0 && (
+        <div style={{ textAlign:'center', padding:'40px', color:'#9A8880' }}>
+          <div style={{ fontSize:'32px', marginBottom:'8px' }}>💈</div>
+          <div>Nenhum serviço cadastrado</div>
+        </div>
       )}
     </div>
   );
@@ -758,11 +755,12 @@ export default function PainelRecepcao({ onBack, dark, onNavegarAssinaturas }) {
   const [carregando, setCarr]       = React.useState(true);
   const [modalPag, setModalPag]     = React.useState(null);
   const [modalNovo, setModalNovo]   = React.useState(false);
-  const [modalEncaixe, setModalEncaixe] = React.useState(false); // ✅ Fase 2
+  const [modalEncaixe, setModalEncaixe] = React.useState(false);
   const [clientePrn, setClientePrn] = React.useState(null);
   const [aba, setAba]               = React.useState('fila');
   const [toast, setToast]           = React.useState(null);
   const [modalLemb, setModalLemb]   = React.useState(false);
+  const [confirmExcluir, setConfirmExcluir] = React.useState(null); // ✅ FINAL
   const countRef                    = React.useRef(0);
 
   React.useEffect(()=>{
@@ -773,9 +771,7 @@ export default function PainelRecepcao({ onBack, dark, onNavegarAssinaturas }) {
         snap.docChanges().forEach(change => {
           if (change.type === 'added') {
             const r = change.doc.data();
-            if (r.clienteNome) {
-              setToast({ msg: `🔥 ${r.clienteNome.split(' ')[0]} resgatou: ${r.promoTitulo}`, tipo: 'novo' });
-            }
+            if (r.clienteNome) setToast({ msg: `🔥 ${r.clienteNome.split(' ')[0]} resgatou: ${r.promoTitulo}`, tipo: 'novo' });
           }
         });
       }, ()=>{});
@@ -797,24 +793,41 @@ export default function PainelRecepcao({ onBack, dark, onNavegarAssinaturas }) {
     return ()=>unsub();
   },[]);
 
-  const ativos   = ags.filter(a=>!a.status?.includes('cancelado'));
+  // ✅ FINAL: excluir agendamento do histórico (soft delete)
+  async function handleExcluir(ag) {
+    try {
+      await updateDoc(doc(db,'agendamentos',ag.firestoreId), { ocultadoRecepcao: true, canceladoEm: serverTimestamp() });
+      setToast({ msg:'🗑 Removido da fila', tipo:'ok' });
+    } catch(e) { setToast({ msg:'Erro ao remover', tipo:'erro' }); }
+    setConfirmExcluir(null);
+  }
+
+  const ativos   = ags.filter(a=>!a.status?.includes('cancelado') && !a.ocultadoRecepcao);
   const conc     = ags.filter(a=>a.status==='concluido');
   const conf     = ags.filter(a=>a.status==='confirmado');
   const recebido = conc.reduce((a,x)=>a+(x.valorRecebido||x.valor||0),0);
   const previsto = ativos.reduce((a,x)=>a+(x.valor||0),0);
   const pix      = ativos.filter(a=>a.pagamento==='pix'||a.pagamento==='pix_sinal').reduce((a,x)=>a+(x.valor||0),0);
 
+  const abas = [
+    { id:'fila',     l:`🕐 Fila (${ativos.length})`  },
+    { id:'busca',    l:'🔍 Buscar'                    },
+    { id:'promo',    l:'🔥 Promoção'                  },
+    { id:'servicos', l:'💈 Serviços'                  }, // ✅ FINAL
+    { id:'resumo',   l:'💰 Caixa'                     },
+  ];
+
   return (
     <div style={{ ...s.app, paddingBottom:'40px' }}>
+      {/* ✅ FINAL: nome RECEPÇÃO */}
       <div style={{ background:'linear-gradient(135deg,#5C2218,#8B3A2A)', padding:'16px 20px', display:'flex', alignItems:'center', gap:'8px' }}>
         <button onClick={onBack} style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:'8px', padding:'6px 10px', color:'#F5EFE6', cursor:'pointer', fontSize:'14px' }}>←</button>
         <div style={{ flex:1 }}>
-          <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'17px', fontWeight:'700', color:'#F5EFE6' }}>🏠 Recepção</div>
+          <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'17px', fontWeight:'700', color:'#F5EFE6' }}>🏠 RECEPÇÃO</div>
           <div style={{ fontSize:'11px', color:'rgba(245,239,230,0.6)' }}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'})}</div>
         </div>
         {onNavegarAssinaturas&&<button onClick={onNavegarAssinaturas} style={{ background:'rgba(201,168,76,0.2)', border:'1px solid rgba(201,168,76,0.4)', borderRadius:'10px', padding:'8px 10px', color:'#E8C96A', fontSize:'11px', fontWeight:'700', cursor:'pointer' }}>💳 Planos</button>}
         <button onClick={()=>setModalLemb(true)} style={{ background:'rgba(255,193,7,0.15)', border:'1px solid rgba(255,193,7,0.3)', borderRadius:'10px', padding:'8px 10px', color:'#FFC107', fontSize:'11px', fontWeight:'700', cursor:'pointer' }}>🔔</button>
-        {/* ✅ Fase 2: botão Encaixe Rápido */}
         <button onClick={()=>setModalEncaixe(true)} style={{ background:'rgba(46,125,122,0.25)', border:'1px solid rgba(46,125,122,0.5)', borderRadius:'10px', padding:'8px 10px', color:'#3A9E9A', fontSize:'11px', fontWeight:'700', cursor:'pointer', whiteSpace:'nowrap' }}>⚡ Encaixe</button>
         <button onClick={()=>setModalNovo(true)} style={{ background:'rgba(245,239,230,0.15)', border:'1px solid rgba(245,239,230,0.3)', borderRadius:'10px', padding:'8px 12px', color:'#F5EFE6', fontSize:'12px', fontWeight:'700', cursor:'pointer' }}>➕ Novo</button>
       </div>
@@ -829,8 +842,8 @@ export default function PainelRecepcao({ onBack, dark, onNavegarAssinaturas }) {
       </div>
 
       <div style={{ display:'flex', borderBottom:'1px solid #3A2018', overflowX:'auto' }}>
-        {[{id:'fila',l:`🕐 Fila (${ativos.length})`},{id:'busca',l:'🔍 Buscar'},{id:'promo',l:'🔥 Promoção'},{id:'resumo',l:'💰 Caixa'}].map(a=>(
-          <button key={a.id} onClick={()=>setAba(a.id)} style={{ flex:1, padding:'12px 8px', border:'none', background:'transparent', borderBottom:aba===a.id?'2px solid #8B3A2A':'2px solid transparent', color:aba===a.id?'#F5EFE6':'#9A8880', fontSize:'12px', fontWeight:aba===a.id?'700':'400', cursor:'pointer', whiteSpace:'nowrap', minWidth:'70px' }}>
+        {abas.map(a=>(
+          <button key={a.id} onClick={()=>setAba(a.id)} style={{ flex:1, padding:'12px 8px', border:'none', background:'transparent', borderBottom:aba===a.id?'2px solid #8B3A2A':'2px solid transparent', color:aba===a.id?'#F5EFE6':'#9A8880', fontSize:'12px', fontWeight:aba===a.id?'700':'400', cursor:'pointer', whiteSpace:'nowrap', minWidth:'60px' }}>
             {a.l}
           </button>
         ))}
@@ -846,7 +859,9 @@ export default function PainelRecepcao({ onBack, dark, onNavegarAssinaturas }) {
               <button onClick={()=>setModalNovo(true)} style={{ padding:'12px 20px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontSize:'14px', fontWeight:'700', cursor:'pointer' }}>➕ Agendamento</button>
             </div>
           </div>
-        ):ags.map(ag=><CardFila key={ag.firestoreId} ag={ag} onPagar={ag=>setModalPag(ag)} />))}
+        ):ags.filter(a=>!a.status?.includes('cancelado')&&!a.ocultadoRecepcao).map(ag=>(
+          <CardFila key={ag.firestoreId} ag={ag} onPagar={ag=>setModalPag(ag)} onExcluir={ag=>setConfirmExcluir(ag)} />
+        )))}
         {aba==='busca'&&<BuscaCliente onAgendarParaCliente={cl=>{setClientePrn(cl);setModalNovo(true);}} />}
         {aba==='resumo'&&(
           <div>
@@ -859,11 +874,27 @@ export default function PainelRecepcao({ onBack, dark, onNavegarAssinaturas }) {
           </div>
         )}
         {aba==='promo'&&<AbaPromocaoRecepcao />}
+        {aba==='servicos'&&<AbaServicos />} {/* ✅ FINAL */}
       </div>
+
+      {/* ✅ FINAL: Modal confirmar exclusão */}
+      {confirmExcluir && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
+          <div style={{ background:'#1A0F0D', borderRadius:'20px', padding:'28px 24px', width:'100%', maxWidth:'340px', textAlign:'center', border:'1px solid #3A2018' }}>
+            <div style={{ fontSize:'40px', marginBottom:'12px' }}>🗑️</div>
+            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'17px', color:'#F5EFE6', marginBottom:'8px' }}>Remover da fila?</div>
+            <div style={{ fontSize:'13px', color:'#E8C96A', fontWeight:'700', marginBottom:'6px' }}>{confirmExcluir.clienteNome} · {confirmExcluir.hora}</div>
+            <div style={{ fontSize:'12px', color:'#9A8880', marginBottom:'20px' }}>O agendamento será ocultado da fila mas mantido no histórico da barbearia.</div>
+            <div style={{ display:'flex', gap:'10px' }}>
+              <button onClick={() => setConfirmExcluir(null)} style={{ flex:1, padding:'12px', borderRadius:'12px', border:'1px solid #3A2018', background:'#231410', color:'#9A8880', cursor:'pointer', fontWeight:'600' }}>Cancelar</button>
+              <button onClick={() => handleExcluir(confirmExcluir)} style={{ flex:1, padding:'12px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#8B0000,#F44336)', color:'#fff', fontWeight:'700', cursor:'pointer' }}>Remover</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {modalPag&&<ModalPagamento agendamento={modalPag} onConfirmar={()=>{setModalPag(null);setToast({msg:'💰 Pagamento confirmado!',tipo:'ok'});}} onFechar={()=>setModalPag(null)} />}
       {modalNovo&&<ModalNovoAgendamento onSalvar={()=>{setModalNovo(false);setClientePrn(null);setAba('fila');setToast({msg:'✅ Agendamento criado!',tipo:'ok'});}} onFechar={()=>{setModalNovo(false);setClientePrn(null);}} clientePreencher={clientePrn} />}
-      {/* ✅ Fase 2: modal encaixe rápido */}
       {modalEncaixe&&<ModalEncaixeRapido onSalvar={()=>{setModalEncaixe(false);setAba('fila');setToast({msg:'⚡ Encaixe criado!',tipo:'ok'});}} onFechar={()=>setModalEncaixe(false)} />}
       {modalLemb&&<LembretesRecepcao onFechar={()=>setModalLemb(false)} dark={dark} />}
       {toast&&<Toast mensagem={toast.msg} tipo={toast.tipo} onClose={()=>setToast(null)} />}
