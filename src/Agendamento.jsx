@@ -1,9 +1,7 @@
 // Agendamento.jsx — Flyguer BarberShop
-// 🔧 Fix: sem alert() nativo — telas bonitas dentro do app
-// 🔧 Fix: após resgatar → vai direto barbeiro → horário (sem serviço/valor)
-// 🔧 Fix: marca utilizado=true ao agendar via promo
-// ✅ Fase 2: lembrete24hEnviado + lembrete2hEnviado no Firestore
-// ✅ Fase 2: "Primeiro horário disponível" no agendamento
+// ✅ FINAL: Botão "Levar um Amigo" — 2 agendamentos simultâneos
+// ✅ Fase 2: lembrete24hEnviado + lembrete2hEnviado
+// ✅ Fase 2: Primeiro horário disponível
 
 import React from 'react';
 import { db } from './firebase';
@@ -81,7 +79,7 @@ function BotaoVoltar({ onClick }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 🔧 TELA RESGATAR PROMO
+// TELA RESGATAR PROMO
 // ─────────────────────────────────────────────────────────────
 function TelaResgatarPromo({ cliente, promo, onResgatado, onPular, dark }) {
   const s = getStyles(dark);
@@ -111,30 +109,20 @@ function TelaResgatarPromo({ cliente, promo, onResgatado, onPular, dark }) {
         setErro('encerrada'); setResgatando(false); return;
       }
       await setDoc(fDoc(db, 'resgates_promo', `${cliente.cpf}_ativa`), {
-        clienteCpf:     cliente.cpf,
-        clienteNome:    cliente.nome,
-        clienteTel:     cliente.telefone || '',
-        promoTitulo:    promo.titulo,
-        promoDescricao: promo.descricao || '',
-        resgatadoEm:    serverTimestamp(),
-        expiracao:      promo.expiracao || null,
-        utilizado:      false,
-        utilizadoEm:    null,
+        clienteCpf: cliente.cpf, clienteNome: cliente.nome, clienteTel: cliente.telefone || '',
+        promoTitulo: promo.titulo, promoDescricao: promo.descricao || '',
+        resgatadoEm: serverTimestamp(), expiracao: promo.expiracao || null,
+        utilizado: false, utilizadoEm: null,
       });
       const novosResgatados = (dadosPromo.resgatados || 0) + 1;
       await upDoc(fDoc(db, 'config', 'promocao_ativa'), { resgatados: novosResgatados });
       if (dadosPromo.ehRelampago && novosResgatados >= dadosPromo.vagas) {
         await upDoc(fDoc(db, 'config', 'promocao_ativa'), { ativo: false });
       }
-      const msg = encodeURIComponent(
-        `🔥 PROMOÇÃO RESGATADA!\n\n👤 ${cliente.nome}\n📞 ${cliente.telefone||'—'}\n🎁 ${promo.titulo}${promo.descricao?'\n✅ '+promo.descricao:''}\n\n_Resgatado pelo app_`
-      );
+      const msg = encodeURIComponent(`🔥 PROMOÇÃO RESGATADA!\n\n👤 ${cliente.nome}\n📞 ${cliente.telefone||'—'}\n🎁 ${promo.titulo}${promo.descricao?'\n✅ '+promo.descricao:''}\n\n_Resgatado pelo app_`);
       setTimeout(() => window.open(`https://wa.me/5511977643509?text=${msg}`, '_blank'), 800);
       onResgatado({ ...promo, _resgatado: true });
-    } catch(e) {
-      setErro('Erro ao resgatar. Tente novamente.');
-      console.error(e);
-    }
+    } catch(e) { setErro('Erro ao resgatar. Tente novamente.'); console.error(e); }
     setResgatando(false);
   }
 
@@ -148,9 +136,6 @@ function TelaResgatarPromo({ cliente, promo, onResgatado, onPular, dark }) {
         <div style={{ background:'linear-gradient(135deg,#8B0000,#F44336)', borderRadius:'16px', padding:'18px', marginBottom:'24px', textAlign:'left' }}>
           <div style={{ fontWeight:'700', fontSize:'16px', color:'#fff', marginBottom:'4px' }}>{promo.titulo}</div>
           {promo.descricao && <div style={{ fontSize:'13px', color:'rgba(255,255,255,0.85)' }}>🎁 {promo.descricao}</div>}
-        </div>
-        <div style={{ background:'rgba(232,201,106,0.1)', border:'1px solid rgba(232,201,106,0.3)', borderRadius:'12px', padding:'12px 14px', marginBottom:'24px', fontSize:'13px', color:'#E8C96A' }}>
-          📋 Vá até <b>Meu Perfil</b> e clique em "Agendar com esta promoção" para escolher barbeiro e horário!
         </div>
         <button onClick={() => onResgatado({ ...promo, _jaResgatou: true })}
           style={{ width:'100%', padding:'14px', borderRadius:'14px', border:'none', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontSize:'15px', fontWeight:'700', cursor:'pointer', marginBottom:'10px' }}>
@@ -195,28 +180,11 @@ function TelaResgatarPromo({ cliente, promo, onResgatado, onPular, dark }) {
             <div style={{ background:'rgba(255,255,255,0.2)', borderRadius:'8px', padding:'6px 12px', fontSize:'13px', fontWeight:'700', color:'#fff' }}>
               ⚡ {vagasRestantes} vaga{vagasRestantes!==1?'s':''} restante{vagasRestantes!==1?'s':''}
             </div>
-            {promo.expiracao && <div style={{ fontSize:'11px', color:'rgba(255,255,255,0.6)' }}>até {new Date(promo.expiracao).toLocaleDateString('pt-BR')}</div>}
           </div>
         )}
       </div>
-      <div style={{ background:'#231410', borderRadius:'14px', padding:'14px', border:'1px solid #3A2018', marginBottom:'20px' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-          <div style={{ width:'44px', height:'44px', borderRadius:'50%', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'18px', fontWeight:'700', color:'#F5EFE6' }}>
-            {cliente.nome[0].toUpperCase()}
-          </div>
-          <div>
-            <div style={{ fontWeight:'700', fontSize:'15px', color:'#F5EFE6' }}>{cliente.nome}</div>
-            <div style={{ fontSize:'12px', color:'#9A8880' }}>Resgatando com esta conta</div>
-          </div>
-        </div>
-      </div>
-      <div style={{ background:'rgba(232,201,106,0.08)', border:'1px solid rgba(232,201,106,0.2)', borderRadius:'12px', padding:'12px 14px', marginBottom:'20px', fontSize:'12px', color:'#E8C96A', lineHeight:'1.6' }}>
-        📋 Ao confirmar, a promoção fica na sua ficha. Depois escolha barbeiro e horário!
-      </div>
       {erro && erro !== 'encerrada' && (
-        <div style={{ background:'rgba(244,67,54,0.1)', border:'1px solid #F44336', borderRadius:'10px', padding:'10px 12px', marginBottom:'16px', fontSize:'13px', color:'#F44336', textAlign:'center' }}>
-          ⚠️ {erro}
-        </div>
+        <div style={{ background:'rgba(244,67,54,0.1)', border:'1px solid #F44336', borderRadius:'10px', padding:'10px 12px', marginBottom:'16px', fontSize:'13px', color:'#F44336', textAlign:'center' }}>⚠️ {erro}</div>
       )}
       <button onClick={resgatar} disabled={resgatando}
         style={{ width:'100%', padding:'16px', borderRadius:'14px', border:'none', background:resgatando?'#2E1A14':'linear-gradient(135deg,#8B0000,#F44336)', color:resgatando?'#555':'#fff', fontSize:'16px', fontWeight:'800', cursor:resgatando?'wait':'pointer', marginBottom:'12px' }}>
@@ -230,7 +198,7 @@ function TelaResgatarPromo({ cliente, promo, onResgatado, onPular, dark }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 🔧 AGENDAMENTO VIA PROMO
+// AGENDAMENTO VIA PROMO
 // ─────────────────────────────────────────────────────────────
 function AgendarViaPromo({ cliente, promo, onConcluir, onBack, dark }) {
   const s = getStyles(dark);
@@ -243,8 +211,7 @@ function AgendarViaPromo({ cliente, promo, onConcluir, onBack, dark }) {
   const [carregando, setCarr]     = React.useState(false);
   const [salvando, setSalv]       = React.useState(false);
   const [erro, setErro]           = React.useState('');
-
-  const DIAS_KEYS  = ['dom','seg','ter','qua','qui','sex','sab'];
+  const DIAS_KEYS = ['dom','seg','ter','qua','qui','sex','sab'];
 
   const diasDisponiveis = React.useMemo(() => {
     const dias = [];
@@ -269,8 +236,8 @@ function AgendarViaPromo({ cliente, promo, onConcluir, onBack, dark }) {
     setCarr(true); setHoraSel(null);
     getDocs(query(collection(db,'agendamentos'), where('data','==',dataSel))).then(snap => {
       const ocupadas = snap.docs.map(d=>d.data()).filter(a=>a.barbeiroId===barbeiro.id&&['confirmado','pendente'].includes(a.status)).map(a=>a.hora);
-      const diaSem   = DIAS_KEYS[new Date(dataSel+'T12:00:00').getDay()];
-      const hc       = config.horarios?.[diaSem];
+      const diaSem = DIAS_KEYS[new Date(dataSel+'T12:00:00').getDay()];
+      const hc = config.horarios?.[diaSem];
       if (!hc?.aberto) { setHorarios([]); setCarr(false); return; }
       const slots = [];
       const [hA,mA] = hc.abertura.split(':').map(Number);
@@ -281,8 +248,7 @@ function AgendarViaPromo({ cliente, promo, onConcluir, onBack, dark }) {
         slots.push({ hora, disponivel: !ocupadas.includes(hora) });
         atual += 30;
       }
-      setHorarios(slots);
-      setCarr(false);
+      setHorarios(slots); setCarr(false);
     });
   }, [barbeiro, dataSel, config]);
 
@@ -291,42 +257,20 @@ function AgendarViaPromo({ cliente, promo, onConcluir, onBack, dark }) {
     setSalv(true);
     try {
       const ag = {
-        clienteCpf:          cliente.cpf,
-        clienteNome:         cliente.nome,
-        clienteTel:          cliente.telefone || '',
-        barbeiroId:          barbeiro.id,
-        barbeiroNome:        barbeiro.nome,
-        servico:             promo.descricao || promo.titulo,
-        valor:               0,
-        duracao:             30,
-        data:                dataSel,
-        hora:                horaSel,
-        pagamento:           'local',
-        sinal:               0,
-        status:              'confirmado',
-        agendadoPor:         'cliente',
-        promoResgatada:      promo.titulo,
-        promoDescricao:      promo.descricao || '',
-        // ✅ Fase 2: campos lembrete
-        lembrete24hEnviado:  false,
-        lembrete2hEnviado:   false,
-        criadoEm:            serverTimestamp(),
+        clienteCpf: cliente.cpf, clienteNome: cliente.nome, clienteTel: cliente.telefone || '',
+        barbeiroId: barbeiro.id, barbeiroNome: barbeiro.nome,
+        servico: promo.descricao || promo.titulo, valor: 0, duracao: 30,
+        data: dataSel, hora: horaSel, pagamento: 'local', sinal: 0,
+        status: 'confirmado', agendadoPor: 'cliente',
+        promoResgatada: promo.titulo, promoDescricao: promo.descricao || '',
+        lembrete24hEnviado: false, lembrete2hEnviado: false, criadoEm: serverTimestamp(),
       };
       await addDoc(collection(db,'agendamentos'), ag);
-      await updateDoc(doc(db,'resgates_promo',`${cliente.cpf}_ativa`), {
-        utilizado:   true,
-        utilizadoEm: serverTimestamp(),
-      });
-      const msg = encodeURIComponent(
-        `✂️ AGENDAMENTO VIA PROMOÇÃO\n\n` +
-        `👤 ${cliente.nome}\n📞 ${cliente.telefone||'—'}\n` +
-        `🔥 Promo: ${promo.titulo}\n✂️ Barbeiro: ${barbeiro.nome}\n` +
-        `📅 ${formatarData(dataSel)} às ${horaSel}\n` +
-        (promo.descricao ? `🎁 ${promo.descricao}` : '')
-      );
+      await updateDoc(doc(db,'resgates_promo',`${cliente.cpf}_ativa`), { utilizado: true, utilizadoEm: serverTimestamp() });
+      const msg = encodeURIComponent(`✂️ AGENDAMENTO VIA PROMOÇÃO\n\n👤 ${cliente.nome}\n📞 ${cliente.telefone||'—'}\n🔥 Promo: ${promo.titulo}\n✂️ Barbeiro: ${barbeiro.nome}\n📅 ${formatarData(dataSel)} às ${horaSel}\n${promo.descricao?'🎁 '+promo.descricao:''}`);
       setTimeout(() => window.open(`https://wa.me/5511977643509?text=${msg}`, '_blank'), 500);
       onConcluir(ag);
-    } catch(e) { setErro('Erro ao agendar: ' + e.message); console.error(e); }
+    } catch(e) { setErro('Erro ao agendar: ' + e.message); }
     setSalv(false);
   }
 
@@ -335,7 +279,7 @@ function AgendarViaPromo({ cliente, promo, onConcluir, onBack, dark }) {
       <button onClick={onBack} style={{ background:'none', border:'none', color:'#E8C96A', fontSize:'14px', cursor:'pointer', marginBottom:'16px' }}>← Voltar</button>
       <div style={{ background:'linear-gradient(135deg,#8B0000,#F44336)', borderRadius:'14px', padding:'14px', marginBottom:'20px' }}>
         <div style={{ fontSize:'11px', color:'rgba(255,255,255,0.7)', fontWeight:'700', marginBottom:'4px' }}>🔥 AGENDANDO COM PROMOÇÃO</div>
-        <div style={{ fontWeight:'700', fontSize:'16px', color:'#fff', marginBottom:'2px' }}>{promo.titulo}</div>
+        <div style={{ fontWeight:'700', fontSize:'16px', color:'#fff' }}>{promo.titulo}</div>
         {promo.descricao && <div style={{ fontSize:'13px', color:'rgba(255,255,255,0.85)' }}>🎁 {promo.descricao}</div>}
       </div>
       <div style={{ fontSize:'12px', color:'#E8C96A', fontWeight:'700', marginBottom:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>1. Escolha o barbeiro</div>
@@ -359,8 +303,7 @@ function AgendarViaPromo({ cliente, promo, onConcluir, onBack, dark }) {
           <div style={{ fontSize:'12px', color:'#E8C96A', fontWeight:'700', marginBottom:'10px', marginTop:'16px', textTransform:'uppercase', letterSpacing:'1px' }}>2. Escolha a data</div>
           <div style={{ overflowX:'auto', display:'flex', gap:'8px', paddingBottom:'8px', marginBottom:'16px' }}>
             {diasDisponiveis.map(data => {
-              const sel = dataSel===data;
-              const d   = new Date(data+'T12:00:00');
+              const sel = dataSel===data, d = new Date(data+'T12:00:00');
               return (
                 <div key={data} onClick={() => setDataSel(data)}
                   style={{ minWidth:'56px', padding:'10px 8px', borderRadius:'12px', textAlign:'center', cursor:'pointer', background:sel?'#8B3A2A':'#231410', border:sel?'1.5px solid #E8C96A':'1px solid #3A2018' }}>
@@ -377,31 +320,25 @@ function AgendarViaPromo({ cliente, promo, onConcluir, onBack, dark }) {
         <>
           <div style={{ fontSize:'12px', color:'#E8C96A', fontWeight:'700', marginBottom:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>3. Escolha o horário</div>
           {carregando ? <div style={{ textAlign:'center', color:'#9A8880', padding:'20px' }}>Carregando...</div> :
-            horarios.length===0 ? (
-              <div style={{ textAlign:'center', color:'#9A8880', padding:'12px', background:'#231410', borderRadius:'10px', marginBottom:'16px' }}>Fechado neste dia</div>
-            ) : (
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px', marginBottom:'16px' }}>
-                {horarios.map(h => {
-                  const sel = horaSel===h.hora;
-                  return (
-                    <div key={h.hora} onClick={() => h.disponivel&&setHoraSel(h.hora)}
-                      style={{ padding:'10px 4px', borderRadius:'10px', textAlign:'center', cursor:h.disponivel?'pointer':'not-allowed', background:sel?'#8B3A2A':h.disponivel?'#231410':'#1A0F0D', border:sel?'1.5px solid #E8C96A':'1px solid #3A2018', opacity:h.disponivel?1:0.4, fontSize:'13px', fontWeight:'600', color:sel?'#F5EFE6':h.disponivel?'#F5EFE6':'#555' }}>
-                      {h.hora}
-                      {!h.disponivel && <div style={{ fontSize:'8px', color:'#F44336', marginTop:'2px' }}>Ocupado</div>}
-                    </div>
-                  );
-                })}
-              </div>
-            )
+            horarios.length===0 ? <div style={{ textAlign:'center', color:'#9A8880', padding:'12px', background:'#231410', borderRadius:'10px', marginBottom:'16px' }}>Fechado neste dia</div> :
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px', marginBottom:'16px' }}>
+              {horarios.map(h => {
+                const sel = horaSel===h.hora;
+                return (
+                  <div key={h.hora} onClick={() => h.disponivel&&setHoraSel(h.hora)}
+                    style={{ padding:'10px 4px', borderRadius:'10px', textAlign:'center', cursor:h.disponivel?'pointer':'not-allowed', background:sel?'#8B3A2A':h.disponivel?'#231410':'#1A0F0D', border:sel?'1.5px solid #E8C96A':'1px solid #3A2018', opacity:h.disponivel?1:0.4, fontSize:'13px', fontWeight:'600', color:sel?'#F5EFE6':h.disponivel?'#F5EFE6':'#555' }}>
+                    {h.hora}
+                    {!h.disponivel && <div style={{ fontSize:'8px', color:'#F44336', marginTop:'2px' }}>Ocupado</div>}
+                  </div>
+                );
+              })}
+            </div>
           }
         </>
       )}
       {erro && <div style={{ fontSize:'12px', color:'#F44336', marginBottom:'12px', textAlign:'center' }}>⚠️ {erro}</div>}
       {barbeiro && dataSel && horaSel && (
         <div style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:'430px', background:'#1A0F0D', borderTop:'1px solid #3A2018', padding:'12px 16px 28px', zIndex:100 }}>
-          <div style={{ fontSize:'12px', color:'#9A8880', textAlign:'center', marginBottom:'8px' }}>
-            {barbeiro.nome} · {formatarData(dataSel)} às {horaSel}
-          </div>
           <button onClick={confirmar} disabled={salvando}
             style={{ width:'100%', padding:'14px', borderRadius:'14px', border:'none', background:salvando?'#2E1A14':'linear-gradient(135deg,#8B0000,#F44336)', color:salvando?'#555':'#fff', fontSize:'15px', fontWeight:'700', cursor:salvando?'wait':'pointer' }}>
             {salvando ? '⏳ Confirmando...' : '🔥 Confirmar com Promoção!'}
@@ -413,7 +350,7 @@ function AgendarViaPromo({ cliente, promo, onConcluir, onBack, dark }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// ✅ Fase 2: PRIMEIRO HORÁRIO DISPONÍVEL
+// PRIMEIRO HORÁRIO DISPONÍVEL
 // ─────────────────────────────────────────────────────────────
 async function buscarPrimeiroHorario(barbeiroId, config) {
   const DIAS_KEYS = ['dom','seg','ter','qua','qui','sex','sab'];
@@ -428,7 +365,6 @@ async function buscarPrimeiroHorario(barbeiroId, config) {
     const [hA,mA] = hc.abertura.split(':').map(Number);
     const [hF,mF] = hc.fechamento.split(':').map(Number);
     let atual = hA*60+mA, fim = hF*60+mF;
-    // Se for hoje, pula horários já passados
     if (i === 0) {
       const agora = new Date();
       const agoraMin = agora.getHours()*60 + agora.getMinutes();
@@ -444,37 +380,30 @@ async function buscarPrimeiroHorario(barbeiroId, config) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// PASSOS NORMAIS: Barbeiro / Serviço / Data / Pagamento
+// ESCOLHER BARBEIRO
 // ─────────────────────────────────────────────────────────────
 function EscolherBarbeiro({ onEscolher, onBack, dark, promoAtiva }) {
   const s = getStyles(dark);
   const [barbeiros, setBarbeiros]   = React.useState([]);
   const [carregando, setCarregando] = React.useState(true);
   const [config, setConfig]         = React.useState(null);
-  // ✅ Fase 2: primeiro horário disponível
   const [buscandoPrimeiro, setBuscando] = React.useState(false);
   const [erroPrimeiro, setErroPrimeiro] = React.useState('');
 
   React.useEffect(() => {
     getDocs(query(collection(db,'barbeiros'), where('ativo','==',true)))
       .then(snap => setBarbeiros(snap.docs.map(d=>({id:d.id,...d.data()})).filter(b=>b.papel!=='recepcao')))
-      .catch(console.error)
-      .finally(() => setCarregando(false));
+      .catch(console.error).finally(() => setCarregando(false));
     getDoc(doc(db,'config','barbearia')).then(snap => { if(snap.exists()) setConfig(snap.data()); });
   }, []);
 
-  // ✅ Fase 2: ao clicar no botão, busca o primeiro slot disponível entre todos os barbeiros
   async function handlePrimeiroDisponivel() {
     if (!config) return;
     setBuscando(true); setErroPrimeiro('');
     try {
       for (const b of barbeiros) {
         const resultado = await buscarPrimeiroHorario(b.id, config);
-        if (resultado) {
-          // Retorna o barbeiro + data + hora já preenchidos para pular etapas
-          onEscolher(b, resultado);
-          return;
-        }
+        if (resultado) { onEscolher(b, resultado); return; }
       }
       setErroPrimeiro('Nenhum horário disponível nos próximos 14 dias.');
     } catch(e) { setErroPrimeiro('Erro ao buscar horário.'); }
@@ -487,20 +416,16 @@ function EscolherBarbeiro({ onEscolher, onBack, dark, promoAtiva }) {
       <StepIndicator step={0} total={4} />
       <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'20px', color:'#F5EFE6', marginBottom:'6px', marginTop:'8px' }}>Escolha o barbeiro</div>
       <div style={{ fontSize:'12px', color:'#9A8880', marginBottom:'16px' }}>Selecione com quem deseja se barbear</div>
-
-      {/* ✅ Fase 2: botão primeiro horário disponível */}
       <button onClick={handlePrimeiroDisponivel} disabled={buscandoPrimeiro || !config}
         style={{ width:'100%', padding:'14px', borderRadius:'14px', border:'none', background:buscandoPrimeiro?'#2E1A14':'linear-gradient(135deg,#2E7D7A,#3A9E9A)', color:buscandoPrimeiro?'#555':'#fff', fontWeight:'700', fontSize:'14px', cursor:buscandoPrimeiro?'wait':'pointer', marginBottom:'16px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
         {buscandoPrimeiro ? '⏳ Buscando...' : '⚡ Quero o primeiro horário disponível'}
       </button>
       {erroPrimeiro && <div style={{ fontSize:'12px', color:'#F44336', textAlign:'center', marginBottom:'12px' }}>⚠️ {erroPrimeiro}</div>}
-
       <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'16px' }}>
         <div style={{ flex:1, height:'1px', background:'#3A2018' }} />
         <span style={{ fontSize:'11px', color:'#555' }}>ou escolha abaixo</span>
         <div style={{ flex:1, height:'1px', background:'#3A2018' }} />
       </div>
-
       {promoAtiva && (
         <div style={{ background:'linear-gradient(135deg,#8B0000,#F44336)', borderRadius:'12px', padding:'12px 14px', marginBottom:'16px', display:'flex', alignItems:'center', gap:'10px' }}>
           <span style={{ fontSize:'22px' }}>🔥</span>
@@ -508,11 +433,6 @@ function EscolherBarbeiro({ onEscolher, onBack, dark, promoAtiva }) {
             <div style={{ fontWeight:'700', fontSize:'13px', color:'#fff' }}>{promoAtiva.titulo}</div>
             {promoAtiva.descricao && <div style={{ fontSize:'11px', color:'rgba(255,255,255,0.8)' }}>🎁 {promoAtiva.descricao}</div>}
           </div>
-          {promoAtiva.ehRelampago && (
-            <div style={{ background:'rgba(255,255,255,0.2)', borderRadius:'8px', padding:'4px 8px', fontSize:'11px', fontWeight:'700', color:'#fff', whiteSpace:'nowrap' }}>
-              ⚡ {promoAtiva.vagas - (promoAtiva.resgatados||0)} vagas
-            </div>
-          )}
         </div>
       )}
       {carregando ? <div style={{ textAlign:'center', color:'#9A8880', padding:'40px' }}>Carregando...</div> : (
@@ -602,7 +522,6 @@ function EscolherDataHora({ barbeiro, servico, onEscolher, onBack, dark, dataHor
     for (let i=0;i<14;i++) { const d=new Date(); d.setDate(d.getDate()+i); dias.push(d.toISOString().split('T')[0]); }
     return dias;
   }, []);
-  // ✅ Fase 2: pré-seleciona data/hora se vier do "primeiro disponível"
   const [dataSel, setDataSel]   = React.useState(dataHoraPreSelecionada?.data || null);
   const [horaSel, setHoraSel]   = React.useState(dataHoraPreSelecionada?.hora || null);
   const [horarios, setHorarios] = React.useState([]);
@@ -637,7 +556,6 @@ function EscolherDataHora({ barbeiro, servico, onEscolher, onBack, dark, dataHor
       <StepIndicator step={2} total={4} />
       <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'20px', color:'#F5EFE6', marginBottom:'4px', marginTop:'8px' }}>Escolha data e horário</div>
       <div style={{ fontSize:'12px', color:'#9A8880', marginBottom:'20px' }}>{barbeiro.nome} · {servico.nome} · {servico.duracao} min</div>
-      {/* ✅ Fase 2: banner quando veio do primeiro disponível */}
       {dataHoraPreSelecionada && (
         <div style={{ background:'rgba(46,125,122,0.1)', border:'1px solid rgba(46,125,122,0.3)', borderRadius:'12px', padding:'10px 14px', marginBottom:'16px', fontSize:'12px', color:'#2E7D7A' }}>
           ⚡ Primeiro horário disponível pré-selecionado — confirme ou troque abaixo.
@@ -689,6 +607,204 @@ function EscolherDataHora({ barbeiro, servico, onEscolher, onBack, dark, dataHor
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// ✅ FINAL: MODAL LEVAR UM AMIGO
+// ─────────────────────────────────────────────────────────────
+function ModalLevarAmigo({ agendamentoPrincipal, cliente, barbeiros, config, onConcluir, onFechar }) {
+  const DIAS_KEYS = ['dom','seg','ter','qua','qui','sex','sab'];
+  const [barbeiroAmigo, setBarbeiroAmigo] = React.useState(null);
+  const [horarios, setHorarios]           = React.useState([]);
+  const [horaSel, setHoraSel]             = React.useState(agendamentoPrincipal.hora); // mesmo horário por padrão
+  const [carregando, setCarr]             = React.useState(false);
+  const [salvando, setSalv]               = React.useState(false);
+  const [erro, setErro]                   = React.useState('');
+  const [nomeAmigo, setNomeAmigo]         = React.useState('');
+  const [telAmigo, setTelAmigo]           = React.useState('');
+
+  // Barbeiros disponíveis = todos menos o já escolhido pelo cliente
+  const barbeirosDisponiveis = barbeiros.filter(b => b.id !== agendamentoPrincipal.barbeiroId);
+
+  React.useEffect(() => {
+    if (!barbeiroAmigo || !config) return;
+    setCarr(true); setHoraSel(agendamentoPrincipal.hora);
+    getDocs(query(collection(db,'agendamentos'), where('data','==',agendamentoPrincipal.data))).then(snap => {
+      const ocupadas = snap.docs.map(d=>d.data()).filter(a=>a.barbeiroId===barbeiroAmigo.id&&['confirmado','pendente'].includes(a.status)).map(a=>a.hora);
+      const diaSem = DIAS_KEYS[new Date(agendamentoPrincipal.data+'T12:00:00').getDay()];
+      const hc = config.horarios?.[diaSem];
+      if (!hc?.aberto) { setHorarios([]); setCarr(false); return; }
+      const slots = [];
+      const [hA,mA] = hc.abertura.split(':').map(Number);
+      const [hF,mF] = hc.fechamento.split(':').map(Number);
+      let atual = hA*60+mA, fim = hF*60+mF;
+      while (atual+30 <= fim) {
+        const hora = `${String(Math.floor(atual/60)).padStart(2,'0')}:${String(atual%60).padStart(2,'0')}`;
+        slots.push({ hora, disponivel: !ocupadas.includes(hora) });
+        atual += 30;
+      }
+      setHorarios(slots); setCarr(false);
+    });
+  }, [barbeiroAmigo, config]);
+
+  async function confirmar() {
+    if (!nomeAmigo.trim()) { setErro('Informe o nome do amigo'); return; }
+    if (!barbeiroAmigo) { setErro('Selecione o barbeiro do amigo'); return; }
+    if (!horaSel) { setErro('Selecione o horário'); return; }
+    setSalv(true);
+    try {
+      const telNorm = telAmigo.replace(/\D/g,'').slice(-11);
+      const ag = {
+        clienteNome:        nomeAmigo.trim(),
+        clienteTel:         telNorm,
+        clienteCpf:         'amigo_' + cliente.cpf,
+        barbeiroId:         barbeiroAmigo.id,
+        barbeiroNome:       barbeiroAmigo.nome,
+        servico:            agendamentoPrincipal.servico,
+        valor:              agendamentoPrincipal.valor || 0,
+        duracao:            agendamentoPrincipal.duracao || 30,
+        data:               agendamentoPrincipal.data,
+        hora:               horaSel,
+        pagamento:          'local',
+        sinal:              0,
+        status:             'confirmado',
+        agendadoPor:        'cliente',
+        amigoDeClienteCpf:  cliente.cpf,
+        amigoDeClienteNome: cliente.nome,
+        lembrete24hEnviado: false,
+        lembrete2hEnviado:  false,
+        criadoEm:           serverTimestamp(),
+      };
+      await addDoc(collection(db,'agendamentos'), ag);
+      // Notifica WhatsApp da barbearia
+      const msg = encodeURIComponent(
+        `👥 AGENDAMENTO EM DUPLA!\n\n` +
+        `👤 ${cliente.nome} trouxe um amigo:\n` +
+        `👤 Amigo: ${nomeAmigo}\n` +
+        `✂️ Barbeiro do amigo: ${barbeiroAmigo.nome}\n` +
+        `📅 ${formatarData(agendamentoPrincipal.data)} às ${horaSel}\n` +
+        `💈 ${agendamentoPrincipal.servico}`
+      );
+      setTimeout(() => window.open(`https://wa.me/5511977643509?text=${msg}`, '_blank'), 500);
+      // Notifica o amigo se tiver WhatsApp
+      if (telNorm) {
+        const msgAmigo = encodeURIComponent(
+          `Olá, ${nomeAmigo.split(' ')[0]}! 👋\n\n` +
+          `${cliente.nome.split(' ')[0]} te convidou para a Flyguer BarberShop!\n\n` +
+          `✂️ Barbeiro: ${barbeiroAmigo.nome}\n` +
+          `📅 ${formatarData(agendamentoPrincipal.data)} às ${horaSel}\n` +
+          `💈 ${agendamentoPrincipal.servico}\n\n` +
+          `📍 Shopping Cidade das Artes — Piso 2, Nº 22\n` +
+          `📲 Baixe o app: https://flyguer-barbershop.vercel.app`
+        );
+        setTimeout(() => window.open(`https://wa.me/55${telNorm}?text=${msgAmigo}`, '_blank'), 1500);
+      }
+      onConcluir();
+    } catch(e) { setErro('Erro ao agendar: ' + e.message); }
+    setSalv(false);
+  }
+
+  const inp = { width:'100%', background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'10px', padding:'10px 12px', color:'#F5EFE6', fontSize:'14px', outline:'none', boxSizing:'border-box', fontFamily:"'DM Sans',sans-serif" };
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'flex-end', justifyContent:'center', zIndex:200 }}>
+      <div style={{ background:'#1A0F0D', borderRadius:'20px 20px 0 0', width:'100%', maxWidth:'430px', padding:'24px 20px 40px', border:'1px solid #3A2018', borderBottom:'none', maxHeight:'90vh', overflowY:'auto' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+          <div>
+            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#E8C96A' }}>👥 Levar um Amigo</div>
+            <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>Mesmo dia · {formatarData(agendamentoPrincipal.data)}</div>
+          </div>
+          <button onClick={onFechar} style={{ background:'none', border:'none', color:'#9A8880', fontSize:'20px', cursor:'pointer' }}>✕</button>
+        </div>
+
+        {/* Info do agendamento principal */}
+        <div style={{ background:'rgba(139,58,42,0.15)', border:'1px solid rgba(139,58,42,0.3)', borderRadius:'12px', padding:'12px 14px', marginBottom:'16px' }}>
+          <div style={{ fontSize:'11px', color:'#9A8880', marginBottom:'4px' }}>Seu agendamento</div>
+          <div style={{ fontSize:'13px', color:'#F5EFE6', fontWeight:'600' }}>✂️ {agendamentoPrincipal.barbeiroNome} · {agendamentoPrincipal.hora} · {agendamentoPrincipal.servico}</div>
+        </div>
+
+        {/* Nome do amigo */}
+        <div style={{ marginBottom:'12px' }}>
+          <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'5px' }}>Nome do amigo *</label>
+          <input type="text" style={inp} placeholder="Nome completo" value={nomeAmigo} onChange={e=>setNomeAmigo(e.target.value)} autoFocus />
+        </div>
+
+        {/* WhatsApp do amigo */}
+        <div style={{ marginBottom:'16px' }}>
+          <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'5px' }}>WhatsApp do amigo <span style={{ color:'#555' }}>(opcional — para notificar)</span></label>
+          <input type="tel" style={inp} placeholder="11999999999" value={telAmigo} onChange={e=>setTelAmigo(e.target.value)} />
+        </div>
+
+        {/* Escolher barbeiro do amigo */}
+        <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'600', marginBottom:'10px', textTransform:'uppercase' }}>Barbeiro para o amigo</div>
+        {barbeirosDisponiveis.length === 0 ? (
+          <div style={{ background:'rgba(255,193,7,0.1)', border:'1px solid rgba(255,193,7,0.3)', borderRadius:'10px', padding:'10px 12px', marginBottom:'16px', fontSize:'12px', color:'#FFC107' }}>
+            ⚠️ Não há outro barbeiro disponível. Apenas você pode ser atendido.
+          </div>
+        ) : (
+          <div style={{ marginBottom:'16px' }}>
+            {barbeirosDisponiveis.map(b => (
+              <div key={b.id} onClick={() => setBarbeiroAmigo(b)}
+                style={{ display:'flex', alignItems:'center', gap:'12px', padding:'12px 14px', background:barbeiroAmigo?.id===b.id?'#2E1A14':'#231410', borderRadius:'12px', border:barbeiroAmigo?.id===b.id?'1.5px solid #8B3A2A':'1px solid #3A2018', marginBottom:'8px', cursor:'pointer' }}>
+                <div style={{ width:'44px', height:'44px', borderRadius:'50%', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'16px', fontWeight:'700', color:'#F5EFE6', flexShrink:0 }}>
+                  {b.nome[0]}
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:'700', fontSize:'14px', color:'#F5EFE6' }}>{b.nome}</div>
+                  <div style={{ fontSize:'11px', color:'#9A8880' }}>{b.cargo}</div>
+                </div>
+                <div style={{ fontSize:'11px', padding:'4px 8px', borderRadius:'12px', background:b.disponivel?'rgba(76,175,80,0.15)':'rgba(255,193,7,0.15)', color:b.disponivel?'#4CAF50':'#FFC107' }}>
+                  {b.disponivel?'● Disponível':'● Ocupado'}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Horário do amigo */}
+        {barbeiroAmigo && (
+          <>
+            <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'600', marginBottom:'10px', textTransform:'uppercase' }}>
+              Horário do amigo
+              <span style={{ fontSize:'10px', color:'#9A8880', fontWeight:'400', marginLeft:'8px' }}>(mesmo horário que o seu já está pré-selecionado)</span>
+            </div>
+            {carregando ? <div style={{ textAlign:'center', color:'#9A8880', padding:'16px' }}>Carregando...</div> :
+              horarios.length === 0 ? <div style={{ textAlign:'center', color:'#9A8880', padding:'12px', background:'#231410', borderRadius:'10px', marginBottom:'12px' }}>Fechado neste dia</div> :
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'6px', marginBottom:'16px' }}>
+                {horarios.map(h => {
+                  const sel = horaSel===h.hora;
+                  const ehMesmo = h.hora === agendamentoPrincipal.hora;
+                  return (
+                    <div key={h.hora} onClick={() => h.disponivel&&setHoraSel(h.hora)}
+                      style={{ padding:'10px 4px', borderRadius:'10px', textAlign:'center', cursor:h.disponivel?'pointer':'not-allowed', background:sel?'#8B3A2A':h.disponivel?'#231410':'#1A0F0D', border:sel?'1.5px solid #E8C96A':ehMesmo&&h.disponivel?'1px solid rgba(232,201,106,0.4)':'1px solid #3A2018', opacity:h.disponivel?1:0.4, fontSize:'13px', fontWeight:'600', color:sel?'#F5EFE6':h.disponivel?'#F5EFE6':'#555' }}>
+                      {h.hora}
+                      {ehMesmo && h.disponivel && !sel && <div style={{ fontSize:'8px', color:'#E8C96A', marginTop:'2px' }}>Seu horário</div>}
+                      {!h.disponivel && <div style={{ fontSize:'8px', color:'#F44336', marginTop:'2px' }}>Ocupado</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            }
+          </>
+        )}
+
+        {erro && <div style={{ fontSize:'12px', color:'#F44336', marginBottom:'12px', textAlign:'center', background:'rgba(244,67,54,0.1)', borderRadius:'8px', padding:'10px' }}>{erro}</div>}
+
+        <div style={{ display:'flex', gap:'8px' }}>
+          <button onClick={onFechar} style={{ flex:1, padding:'14px', borderRadius:'14px', border:'1px solid #3A2018', background:'#231410', color:'#9A8880', fontSize:'14px', cursor:'pointer' }}>
+            Pular
+          </button>
+          <button onClick={confirmar} disabled={salvando || !nomeAmigo.trim() || !barbeiroAmigo || !horaSel}
+            style={{ flex:2, padding:'14px', borderRadius:'14px', border:'none', background:salvando||!nomeAmigo.trim()||!barbeiroAmigo?'#2E1A14':'linear-gradient(135deg,#5C2218,#8B3A2A)', color:salvando||!nomeAmigo.trim()||!barbeiroAmigo?'#555':'#F5EFE6', fontSize:'15px', fontWeight:'700', cursor:salvando?'wait':'pointer' }}>
+            {salvando ? '⏳ Agendando...' : '👥 Agendar para os dois!'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// PAGAMENTO
+// ─────────────────────────────────────────────────────────────
 function Pagamento({ cliente, barbeiro, servico, dataHora, promoAtiva, onConfirmar, onBack, dark }) {
   const s = getStyles(dark);
   const [pagPref, setPagPref]   = React.useState('local');
@@ -699,6 +815,11 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, promoAtiva, onConfirm
   const [travado, setTravado]   = React.useState(false);
   const [verificando, setVerificando] = React.useState(true);
   const [promoResgate, setPromoResgate] = React.useState(null);
+  // ✅ FINAL: levar amigo
+  const [modalAmigo, setModalAmigo]     = React.useState(false);
+  const [amigoAgendado, setAmigoAgendado] = React.useState(false);
+  const [barbeiros, setBarbeiros]       = React.useState([]);
+  const [config, setConfig]             = React.useState(null);
 
   React.useEffect(() => {
     async function verificar() {
@@ -707,6 +828,7 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, promoAtiva, onConfirm
         if (snapConfig.exists()) {
           const d = snapConfig.data();
           setPixConfig({ chave:d.pix||'11939089988', nome:d.pixNome||'Alisson Ferreira da Silva', banco:d.pixBanco||'Nubank', cidade:d.pixCidade||'Sao Paulo' });
+          setConfig(d);
         }
         if (dataHora.data === hoje()) {
           const snap = await getDocs(query(collection(db,'agendamentos'), where('clienteCpf','==',cliente.cpf), where('data','==',hoje()), where('status','==','cancelado_cliente')));
@@ -718,6 +840,9 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, promoAtiva, onConfirm
             if (snapR.exists() && !snapR.data().utilizado) setPromoResgate(snapR.data());
           } catch(e) {}
         }
+        // Carrega barbeiros para o modal do amigo
+        const snapB = await getDocs(query(collection(db,'barbeiros'), where('ativo','==',true)));
+        setBarbeiros(snapB.docs.map(d=>({id:d.id,...d.data()})).filter(b=>b.papel!=='recepcao'));
       } catch(e) { console.error(e); }
       finally { setVerificando(false); }
     }
@@ -740,27 +865,18 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, promoAtiva, onConfirm
     setSalvando(true); setErro('');
     try {
       const agendamento = {
-        clienteCpf:          cliente.cpf,
-        clienteNome:         cliente.nome,
-        clienteTel:          cliente.telefone,
-        barbeiroId:          barbeiro.id,
-        barbeiroNome:        barbeiro.nome,
-        servico:             servico.nome,
-        servicoIds:          (servico.servicos||[]).map(s=>s.id).filter(Boolean),
-        valor:               valorTotal,
-        duracao:             servico.duracao,
-        data:                dataHora.data,
-        hora:                dataHora.hora,
-        pagamento:           travado?'pix_sinal':pagPref,
-        sinal:               travado?valorTotal*0.5:0,
-        status:              'confirmado',
-        agendadoPor:         'cliente',
-        travaCancelamento:   travado,
-        promoResgatada:      promoResgate ? promoResgate.promoTitulo : null,
-        // ✅ Fase 2: campos lembrete
-        lembrete24hEnviado:  false,
-        lembrete2hEnviado:   false,
-        criadoEm:            serverTimestamp(),
+        clienteCpf: cliente.cpf, clienteNome: cliente.nome, clienteTel: cliente.telefone,
+        barbeiroId: barbeiro.id, barbeiroNome: barbeiro.nome,
+        servico: servico.nome, servicoIds: (servico.servicos||[]).map(s=>s.id).filter(Boolean),
+        valor: valorTotal, duracao: servico.duracao,
+        data: dataHora.data, hora: dataHora.hora,
+        pagamento: travado?'pix_sinal':pagPref,
+        sinal: travado?valorTotal*0.5:0,
+        status: 'confirmado', agendadoPor: 'cliente',
+        travaCancelamento: travado,
+        promoResgatada: promoResgate ? promoResgate.promoTitulo : null,
+        lembrete24hEnviado: false, lembrete2hEnviado: false,
+        criadoEm: serverTimestamp(),
       };
       await addDoc(collection(db,'agendamentos'), agendamento);
       notificarBarbeariaNovoAgendamento(agendamento);
@@ -779,16 +895,36 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, promoAtiva, onConfirm
       <StepIndicator step={3} total={4} />
       <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'20px', color:'#F5EFE6', marginBottom:'4px', marginTop:'8px' }}>Confirmar agendamento</div>
       <div style={{ fontSize:'12px', color:'#9A8880', marginBottom:'20px' }}>Revise e escolha a forma de pagamento</div>
+
+      {/* ✅ FINAL: Banner Levar um Amigo */}
+      {!amigoAgendado && (
+        <div onClick={() => setModalAmigo(true)}
+          style={{ background:'linear-gradient(135deg,#1A3A2A,#2E7D7A)', border:'1px solid rgba(46,125,122,0.4)', borderRadius:'14px', padding:'14px 16px', marginBottom:'16px', cursor:'pointer', display:'flex', alignItems:'center', gap:'12px' }}>
+          <span style={{ fontSize:'28px' }}>👥</span>
+          <div style={{ flex:1 }}>
+            <div style={{ fontWeight:'700', fontSize:'14px', color:'#fff' }}>Levar um amigo?</div>
+            <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.75)', marginTop:'2px' }}>Agende para o seu amigo com outro barbeiro no mesmo dia</div>
+          </div>
+          <span style={{ fontSize:'18px', color:'#4CAF50' }}>→</span>
+        </div>
+      )}
+      {amigoAgendado && (
+        <div style={{ background:'rgba(76,175,80,0.12)', border:'1px solid rgba(76,175,80,0.4)', borderRadius:'14px', padding:'12px 16px', marginBottom:'16px', display:'flex', alignItems:'center', gap:'10px' }}>
+          <span style={{ fontSize:'20px' }}>✅</span>
+          <div style={{ fontSize:'13px', color:'#4CAF50', fontWeight:'700' }}>Amigo agendado com sucesso!</div>
+        </div>
+      )}
+
       {promoResgate && (
         <div style={{ background:'linear-gradient(135deg,rgba(139,0,0,0.3),rgba(244,67,54,0.2))', border:'1px solid rgba(244,67,54,0.4)', borderRadius:'12px', padding:'12px 14px', marginBottom:'16px', display:'flex', alignItems:'center', gap:'10px' }}>
           <span style={{ fontSize:'24px' }}>🔥</span>
           <div>
             <div style={{ fontWeight:'700', fontSize:'13px', color:'#F44336' }}>Promoção ativa na sua ficha!</div>
             <div style={{ fontSize:'12px', color:'#F5EFE6', marginTop:'2px' }}>{promoResgate.promoDescricao || promoResgate.promoTitulo}</div>
-            <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>Apresente na recepção ao chegar</div>
           </div>
         </div>
       )}
+
       <Card style={{ borderColor:'#8B3A2A' }}>
         <div style={{ fontSize:'12px', color:'#9A8880', marginBottom:'12px', fontWeight:'600', textTransform:'uppercase', letterSpacing:'1px' }}>Resumo</div>
         {[
@@ -805,6 +941,7 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, promoAtiva, onConfirm
           </div>
         ))}
       </Card>
+
       {travado && (
         <div style={{ background:'rgba(244,67,54,0.1)', border:'1.5px solid rgba(244,67,54,0.4)', borderRadius:'14px', padding:'14px', marginBottom:'16px' }}>
           <div style={{ fontSize:'13px', fontWeight:'700', color:'#F44336', marginBottom:'8px' }}>🔒 Política de Agendamento Mesmo Dia</div>
@@ -815,6 +952,7 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, promoAtiva, onConfirm
           </div>
         </div>
       )}
+
       <div style={{ fontSize:'12px', color:'#E8C96A', fontWeight:'600', marginBottom:'12px', textTransform:'uppercase', letterSpacing:'1px' }}>Forma de pagamento</div>
       <Card onClick={() => !travado&&setPagPref('local')} style={{ border:pagPref==='local'&&!travado?'1.5px solid #8B3A2A':'1px solid #3A2018', opacity:travado?0.4:1, cursor:travado?'not-allowed':'pointer' }}>
         <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
@@ -858,16 +996,32 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, promoAtiva, onConfirm
       </Card>
       {!travado && <div style={{ background:'rgba(46,125,122,0.08)', border:'1px solid rgba(46,125,122,0.2)', borderRadius:'10px', padding:'10px 14px', marginBottom:'12px', fontSize:'11px', color:'#2E7D7A' }}>ℹ️ O Pix antecipado é sempre opcional.</div>}
       {erro && <div style={{ fontSize:'12px', color:'#F44336', marginBottom:'12px', textAlign:'center' }}>⚠️ {erro}</div>}
+
       <div style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:'430px', background:'#1A0F0D', borderTop:'1px solid #3A2018', padding:'12px 16px 28px', zIndex:100 }}>
         <button onClick={handleConfirmar} disabled={salvando}
           style={{ width:'100%', padding:'14px', borderRadius:'14px', border:'none', background:travado?'linear-gradient(135deg,#2E7D7A,#3A9E9A)':'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontSize:'15px', fontWeight:'700', cursor:salvando?'wait':'pointer' }}>
           {salvando ? '⏳ Confirmando...' : travado ? `✅ Confirmar e Pagar Sinal R$ ${valorSinal}` : '✅ Confirmar Agendamento'}
         </button>
       </div>
+
+      {/* ✅ FINAL: Modal Levar Amigo */}
+      {modalAmigo && (
+        <ModalLevarAmigo
+          agendamentoPrincipal={{ barbeiroId: barbeiro.id, barbeiroNome: barbeiro.nome, data: dataHora.data, hora: dataHora.hora, servico: servico.nome, valor: valorTotal, duracao: servico.duracao }}
+          cliente={cliente}
+          barbeiros={barbeiros}
+          config={config}
+          onConcluir={() => { setModalAmigo(false); setAmigoAgendado(true); }}
+          onFechar={() => setModalAmigo(false)}
+        />
+      )}
     </div>
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// CONFIRMADO
+// ─────────────────────────────────────────────────────────────
 function Confirmado({ agendamento, onVoltar, dark }) {
   const s = getStyles(dark);
 
@@ -902,18 +1056,11 @@ function Confirmado({ agendamento, onVoltar, dark }) {
             <span style={{ fontSize:'13px', color:'#F5EFE6', fontWeight:'600' }}>{item.value}</span>
           </div>
         ))}
-        {agendamento.promoResgatada && (
-          <div style={{ marginTop:'10px', padding:'10px', background:'rgba(244,67,54,0.1)', borderRadius:'10px', display:'flex', alignItems:'center', gap:'8px' }}>
-            <span style={{ fontSize:'16px' }}>🔥</span>
-            <span style={{ fontSize:'12px', color:'#F44336', fontWeight:'600' }}>Promo: {agendamento.promoResgatada}</span>
-          </div>
-        )}
       </div>
       <div style={{ background:'rgba(46,125,122,0.1)', border:'1px solid rgba(46,125,122,0.3)', borderRadius:'14px', padding:'14px', marginBottom:'16px', textAlign:'left' }}>
         <div style={{ fontSize:'12px', fontWeight:'700', color:'#2E7D7A', marginBottom:'6px' }}>📲 Lembretes automáticos</div>
         <div style={{ fontSize:'12px', color:'#9A8880', lineHeight:'1.6' }}>
-          Você receberá um lembrete pelo <strong style={{ color:'#F5EFE6' }}>WhatsApp 2 horas antes</strong> do atendimento.<br/>
-          Confirme sua presença pelo botão que será enviado.
+          Você receberá um lembrete pelo <strong style={{ color:'#F5EFE6' }}>WhatsApp 2 horas antes</strong> do atendimento.
         </div>
       </div>
       <button onClick={abrirCalendario}
@@ -938,7 +1085,6 @@ export default function Agendamento({ cliente, onBack, dark, promoParaResgatar }
   const [agendamento, setAgendamento] = React.useState(null);
   const [promoAtiva, setPromoAtiva]   = React.useState(promoParaResgatar || null);
   const [promoAgendando, setPromoAgendando] = React.useState(null);
-  // ✅ Fase 2: guarda o resultado do "primeiro disponível" para pré-selecionar na tela de data/hora
   const [dataHoraPreSelecionada, setDataHoraPreSelecionada] = React.useState(null);
 
   React.useEffect(() => {
@@ -955,13 +1101,11 @@ export default function Agendamento({ cliente, onBack, dark, promoParaResgatar }
       onResgatado={(promo) => { setPromoAgendando(promo); setEtapa('agendar_promo'); }}
       onPular={() => setEtapa('barbeiro')} />;
   }
-
   if (etapa==='agendar_promo' && promoAgendando) {
     return <AgendarViaPromo cliente={cliente} promo={promoAgendando} dark={dark}
       onConcluir={(ag) => { setAgendamento(ag); setEtapa('confirmado'); }}
       onBack={() => setEtapa('resgatar_promo')} />;
   }
-
   if (etapa==='confirmado'&&agendamento) return <Confirmado agendamento={agendamento} onVoltar={onBack} dark={dark} />;
   if (etapa==='pagamento') return <Pagamento cliente={cliente} barbeiro={barbeiro} servico={servico} dataHora={dataHora} promoAtiva={promoAtiva} onConfirmar={ag=>{setAgendamento(ag);setEtapa('confirmado');}} onBack={()=>setEtapa('dataHora')} dark={dark} />;
   if (etapa==='dataHora') return <EscolherDataHora barbeiro={barbeiro} servico={servico} onEscolher={dh=>{setDataHora(dh);setEtapa('pagamento');}} onBack={()=>setEtapa('servico')} dark={dark} dataHoraPreSelecionada={dataHoraPreSelecionada} />;
@@ -970,18 +1114,9 @@ export default function Agendamento({ cliente, onBack, dark, promoParaResgatar }
   return <EscolherBarbeiro
     onEscolher={(b, preSelecionado) => {
       setBarbeiro(b);
-      if (preSelecionado) {
-        // ✅ Fase 2: veio do "primeiro disponível" — pula serviço? Não, serviço ainda é necessário
-        // Guarda o pré-selecionado e vai para serviço normalmente
-        setDataHoraPreSelecionada(preSelecionado);
-        setEtapa('servico');
-      } else {
-        setDataHoraPreSelecionada(null);
-        setEtapa('servico');
-      }
+      setDataHoraPreSelecionada(preSelecionado || null);
+      setEtapa('servico');
     }}
-    onBack={onBack}
-    dark={dark}
-    promoAtiva={promoAtiva}
+    onBack={onBack} dark={dark} promoAtiva={promoAtiva}
   />;
 }
