@@ -19,7 +19,7 @@ export default function Promocao({ onBack, dark }) {
   const s = getStyles(dark);
   const [toastMsg, setToastMsg] = React.useState('');
   const [toastTipo, setToastTipo] = React.useState('ok');
-  function showToast(msg, tipo='ok') { setToastMsg(msg); setTimeout(()=>setToastMsg(''),4000); setToastTipo(tipo); }
+  function showToast(msg, tipo='ok') { setToastMsg(msg); setToastTipo(tipo); setTimeout(()=>setToastMsg(''),4000); }
   const [clientes, setClientes]     = React.useState([]);
   const [loading, setLoading]       = React.useState(true);
   const [modelo, setModelo]         = React.useState(MODELOS[0]);
@@ -39,10 +39,8 @@ export default function Promocao({ onBack, dark }) {
   React.useEffect(() => {
     (async () => {
       const { collection, getDocs, doc, getDoc } = await import('firebase/firestore');
-      // Carrega todos os clientes
       const snap = await getDocs(collection(db, 'clientes'));
       setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.telefone && c.nome));
-      // Carrega promoção ativa atual
       const snapPromo = await getDoc(doc(db, 'config', 'promocao_ativa'));
       if (snapPromo.exists()) setPromoAtiva(snapPromo.data());
       setLoading(false);
@@ -55,7 +53,6 @@ export default function Promocao({ onBack, dark }) {
     else setMensagem('');
   }
 
-  // 🔧 Ativar promoção na splash (salva no Firestore)
   async function ativarPromo() {
     if (!mensagem.trim()) return;
     setSalvando(true);
@@ -65,22 +62,21 @@ export default function Promocao({ onBack, dark }) {
       await setDoc(doc(db, 'config', 'promocao_ativa'), dados);
       setPromoAtiva(dados);
       showToast('✅ Banner ativado! Aparece na tela inicial do app.', 'ok');
-    } catch(e) { showToast('Erro: ' + e.message, 'erro'); }
+    } catch(e) { showToast('❌ Erro ao ativar banner: ' + e.message, 'erro'); }
     setSalvando(false);
   }
 
-  // 🔧 Desativar promoção da splash
   async function desativarPromo() {
     setSalvando(true);
     try {
       const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
       await setDoc(doc(db, 'config', 'promocao_ativa'), { ativo: false, atualizadoEm: serverTimestamp() });
       setPromoAtiva({ ativo: false });
-    } catch(e) { showToast('Erro: ' + e.message, 'erro'); }
+      showToast('⏹ Banner desativado.', 'ok');
+    } catch(e) { showToast('❌ Erro ao desativar: ' + e.message, 'erro'); }
     setSalvando(false);
   }
 
-  // 🔧 Dispara para TODOS os clientes com telefone
   async function disparar() {
     if (!mensagem.trim()) return;
     setEnviando(true); setProgresso(0); setConcluido(false);
@@ -164,7 +160,7 @@ export default function Promocao({ onBack, dark }) {
           ))}
         </div>
 
-        {/* Título (para o banner da splash) */}
+        {/* Título */}
         <div style={{ fontSize:'11px', color:textSub, fontWeight:'600', marginBottom:'6px', textTransform:'uppercase' }}>Título do banner</div>
         <input value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Título curto..."
           style={{ width:'100%', background:dark?'#2E1A14':'#f5efe6', border:`1px solid ${border}`, borderRadius:'10px', padding:'10px 12px', color:textMain, fontSize:'13px', outline:'none', boxSizing:'border-box', marginBottom:'12px' }} />
@@ -218,7 +214,7 @@ export default function Promocao({ onBack, dark }) {
           ⚠️ Cada mensagem abre o WhatsApp individualmente. Confirme o envio em cada uma.
         </div>
       </div>
-    </div>
+
       {/* Toast inline */}
       {toastMsg && (
         <div style={{ position:'fixed', top:'16px', left:'50%', transform:'translateX(-50%)', background:toastTipo==='ok'?'linear-gradient(135deg,#2E7D7A,#3A9E9A)':'linear-gradient(135deg,#8B0000,#F44336)', color:'#fff', padding:'12px 24px', borderRadius:'14px', fontSize:'13px', fontWeight:'700', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,0.5)', whiteSpace:'nowrap' }}>

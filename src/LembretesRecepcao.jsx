@@ -39,7 +39,7 @@ export default function LembretesRecepcao({ onFechar, dark }) {
       const ags = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         .filter(a => {
           const min = horasRestantes(a.hora);
-          return min > 0 && min <= 180; // próximas 3h
+          return min > 0 && min <= 180;
         })
         .sort((a, b) => a.hora.localeCompare(b.hora));
       setAgendamentos(ags);
@@ -103,7 +103,6 @@ export default function LembretesRecepcao({ onFechar, dark }) {
 
         {!loading && agendamentos.length > 0 && (
           <>
-            {/* Botão enviar todos */}
             {pendentes.length > 0 && (
               <button onClick={enviarTodos}
                 style={{ width:'100%', padding:'12px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#25D366,#128C7E)', color:'#fff', fontWeight:'700', fontSize:'13px', cursor:'pointer', marginBottom:'16px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', fontFamily:"'DM Sans',sans-serif" }}>
@@ -112,7 +111,6 @@ export default function LembretesRecepcao({ onFechar, dark }) {
               </button>
             )}
 
-            {/* Lista */}
             {agendamentos.map(ag => {
               const min     = Math.round(horasRestantes(ag.hora));
               const tempo   = min >= 60 ? `em ${Math.floor(min/60)}h${min%60>0?` e ${min%60}min`:''}` : `em ${min} min`;
@@ -155,7 +153,7 @@ export default function LembretesRecepcao({ onFechar, dark }) {
           </>
         )}
       </div>
-    </div>
+
       {/* Toast sem telefone */}
       {toastSemTel && (
         <div style={{ position:'fixed', top:'16px', left:'50%', transform:'translateX(-50%)', background:'#F44336', color:'#fff', padding:'12px 24px', borderRadius:'14px', fontSize:'13px', fontWeight:'700', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,0.5)', whiteSpace:'nowrap' }}>
