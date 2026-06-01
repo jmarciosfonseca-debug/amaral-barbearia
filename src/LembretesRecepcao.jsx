@@ -18,6 +18,7 @@ function horasRestantes(hora) {
 
 export default function LembretesRecepcao({ onFechar, dark }) {
   const s = getStyles(dark);
+  const [toastSemTel, setToastSemTel] = React.useState(false);
   const [agendamentos, setAgendamentos] = React.useState([]);
   const [loading, setLoading]           = React.useState(true);
   const [enviados, setEnviados]         = React.useState({});
@@ -48,7 +49,7 @@ export default function LembretesRecepcao({ onFechar, dark }) {
 
   function enviarLembrete(ag) {
     const tel = ag.clienteTel?.replace(/\D/g, '');
-    if (!tel) { alert('Cliente sem telefone cadastrado.'); return; }
+    if (!tel) { setToastSemTel(true); setTimeout(()=>setToastSemTel(false),3500); return; }
 
     const min  = Math.round(horasRestantes(ag.hora));
     const tempo = min >= 60 ? `${Math.floor(min/60)}h${min%60>0?` e ${min%60}min`:''}` : `${min} minutos`;
@@ -154,6 +155,13 @@ export default function LembretesRecepcao({ onFechar, dark }) {
           </>
         )}
       </div>
+    </div>
+      {/* Toast sem telefone */}
+      {toastSemTel && (
+        <div style={{ position:'fixed', top:'16px', left:'50%', transform:'translateX(-50%)', background:'#F44336', color:'#fff', padding:'12px 24px', borderRadius:'14px', fontSize:'13px', fontWeight:'700', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,0.5)', whiteSpace:'nowrap' }}>
+          ⚠️ Cliente sem telefone cadastrado
+        </div>
+      )}
     </div>
   );
 }
