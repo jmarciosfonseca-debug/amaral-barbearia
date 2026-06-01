@@ -2,6 +2,7 @@
 // 🔧 Fase 1: "Repetir agendamento" em 1 clique no histórico
 // 🔧 Fase 1: Bloco "Seu último corte" na aba Próximos
 // 🔧 Fix: busca por CPF OU telefone
+// ✅ Fase 2: WhatsApp automático para barbearia ao cancelar
 
 import React from 'react';
 import { db } from './firebase';
@@ -47,6 +48,22 @@ function BadgeStatus({ status, pagamento }) {
   );
 }
 
+// ✅ Fase 2: notificação WhatsApp automática ao cancelar
+function notificarCancelamentoWhatsApp(agendamento) {
+  const tel = '5511977643509'; // WhatsApp da barbearia
+  const msg = encodeURIComponent(
+    `❌ CANCELAMENTO\n\n` +
+    `👤 ${agendamento.clienteNome}\n` +
+    `📞 ${agendamento.clienteTel || '—'}\n` +
+    `✂️ ${agendamento.barbeiroNome}\n` +
+    `💈 ${agendamento.servico}\n` +
+    `📅 ${formatarData(agendamento.data)} às ${agendamento.hora}\n` +
+    `💰 R$ ${(agendamento.valor||0).toFixed(2).replace('.',',')}\n\n` +
+    `_Cancelado pelo cliente via app_`
+  );
+  window.open(`https://wa.me/${tel}?text=${msg}`, '_blank');
+}
+
 function ModalCancelar({ agendamento, onConfirmar, onFechar }) {
   const [cancelando, setCancelando] = React.useState(false);
   const [cancelado, setCancelado]   = React.useState(false);
@@ -59,7 +76,12 @@ function ModalCancelar({ agendamento, onConfirmar, onFechar }) {
         status: 'cancelado_cliente', canceladoEm: serverTimestamp(),
       });
       setCancelado(true);
-      setTimeout(() => { notificarBarbeariaCancel(agendamento); onConfirmar(); }, 1000);
+      // ✅ Fase 2: abre WhatsApp automaticamente para notificar a barbearia
+      setTimeout(() => {
+        notificarBarbeariaCancel(agendamento);      // notificacoes.js (existente)
+        notificarCancelamentoWhatsApp(agendamento); // ✅ novo — abre WA da barbearia
+        onConfirmar();
+      }, 1000);
     } catch(e) { console.error(e); }
     finally { setCancelando(false); }
   }
@@ -94,6 +116,7 @@ function ModalCancelar({ agendamento, onConfirmar, onFechar }) {
                 </div>
               </div>
             )}
+            {/* ✅ Fase 2: aviso do WhatsApp automático */}
             <div style={{ background:'rgba(46,125,122,0.08)', border:'1px solid rgba(46,125,122,0.2)', borderRadius:'10px', padding:'10px 12px', marginBottom:'16px', fontSize:'11px', color:'#2E7D7A' }}>
               📱 Ao cancelar, o WhatsApp abrirá automaticamente para notificar a barbearia.
             </div>
@@ -111,13 +134,13 @@ function ModalCancelar({ agendamento, onConfirmar, onFechar }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 🔧 MODAL REPETIR AGENDAMENTO — só escolhe nova data/hora
+// 🔧 MODAL REPETIR AGENDAMENTO
 // ─────────────────────────────────────────────────────────────
 function ModalRepetir({ agOriginal, cliente, onConcluir, onFechar, dark }) {
   const DIAS_KEYS = ['dom','seg','ter','qua','qui','sex','sab'];
   const [diasDisponiveis] = React.useState(() => {
     const dias = [];
-    for (let i=1; i<15; i++) { // começa de amanhã
+    for (let i=1; i<15; i++) {
       const d = new Date(); d.setDate(d.getDate()+i);
       dias.push(d.toISOString().split('T')[0]);
     }
@@ -170,27 +193,28 @@ function ModalRepetir({ agOriginal, cliente, onConcluir, onFechar, dark }) {
     try {
       const { collection: col, addDoc, serverTimestamp: sTs } = await import('firebase/firestore');
       const novoAg = {
-        clienteCpf:   cliente.cpf,
-        clienteNome:  cliente.nome,
-        clienteTel:   cliente.telefone || '',
-        barbeiroId:   agOriginal.barbeiroId,
-        barbeiroNome: agOriginal.barbeiroNome,
-        servico:      agOriginal.servico,
-        servicoIds:   agOriginal.servicoIds || [],
-        valor:        agOriginal.valor || 0,
-        duracao:      agOriginal.duracao || 30,
-        data:         dataSel,
-        hora:         horaSel,
-        pagamento:    agOriginal.pagamento || 'local',
-        sinal:        0,
-        status:       'confirmado',
-        agendadoPor:  'cliente',
-        repetidoDe:   agOriginal.firestoreId,
-        criadoEm:     sTs(),
+        clienteCpf:          cliente.cpf,
+        clienteNome:         cliente.nome,
+        clienteTel:          cliente.telefone || '',
+        barbeiroId:          agOriginal.barbeiroId,
+        barbeiroNome:        agOriginal.barbeiroNome,
+        servico:             agOriginal.servico,
+        servicoIds:          agOriginal.servicoIds || [],
+        valor:               agOriginal.valor || 0,
+        duracao:             agOriginal.duracao || 30,
+        data:                dataSel,
+        hora:                horaSel,
+        pagamento:           agOriginal.pagamento || 'local',
+        sinal:               0,
+        status:              'confirmado',
+        agendadoPor:         'cliente',
+        repetidoDe:          agOriginal.firestoreId,
+        // ✅ Fase 2: campos lembrete
+        lembrete24hEnviado:  false,
+        lembrete2hEnviado:   false,
+        criadoEm:            sTs(),
       };
       await addDoc(col(db,'agendamentos'), novoAg);
-
-      // Notifica barbearia
       const msg = encodeURIComponent(
         `✂️ NOVO AGENDAMENTO (Repetição)\n\n` +
         `👤 ${cliente.nome}\n📞 ${cliente.telefone||'—'}\n` +
@@ -207,14 +231,10 @@ function ModalRepetir({ agOriginal, cliente, onConcluir, onFechar, dark }) {
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'flex-end', justifyContent:'center', zIndex:999 }}>
       <div style={{ background:'#1A0F0D', borderRadius:'20px 20px 0 0', width:'100%', maxWidth:'430px', padding:'20px 20px 40px', border:'1px solid #3A2018', borderBottom:'none', maxHeight:'90vh', overflowY:'auto' }}>
-
-        {/* Header */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
           <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#E8C96A' }}>🔄 Repetir Agendamento</div>
           <button onClick={onFechar} style={{ background:'none', border:'none', color:'#9A8880', fontSize:'20px', cursor:'pointer' }}>✕</button>
         </div>
-
-        {/* Resumo do agendamento original */}
         <div style={{ background:'#231410', borderRadius:'14px', padding:'14px', border:'1px solid #3A2018', marginBottom:'20px' }}>
           <div style={{ fontSize:'10px', color:'#9A8880', fontWeight:'600', textTransform:'uppercase', marginBottom:'8px' }}>Repetindo com os mesmos dados</div>
           <div style={{ display:'flex', gap:'10px', flexWrap:'wrap' }}>
@@ -230,8 +250,6 @@ function ModalRepetir({ agOriginal, cliente, onConcluir, onFechar, dark }) {
             ))}
           </div>
         </div>
-
-        {/* Escolher data */}
         <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'700', marginBottom:'10px', textTransform:'uppercase' }}>Escolha a nova data</div>
         <div style={{ overflowX:'auto', display:'flex', gap:'8px', paddingBottom:'8px', marginBottom:'16px' }}>
           {diasDisponiveis.map(data => {
@@ -248,8 +266,6 @@ function ModalRepetir({ agOriginal, cliente, onConcluir, onFechar, dark }) {
             );
           })}
         </div>
-
-        {/* Escolher horário */}
         {dataSel && (
           <>
             <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'700', marginBottom:'10px', textTransform:'uppercase' }}>Escolha o horário</div>
@@ -270,9 +286,7 @@ function ModalRepetir({ agOriginal, cliente, onConcluir, onFechar, dark }) {
             }
           </>
         )}
-
         {erro && <div style={{ fontSize:'12px', color:'#F44336', marginBottom:'12px', textAlign:'center' }}>⚠️ {erro}</div>}
-
         <div style={{ display:'flex', gap:'8px' }}>
           <button onClick={onFechar} style={{ flex:1, padding:'14px', borderRadius:'14px', border:'1px solid #3A2018', background:'#231410', color:'#9A8880', fontSize:'14px', cursor:'pointer' }}>
             Cancelar
@@ -292,7 +306,7 @@ function CardAgendamento({ ag, onCancelar, onReagendar, onAvaliar, onExcluir, on
   const ehHistorico = passado || ag.status?.includes('cancelado');
   const podeCancelar= !passado && ag.status !== 'cancelado_cliente' && ag.status !== 'cancelado_barbeiro' && ag.status !== 'concluido';
   const podeAvaliar = ag.status === 'concluido' && !ag.avaliado;
-  const podeRepetir = ehHistorico && ag.barbeiroId && ag.servico; // 🔧
+  const podeRepetir = ehHistorico && ag.barbeiroId && ag.servico;
 
   return (
     <div style={{ background:'#231410', borderRadius:'16px', border:passado?'1px solid #2A1208':'1px solid #3A2018', marginBottom:'12px', overflow:'hidden', opacity:passado?0.85:1 }}>
@@ -332,15 +346,12 @@ function CardAgendamento({ ag, onCancelar, onReagendar, onAvaliar, onExcluir, on
         {ag.avaliado && (
           <div style={{ fontSize:'11px', color:'#E8C96A', textAlign:'center', padding:'6px', marginBottom:'8px' }}>⭐ Avaliação enviada — obrigado!</div>
         )}
-
-        {/* 🔧 Botão Repetir — no histórico */}
         {podeRepetir && (
           <button onClick={() => onRepetir(ag)}
             style={{ width:'100%', padding:'11px', borderRadius:'10px', border:'none', background:'linear-gradient(135deg,#1A3A2A,#2E7D7A)', color:'#4CAF50', fontSize:'13px', fontWeight:'700', cursor:'pointer', marginBottom:'8px', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}>
             🔄 Repetir este agendamento
           </button>
         )}
-
         {podeCancelar && (
           <div style={{ display:'flex', gap:'8px' }}>
             <button onClick={() => onReagendar(ag)} style={{ flex:1, padding:'10px', borderRadius:'10px', border:'1px solid #3A2018', background:'#2E1A14', color:'#E8C96A', fontSize:'13px', fontWeight:'600', cursor:'pointer' }}>🔄 Reagendar</button>
@@ -363,8 +374,8 @@ export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
   const [carregando, setCarregando]     = React.useState(true);
   const [cancelando, setCancelando]     = React.useState(null);
   const [avaliando, setAvaliando]       = React.useState(null);
-  const [repetindo, setRepetindo]       = React.useState(null); // 🔧
-  const [repetidoOk, setRepetidoOk]    = React.useState(false); // 🔧
+  const [repetindo, setRepetindo]       = React.useState(null);
+  const [repetidoOk, setRepetidoOk]    = React.useState(false);
   const [aba, setAba]                   = React.useState('proximos');
 
   React.useEffect(() => {
@@ -401,8 +412,6 @@ export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
   const proximos  = agendamentos.filter(ag => !isPassado(ag.data, ag.hora) && !ag.status?.includes('cancelado'));
   const historico = agendamentos.filter(ag => isPassado(ag.data, ag.hora) || ag.status?.includes('cancelado'));
   const lista = aba === 'proximos' ? proximos : historico;
-
-  // 🔧 Último agendamento concluído para o bloco de atalho
   const ultimoConcluido = agendamentos.find(ag => ag.status === 'concluido');
 
   if (avaliando) return <AvaliacaoServico agendamento={avaliando} cliente={cliente} dark={dark} onConcluir={() => setAvaliando(null)} onPular={() => setAvaliando(null)} />;
@@ -417,7 +426,6 @@ export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
         </div>
       </div>
 
-      {/* 🔧 Bloco "Seu último corte" */}
       {ultimoConcluido && aba === 'proximos' && proximos.length === 0 && (
         <div style={{ margin:'16px 16px 0', background:'linear-gradient(135deg,#1A2E1A,#1A3A2A)', border:'1px solid rgba(76,175,80,0.3)', borderRadius:'16px', padding:'16px' }}>
           <div style={{ fontSize:'10px', color:'#4CAF50', fontWeight:'700', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'8px' }}>✂️ SEU ÚLTIMO CORTE</div>
@@ -437,7 +445,6 @@ export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
         </div>
       )}
 
-      {/* 🔧 Toast repetição ok */}
       {repetidoOk && (
         <div style={{ margin:'12px 16px 0', background:'rgba(76,175,80,0.15)', border:'1px solid #4CAF50', borderRadius:'12px', padding:'12px 14px', display:'flex', alignItems:'center', gap:'10px' }}>
           <span style={{ fontSize:'20px' }}>🎉</span>
@@ -473,7 +480,7 @@ export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
               onReagendar={onReagendar}
               onAvaliar={ag => setAvaliando(ag)}
               onExcluir={handleExcluir}
-              onRepetir={ag => { setRepetindo(ag); setRepetidoOk(false); }} // 🔧
+              onRepetir={ag => { setRepetindo(ag); setRepetidoOk(false); }}
             />
           ))
         )}
@@ -481,7 +488,6 @@ export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
 
       {cancelando && <ModalCancelar agendamento={cancelando} onConfirmar={() => setCancelando(null)} onFechar={() => setCancelando(null)} />}
 
-      {/* 🔧 Modal Repetir */}
       {repetindo && (
         <ModalRepetir
           agOriginal={repetindo}
