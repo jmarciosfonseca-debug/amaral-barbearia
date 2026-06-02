@@ -751,6 +751,8 @@ function AbaServicos() {
 
 export default function PainelRecepcao({ onBack, dark, onNavegarAssinaturas }) {
   const s = getStyles(dark);
+  // ✅ Tela cheia no notebook — detecta se é tela grande
+  const isDesktop = window.innerWidth >= 768;
   const [ags, setAgs]               = React.useState([]);
   const [carregando, setCarr]       = React.useState(true);
   const [modalPag, setModalPag]     = React.useState(null);
@@ -818,7 +820,7 @@ export default function PainelRecepcao({ onBack, dark, onNavegarAssinaturas }) {
   ];
 
   return (
-    <div style={{ ...s.app, paddingBottom:'40px' }}>
+    <div style={{ ...s.app, paddingBottom:'40px', maxWidth: isDesktop ? '100%' : '430px', margin:'0 auto' }}>
       {/* ✅ FINAL: nome RECEPÇÃO */}
       <div style={{ background:'linear-gradient(135deg,#5C2218,#8B3A2A)', padding:'16px 20px', display:'flex', alignItems:'center', gap:'8px' }}>
         <button onClick={onBack} style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:'8px', padding:'6px 10px', color:'#F5EFE6', cursor:'pointer', fontSize:'14px' }}>←</button>
