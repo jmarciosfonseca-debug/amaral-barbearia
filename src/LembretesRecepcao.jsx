@@ -1,5 +1,5 @@
 // LembretesRecepcao.jsx — Flyguer BarberShop
-// ✅ Passo 14 — Recepção dispara lembretes em lote via WhatsApp
+// ✅ Fix: mensagens WhatsApp sem %0A
 
 import React from 'react';
 import { db } from './firebase';
@@ -13,7 +13,13 @@ function horasRestantes(hora) {
   const agora  = new Date();
   const alvo   = new Date();
   alvo.setHours(h, m, 0, 0);
-  return (alvo - agora) / 1000 / 60; // minutos
+  return (alvo - agora) / 1000 / 60;
+}
+
+// ✅ Fix: monta URL WhatsApp sem %0A
+function montarLinkWhatsApp(tel, linhas) {
+  const texto = linhas.filter(l => l !== null && l !== undefined).join('\n');
+  return `https://wa.me/55${tel}?text=${encodeURIComponent(texto)}`;
 }
 
 export default function LembretesRecepcao({ onFechar, dark }) {
@@ -51,22 +57,27 @@ export default function LembretesRecepcao({ onFechar, dark }) {
     const tel = ag.clienteTel?.replace(/\D/g, '');
     if (!tel) { setToastSemTel(true); setTimeout(()=>setToastSemTel(false),3500); return; }
 
-    const min  = Math.round(horasRestantes(ag.hora));
+    const min   = Math.round(horasRestantes(ag.hora));
     const tempo = min >= 60 ? `${Math.floor(min/60)}h${min%60>0?` e ${min%60}min`:''}` : `${min} minutos`;
 
-    const msg = encodeURIComponent(
-      `Olá, ${ag.clienteNome?.split(' ')[0]}! 👋\n\n` +
-      `Lembramos que você tem um agendamento na *Flyguer BarberShop* em *${tempo}*:\n\n` +
-      `✂️ Barbeiro: ${ag.barbeiroNome}\n` +
-      `💈 Serviço: ${ag.servico}\n` +
-      `🕐 Horário: ${ag.hora}\n` +
-      `💰 Valor: ${moeda(ag.valor)}\n\n` +
-      `📍 Shopping Cidade das Artes — Piso 2, Nº 22\n\n` +
-      `Nos vemos em breve! 💈\n` +
-      `_Flyguer BarberShop_ — https://flyguer-barbershop.vercel.app`
-    );
+    // ✅ Fix: array de linhas em vez de concatenação com \n
+    const linhas = [
+      `Olá, ${ag.clienteNome?.split(' ')[0]}! 👋`,
+      '',
+      `Lembramos que você tem um agendamento na *Flyguer BarberShop* em *${tempo}*:`,
+      '',
+      `✂️ Barbeiro: ${ag.barbeiroNome}`,
+      `💈 Serviço: ${ag.servico}`,
+      `🕐 Horário: ${ag.hora}`,
+      `💰 Valor: ${moeda(ag.valor)}`,
+      '',
+      `📍 Shopping Cidade das Artes — Piso 2, Nº 22`,
+      '',
+      `Nos vemos em breve! 💈`,
+      `_Flyguer BarberShop_ — https://flyguer-barbershop.vercel.app`,
+    ];
 
-    window.open(`https://wa.me/55${tel}?text=${msg}`, '_blank');
+    window.open(montarLinkWhatsApp(tel, linhas), '_blank');
     setEnviados(e => ({ ...e, [ag.id]: true }));
   }
 
@@ -82,7 +93,6 @@ export default function LembretesRecepcao({ onFechar, dark }) {
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:300, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
       <div style={{ background:dark?'#1A0F0D':'#fff', borderRadius:'24px 24px 0 0', width:'100%', maxWidth:'430px', maxHeight:'85vh', overflowY:'auto', padding:'24px 20px 40px', border:`1px solid ${border}`, borderBottom:'none' }}>
 
-        {/* Header */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'20px' }}>
           <div>
             <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#E8C96A', fontWeight:'700' }}>🔔 Lembretes do dia</div>
@@ -105,7 +115,7 @@ export default function LembretesRecepcao({ onFechar, dark }) {
           <>
             {pendentes.length > 0 && (
               <button onClick={enviarTodos}
-                style={{ width:'100%', padding:'12px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#25D366,#128C7E)', color:'#fff', fontWeight:'700', fontSize:'13px', cursor:'pointer', marginBottom:'16px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', fontFamily:"'DM Sans',sans-serif" }}>
+                style={{ width:'100%', padding:'12px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#25D366,#128C7E)', color:'#fff', fontWeight:'700', fontSize:'13px', cursor:'pointer', marginBottom:'16px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
                 <span style={{ fontSize:'18px' }}>📲</span>
                 Enviar lembrete para todos ({pendentes.length})
               </button>
@@ -143,7 +153,7 @@ export default function LembretesRecepcao({ onFechar, dark }) {
                     </div>
                   ) : (
                     <button onClick={() => enviarLembrete(ag)}
-                      style={{ width:'100%', padding:'10px', borderRadius:'10px', border:'none', background:'linear-gradient(135deg,#25D366,#128C7E)', color:'#fff', fontWeight:'700', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px', fontFamily:"'DM Sans',sans-serif" }}>
+                      style={{ width:'100%', padding:'10px', borderRadius:'10px', border:'none', background:'linear-gradient(135deg,#25D366,#128C7E)', color:'#fff', fontWeight:'700', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}>
                       <span>📲</span> Enviar lembrete para {ag.clienteNome?.split(' ')[0]}
                     </button>
                   )}
@@ -154,7 +164,6 @@ export default function LembretesRecepcao({ onFechar, dark }) {
         )}
       </div>
 
-      {/* Toast sem telefone */}
       {toastSemTel && (
         <div style={{ position:'fixed', top:'16px', left:'50%', transform:'translateX(-50%)', background:'#F44336', color:'#fff', padding:'12px 24px', borderRadius:'14px', fontSize:'13px', fontWeight:'700', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,0.5)', whiteSpace:'nowrap' }}>
           ⚠️ Cliente sem telefone cadastrado
