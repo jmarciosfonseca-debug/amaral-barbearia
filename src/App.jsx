@@ -33,6 +33,7 @@ import Promocao from './Promocao';
 import ListaClientes from './ListaClientes';
 import InstalarApp from './InstalarApp';
 import ComunicadoGerente from './ComunicadoGerente';
+import MensagemWhatsAppBusiness from './MensagemWhatsAppBusiness';
 import { GlobalErrorBoundary, BannerOffline } from './OfflineGuard';
 
 class ErrorBoundary extends React.Component {
@@ -514,6 +515,7 @@ function HomeGerente({ usuario, onLogout, onNavegar, dark }) {
     { id:'promocao',       icon:'🔴',  label:'Promoção / Novidade',  sub:'Disparar para clientes'    },
     { id:'clientes',       icon:'👥',  label:'Clientes',             sub:'Lista e assinaturas'       },
     { id:'comunicado',     icon:'📢',  label:'Reunião / Comunicado', sub:'Mensagem para a equipe'    },
+    { id:'whatsapp_business', icon:'📲', label:'WhatsApp Business',     sub:'Mensagens automáticas de captação' },
   ];
   return (
     <div style={{ ...s.app, paddingBottom:'24px' }}>
@@ -634,7 +636,8 @@ export default function App() {
     if (modulo==='planos_mensais') { setTela('planos_mensais');  return; }
     if (modulo==='promocao')       { setTela('promocao');        return; }
     if (modulo==='clientes')       { setTela('clientes');        return; }
-    if (modulo==='comunicado')     { setTela('comunicado');      return; }
+    if (modulo==='comunicado')        { setTela('comunicado');          return; }
+    if (modulo==='whatsapp_business') { setTela('whatsapp_business');   return; }
     setEmBreveInfo({ titulo:modulo, descricao:'Módulo em desenvolvimento.', passo:'?' });
     setTela('em_breve');
   }
@@ -726,6 +729,7 @@ export default function App() {
           {tela==='perfil_cliente' && cliente && <ErrorBoundary modulo="PerfilCliente"><PerfilCliente cliente={cliente} onBack={()=>setTela('home_cliente')} dark={dark} onNavegar={setTela} /></ErrorBoundary>}
 
           {tela==='comunicado' && usuario && <ErrorBoundary modulo="ComunicadoGerente"><ComunicadoGerente onBack={()=>setTela('home_gerente')} dark={dark} /></ErrorBoundary>}
+          {tela==='whatsapp_business' && usuario && <ErrorBoundary modulo="WhatsAppBusiness"><MensagemWhatsAppBusiness onBack={()=>setTela('home_gerente')} dark={dark} /></ErrorBoundary>}
 
           {tela==='em_breve' && <EmBreve titulo={emBreveInfo?.titulo} descricao={emBreveInfo?.descricao} passo={emBreveInfo?.passo} onBack={voltar} dark={dark} />}
 
