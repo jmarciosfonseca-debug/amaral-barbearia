@@ -1,0 +1,38 @@
+/* responsive.css — Flyguer BarberShop */
+/* ✅ Tela cheia no notebook/desktop — mobile continua estreito */
+
+/* Mobile: centralizado com 430px */
+.app-container {
+  max-width: 430px;
+  margin: 0 auto;
+}
+
+/* Tablet e desktop: ocupa tela toda */
+@media (min-width: 768px) {
+  .app-container {
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+
+  /* Header estica ponta a ponta */
+  .app-container > div > div:first-child {
+    border-radius: 0;
+  }
+
+  /* Fila da recepção em grid no desktop */
+  .recepcao-fila-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 12px;
+  }
+
+  /* Cards maiores no desktop */
+  .app-container .card-fila {
+    max-width: 600px;
+  }
+}
+
+/* Fundo preto nas laterais quando em mobile */
+body {
+  background: #0A0A0A;
+}
