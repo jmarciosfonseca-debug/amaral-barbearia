@@ -31,6 +31,40 @@ function tocarBipNovo() {
   } catch(e) {}
 }
 
+// ✅ Botão abrir/fechar slot — barbeiro controla disponibilidade
+function BotaoSlot({ slot, barbeiroId, data, onToggle }) {
+  const [salvando, setSalvando] = React.useState(false);
+  const aberto = slot.disponivel && !slot.bloqueadoBarbeiro;
+
+  async function toggle() {
+    setSalvando(true);
+    try {
+      const { doc, setDoc, deleteDoc, collection, query, where, getDocs } = await import('firebase/firestore');
+      const id = `${barbeiroId}_${data}_${slot.hora}`;
+      if (aberto) {
+        // Fecha: cria documento de bloqueio
+        await setDoc(doc(db, 'slots_bloqueados', id), {
+          barbeiroId, data, hora: slot.hora, bloqueadoEm: new Date().toISOString(),
+        });
+      } else {
+        // Abre: remove documento de bloqueio
+        await deleteDoc(doc(db, 'slots_bloqueados', id));
+      }
+      onToggle(slot.hora, !aberto);
+    } catch(e) { console.error(e); }
+    setSalvando(false);
+  }
+
+  if (slot.ocupado) return null;
+
+  return (
+    <button onClick={toggle} disabled={salvando}
+      style={{ padding:'6px 10px', borderRadius:'8px', border:`1px solid ${aberto?'rgba(255,193,7,0.4)':'rgba(76,175,80,0.4)'}`, background:aberto?'rgba(255,193,7,0.1)':'rgba(76,175,80,0.1)', color:aberto?'#FFC107':'#4CAF50', fontSize:'11px', fontWeight:'700', cursor:'pointer', marginTop:'4px' }}>
+      {salvando?'...':aberto?'🔒 Fechar slot':'🔓 Abrir slot'}
+    </button>
+  );
+}
+
 function CardAgendamento({ ag, onConcluir, concluindo, mostrarValor, mostrarCliente }) {
   const isConcluido = ag.status === 'concluido';
   const isCancelado = ag.status?.includes('cancelado');
@@ -158,6 +192,21 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
   const totalDia    = agendamentos.filter(a=>!a.status?.includes('cancelado')).reduce((acc,a)=>acc+(a.valor||0),0);
   const dias = Array.from({length:7},(_,i)=>addDias(hoje(),i));
 
+  // ✅ Grade de slots do dia para o barbeiro gerenciar
+  const [slotsAbertos, setSlotsAbertos] = React.useState({});
+  const [slotsBloqueados, setSlotsBloqueados] = React.useState(new Set());
+  const [mostrarGrade, setMostrarGrade] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!usuario?.id) return;
+    import('firebase/firestore').then(({ collection, query, where, getDocs }) => {
+      getDocs(query(collection(db,'slots_bloqueados'), where('barbeiroId','==',usuario.id), where('data','==',dataSel))).then(snap => {
+        const bloq = new Set(snap.docs.map(d => d.data().hora));
+        setSlotsBloqueados(bloq);
+      });
+    });
+  }, [dataSel, usuario?.id]);
+
   return (
     <div style={{ ...s.app, paddingBottom:'40px' }}>
 
@@ -231,6 +280,56 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
           <div style={{ background:'rgba(232,201,106,0.08)', border:'1px solid rgba(232,201,106,0.2)', borderRadius:'10px', padding:'8px 12px', marginBottom:'14px', fontSize:'11px', color:'#E8C96A', display:'flex', gap:'8px', flexWrap:'wrap' }}>
             {permissoes.verValores  && <span>💰 Valores visíveis</span>}
             {permissoes.verClientes && <span>👤 Clientes visíveis</span>}
+          </div>
+        )}
+
+        {/* ✅ Botão gerenciar grade */}
+        <div style={{ marginBottom:'16px' }}>
+          <button onClick={() => setMostrarGrade(g => !g)}
+            style={{ width:'100%', padding:'10px', borderRadius:'12px', border:'1px solid rgba(232,201,106,0.3)', background:'rgba(232,201,106,0.06)', color:'#E8C96A', fontSize:'13px', fontWeight:'600', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
+            🔧 {mostrarGrade ? 'Ocultar grade de horários' : 'Gerenciar minha grade do dia'}
+          </button>
+        </div>
+
+        {/* ✅ Grade de slots — barbeiro abre/fecha */}
+        {mostrarGrade && (
+          <div style={{ background:'#1A0F0D', borderRadius:'14px', padding:'14px', marginBottom:'16px', border:'1px solid #3A2018' }}>
+            <div style={{ fontSize:'12px', color:'#E8C96A', fontWeight:'700', marginBottom:'12px' }}>
+              🔧 Seus horários — {formatarData(dataSel)}
+              <div style={{ fontSize:'10px', color:'#9A8880', fontWeight:'400', marginTop:'2px' }}>Feche slots que não quer receber agendamentos</div>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px' }}>
+              {Array.from({length:24}, (_,i) => {
+                const h = 8 + Math.floor(i/2);
+                const m = i%2===0 ? '00' : '30';
+                if (h >= 22) return null;
+                const hora = `${String(h).padStart(2,'0')}:${m}`;
+                const agAtivo = agendamentos.find(a => a.hora===hora && !a.status?.includes('cancelado'));
+                const bloqueado = slotsBloqueados.has(hora);
+                return (
+                  <div key={hora} style={{ background:agAtivo?'rgba(139,58,42,0.3)':bloqueado?'rgba(244,67,54,0.1)':'rgba(76,175,80,0.08)', borderRadius:'10px', padding:'8px', border:`1px solid ${agAtivo?'rgba(139,58,42,0.5)':bloqueado?'rgba(244,67,54,0.3)':'rgba(76,175,80,0.2)'}`, textAlign:'center' }}>
+                    <div style={{ fontSize:'13px', fontWeight:'700', color:agAtivo?'#E8C96A':bloqueado?'#F44336':'#4CAF50' }}>{hora}</div>
+                    {agAtivo ? (
+                      <div style={{ fontSize:'9px', color:'#9A8880', marginTop:'2px' }}>✂️ {agAtivo.clienteNome?.split(' ')[0]||'Ocupado'}</div>
+                    ) : (
+                      <button onClick={async () => {
+                        const { doc, setDoc, deleteDoc } = await import('firebase/firestore');
+                        const id = `${usuario.id}_${dataSel}_${hora}`;
+                        if (!bloqueado) {
+                          await setDoc(doc(db,'slots_bloqueados',id), { barbeiroId:usuario.id, data:dataSel, hora, bloqueadoEm:new Date().toISOString() });
+                          setSlotsBloqueados(prev => new Set([...prev, hora]));
+                        } else {
+                          await deleteDoc(doc(db,'slots_bloqueados',id));
+                          setSlotsBloqueados(prev => { const n = new Set(prev); n.delete(hora); return n; });
+                        }
+                      }} style={{ fontSize:'9px', color:bloqueado?'#4CAF50':'#FFC107', background:'none', border:'none', cursor:'pointer', marginTop:'2px', fontWeight:'700' }}>
+                        {bloqueado?'🔓 Abrir':'🔒 Fechar'}
+                      </button>
+                    )}
+                  </div>
+                );
+              }).filter(Boolean)}
+            </div>
           </div>
         )}
 
