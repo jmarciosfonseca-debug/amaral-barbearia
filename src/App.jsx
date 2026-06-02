@@ -1,4 +1,5 @@
 // App.jsx — Flyguer BarberShop
+import './responsive.css';
 // ✅ Firebase Auth substituindo PINs
 // ✅ Primeiro acesso força redefinição de senha
 // ✅ Sessão persistente
@@ -676,7 +677,7 @@ export default function App() {
     <GlobalErrorBoundary>
       <BannerOffline />
       <InstalarApp dark={dark} />
-      <div style={{ maxWidth:'430px', margin:'0 auto', minHeight:'100vh', position:'relative' }}>
+      <div style={{ maxWidth:'430px', margin:'0 auto', minHeight:'100vh', position:'relative' }} className="app-container">
         {toggleTema}
         <ErrorBoundary modulo="App">
 
