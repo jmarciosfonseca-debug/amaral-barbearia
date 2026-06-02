@@ -93,22 +93,27 @@ function ModalEditarBarbeiro({ barbeiro, onSalvar, onFechar }) {
           </div>
         </Card>
         <div style={{ background:'rgba(232,201,106,0.08)', border:'1px solid rgba(232,201,106,0.2)', borderRadius:'12px', padding:'14px', marginBottom:'14px' }}>
-          <div style={{ fontSize:'12px', color:'#E8C96A', fontWeight:'700', marginBottom:'12px' }}>👁 Permissões de visibilidade</div>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px' }}>
-            <div>
-              <div style={{ fontSize:'13px', color:'#F5EFE6', fontWeight:'600' }}>💰 Ver valores</div>
-              <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>Barbeiro vê o valor de cada atendimento</div>
+          <div style={{ fontSize:'12px', color:'#E8C96A', fontWeight:'700', marginBottom:'12px' }}>🔑 Permissões do barbeiro</div>
+          <div style={{ fontSize:'10px', color:'#9A8880', marginBottom:'12px' }}>Por padrão tudo ativado. Desative o que quiser restringir.</div>
+          {[
+            { campo:'permVerValores',       label:'💰 Ver valores dos atendimentos',     sub:'Receita por atendimento',          cor:'#E8C96A' },
+            { campo:'permVerClientes',      label:'👤 Ver nome e telefone dos clientes', sub:'Dados completos do cliente',       cor:'#2E7D7A' },
+            { campo:'permVerListaClientes', label:'👥 Ver lista de todos os clientes',   sub:'Histórico de clientes atendidos',  cor:'#4CAF50' },
+            { campo:'permDispararWhatsApp', label:'📲 Disparar WhatsApp para clientes',  sub:'Enviar mensagens aos clientes',    cor:'#25D366' },
+            { campo:'permEditarHorarios',   label:'🕐 Editar próprios horários',         sub:'Configurar agenda semanal',        cor:'#2196F3' },
+            { campo:'permBloquearSlots',    label:'🔒 Bloquear slots do dia',            sub:'Fechar horários específicos',      cor:'#FFC107' },
+          ].map((p,i) => (
+            <div key={p.campo}>
+              {i>0 && <div style={{ height:'1px', background:'#3A2018', margin:'8px 0' }} />}
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div>
+                  <div style={{ fontSize:'13px', color:'#F5EFE6', fontWeight:'600' }}>{p.label}</div>
+                  <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>{p.sub}</div>
+                </div>
+                <Toggle value={dados[p.campo]!==false} onChange={v=>setDados(d=>({...d,[p.campo]:v}))} cor={p.cor} />
+              </div>
             </div>
-            <Toggle value={dados.permVerValores||false} onChange={v=>setDados(d=>({...d,permVerValores:v}))} cor='#E8C96A' />
-          </div>
-          <div style={{ height:'1px', background:'#3A2018', margin:'8px 0' }} />
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-            <div>
-              <div style={{ fontSize:'13px', color:'#F5EFE6', fontWeight:'600' }}>👤 Ver clientes</div>
-              <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>Nome e telefone dos clientes</div>
-            </div>
-            <Toggle value={dados.permVerClientes||false} onChange={v=>setDados(d=>({...d,permVerClientes:v}))} cor='#2E7D7A' />
-          </div>
+          ))}
         </div>
         {erro && <div style={{ fontSize:'12px', color:'#F44336', marginBottom:'12px', textAlign:'center' }}>{erro}</div>}
         <button onClick={handleSalvar} disabled={salvando} style={{ width:'100%', padding:'14px', borderRadius:'14px', border:'none', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontSize:'15px', fontWeight:'700', cursor:'pointer' }}>
