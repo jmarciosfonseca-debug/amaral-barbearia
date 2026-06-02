@@ -20,6 +20,21 @@ function formatarData(s) { if(!s) return ''; const [a,m,d]=s.split('-'); return 
 function diaSemanaCompleto(s) { return ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'][new Date(s+'T12:00:00').getDay()]; }
 function strData(ano, mes, dia) { return `${ano}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`; }
 
+function inferirBarbeiroId(usuario = {}) {
+  if (usuario.barbeiroId) return usuario.barbeiroId;
+  if (usuario.id && /^b\d+$/i.test(usuario.id)) return usuario.id;
+
+  const chave = `${usuario.email || ''} ${usuario.nome || ''}`
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  if (chave.includes('amaral')) return 'b1';
+  if (chave.includes('jotace')) return 'b2';
+  if (chave.includes('junior')) return 'b3';
+  return usuario.id || null;
+}
+
 function tocarBip() {
   try {
     const ctx = new (window.AudioContext||window.webkitAudioContext)();
@@ -173,6 +188,7 @@ function ConfigHorarios({ barbeiroId, onFechar }) {
   }
 
   async function salvar() {
+    if (!barbeiroId) { setToast('Perfil sem barbeiroId configurado.'); return; }
     setSalvando(true);
     try {
       await setDoc(doc(db,'barbeiros_config',barbeiroId), { ...config, atualizadoEm: serverTimestamp() }, { merge:true });
@@ -428,7 +444,7 @@ function GradeSlots({ barbeiroId, dataSel, agendamentos }) {
     const id = `${barbeiroId}_${dataSel}_${hora}`;
     const bloqueado = slotsBloqueados.has(hora);
     if (!bloqueado) {
-      await setDoc(doc(db,'slots_bloqueados',id), { barbeiroId, data:dataSel, hora, bloqueadoEm:new Date().toISOString() });
+      await setDoc(doc(db,'slots_bloqueados',id), { barbeiroId, data:dataSel, hora, ativo:true, bloqueadoEm:serverTimestamp() });
       setSlotsBloqueados(prev => new Set([...prev, hora]));
     } else {
       await deleteDoc(doc(db,'slots_bloqueados',id));
@@ -472,6 +488,7 @@ function GradeSlots({ barbeiroId, dataSel, agendamentos }) {
 // ── COMPONENTE PRINCIPAL ──────────────────────────────────────
 export default function AgendaBarbeiro({ usuario, onBack, dark }) {
   const s = getStyles(dark);
+  const barbeiroId = inferirBarbeiroId(usuario);
   const [aba, setAba]               = React.useState('agenda'); // agenda | grade | clientes
   const [dataSel, setDataSel]       = React.useState(hoje());
   const [agendamentos, setAgendamentos] = React.useState([]);
@@ -487,8 +504,8 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
 
   // Carrega permissões
   React.useEffect(() => {
-    if (!usuario?.id) return;
-    getDoc(doc(db,'barbeiros',usuario.id)).then(snap => {
+    if (!barbeiroId) return;
+    getDoc(doc(db,'barbeiros',barbeiroId)).then(snap => {
       if (snap.exists()) {
         const d = snap.data();
         setPermissoes({
@@ -502,13 +519,13 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
         setDisponivel(d.disponivel ?? true);
       }
     }).catch(()=>{});
-  }, [usuario?.id]);
+  }, [barbeiroId]);
 
   // Listener de agendamentos do dia selecionado
   React.useEffect(() => {
-    if (!usuario?.id) return;
+    if (!barbeiroId) { setAgendamentos([]); setCarregando(false); return; }
     setCarregando(true);
-    const q = query(collection(db,'agendamentos'), where('barbeiroId','==',usuario.id), where('data','==',dataSel));
+    const q = query(collection(db,'agendamentos'), where('barbeiroId','==',barbeiroId), where('data','==',dataSel));
     const unsub = onSnapshot(q, snap => {
       const ags = snap.docs.map(d=>({firestoreId:d.id,...d.data()})).sort((a,b)=>a.hora.localeCompare(b.hora));
       if (countRef.current > 0 && ags.length > countRef.current) {
@@ -525,7 +542,7 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
       setCarregando(false);
     }, ()=>setCarregando(false));
     return ()=>unsub();
-  }, [usuario?.id, dataSel]);
+  }, [barbeiroId, dataSel]);
 
   async function handleConcluir(ag) {
     setConcluindo(ag.firestoreId);
@@ -535,12 +552,16 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
   }
 
   async function toggleDisponivel() {
+    if (!barbeiroId) { console.error('barbeiroId ausente no perfil do barbeiro', usuario); return; }
     setSalvandoDisp(true);
     const novo = !disponivel;
+    setDisponivel(novo);
     try {
-      await updateDoc(doc(db,'barbeiros',usuario.id), { disponivel:novo, atualizadoEm:serverTimestamp() });
-      setDisponivel(novo);
-    } catch(e) { console.error(e); }
+      await updateDoc(doc(db,'barbeiros',barbeiroId), { disponivel:novo, atualizadoEm:serverTimestamp() });
+      if (usuario?.uid) {
+        await setDoc(doc(db,'barbeiros_auth',usuario.uid), { disponivel:novo, atualizadoEm:serverTimestamp() }, { merge:true });
+      }
+    } catch(e) { setDisponivel(!novo); console.error(e); }
     finally { setSalvandoDisp(false); }
   }
 
@@ -575,7 +596,7 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
           <div style={{ fontSize:'11px', color:'rgba(245,239,230,0.6)' }}>Minha Agenda</div>
         </div>
         <div onClick={salvandoDisp?undefined:toggleDisponivel}
-          style={{ display:'flex', alignItems:'center', gap:'6px', background:'rgba(0,0,0,0.2)', borderRadius:'20px', padding:'6px 12px', cursor:salvandoDisp?'wait':'pointer' }}>
+          style={{ display:'flex', alignItems:'center', gap:'6px', background:'rgba(0,0,0,0.2)', borderRadius:'20px', padding:'6px 12px', marginRight:'38px', cursor:salvandoDisp?'wait':'pointer' }}>
           <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:disponivel?'#4CAF50':'#FFC107' }} />
           <span style={{ fontSize:'12px', color:'#F5EFE6', fontWeight:'600' }}>{salvandoDisp?'...':disponivel?'Disponível':'Ocupado'}</span>
         </div>
@@ -599,7 +620,7 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
       {aba === 'agenda' && (
         <div style={{ padding:'16px' }}>
           {/* Calendário */}
-          <CalendarioMensal barbeiroId={usuario?.id} onDiaSel={setDataSel} dataSel={dataSel} />
+          <CalendarioMensal barbeiroId={barbeiroId} onDiaSel={setDataSel} dataSel={dataSel} />
 
           {/* Resumo do dia */}
           <div style={{ fontSize:'14px', color:'#E8C96A', fontWeight:'700', marginBottom:'12px' }}>
@@ -672,7 +693,7 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
           </div>
 
           {permissoes.bloquearSlots && (
-            <GradeSlots barbeiroId={usuario?.id} dataSel={dataSel} agendamentos={agendamentos} />
+            <GradeSlots barbeiroId={barbeiroId} dataSel={dataSel} agendamentos={agendamentos} />
           )}
         </div>
       )}
@@ -684,12 +705,12 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
             <div style={{ fontSize:'12px', color:'#E8C96A', fontWeight:'700', marginBottom:'4px' }}>👥 Meus Clientes</div>
             <div style={{ fontSize:'12px', color:'#9A8880' }}>Clientes que já foram atendidos por você. Toque em 📲 para enviar mensagem.</div>
           </div>
-          <ListaClientesBarbeiro barbeiroId={usuario?.id} onFechar={() => setAba('agenda')} inline />
+          <ListaClientesBarbeiro barbeiroId={barbeiroId} onFechar={() => setAba('agenda')} inline />
         </div>
       )}
 
       {/* Modais */}
-      {showHorarios && <ConfigHorarios barbeiroId={usuario?.id} onFechar={() => setShowHorarios(false)} />}
+      {showHorarios && <ConfigHorarios barbeiroId={barbeiroId} onFechar={() => setShowHorarios(false)} />}
     </div>
   );
 }
