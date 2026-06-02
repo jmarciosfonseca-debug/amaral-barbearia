@@ -80,14 +80,29 @@ async function solicitarPushPermissao(userId) {
   try {
     const { getToken } = await import('firebase/messaging');
     const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return;
+    if (permission !== 'granted') {
+      console.log('[FCM] Permissão negada pelo usuário.');
+      return;
+    }
     const token = await getToken(messaging, { vapidKey: VAPID_KEY });
     if (token && userId) {
-      const { doc, setDoc } = await import('firebase/firestore');
+      // ✅ Fix B: salvar token com metadados completos
+      const { doc, setDoc, getDoc } = await import('firebase/firestore');
+      // Busca perfil para salvar junto
+      const snapPerfil = await getDoc(doc(db, 'barbeiros_auth', userId));
+      const perfil = snapPerfil.exists() ? snapPerfil.data() : {};
       await setDoc(doc(db, 'fcm_tokens', userId), {
-        token, userId, atualizadoEm: new Date().toISOString(), plataforma: 'web',
+        token,
+        userId,
+        perfil:      perfil.perfil   || 'desconhecido',
+        email:       perfil.email    || '',
+        nome:        perfil.nome     || '',
+        ativo:       true,
+        plataforma:  'web',
+        userAgent:   navigator.userAgent?.substring(0, 100) || '',
+        atualizadoEm: new Date().toISOString(),
       }, { merge: true });
-      console.log('[FCM] Token salvo:', token.substring(0, 20) + '...');
+      console.log('[FCM] ✅ Token salvo com metadados:', perfil.nome || userId);
     }
   } catch(e) { console.log('[FCM] Erro ao obter token:', e.message); }
 }
