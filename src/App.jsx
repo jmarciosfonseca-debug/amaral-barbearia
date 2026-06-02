@@ -387,7 +387,6 @@ function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark, onVer
     </div>
   );
 }
-}
 
 function EmBreve({ titulo, descricao, passo, onBack, dark }) {
   const s = getStyles(dark);
