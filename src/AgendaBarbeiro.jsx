@@ -1,73 +1,363 @@
 // AgendaBarbeiro.jsx — Flyguer BarberShop
-// ✅ Fase 3: notificação em tempo real de novo agendamento
-// ✅ Fase 3: gerente libera visibilidade de valores/clientes por barbeiro
+// ✅ NOVO: Calendário mensal com pontinhos
+// ✅ NOVO: Barbeiro controla horários, bloqueios e disponibilidade
+// ✅ NOVO: Lista de clientes com disparo WhatsApp
+// ✅ Notificação em tempo real de novo agendamento
 
 import React from 'react';
 import { db } from './firebase';
 import {
   collection, query, where, onSnapshot,
-  doc, updateDoc, getDoc, serverTimestamp,
+  doc, updateDoc, getDoc, getDocs, setDoc, deleteDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { getStyles, DIAS_SEMANA } from './getStyles';
 
+// ── Helpers ───────────────────────────────────────────────────
 function hoje() { return new Date().toISOString().split('T')[0]; }
-function formatarData(dataStr) { if (!dataStr) return ''; const [ano, mes, dia] = dataStr.split('-'); return `${dia}/${mes}/${ano}`; }
-function diaSemanaCompleto(dataStr) { const DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']; return DIAS[new Date(dataStr + 'T12:00:00').getDay()]; }
-function addDias(dataStr, n) { const d = new Date(dataStr + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0]; }
-function isHoje(dataStr) { return dataStr === hoje(); }
+function getMesAno() { const d = new Date(); return { mes: d.getMonth(), ano: d.getFullYear() }; }
+function formatarData(s) { if(!s) return ''; const [a,m,d]=s.split('-'); return `${d}/${m}/${a}`; }
+function diaSemanaCompleto(s) { return ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'][new Date(s+'T12:00:00').getDay()]; }
+function strData(ano, mes, dia) { return `${ano}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`; }
 
-// ✅ Fase 3: toca bip de notificação
-function tocarBipNovo() {
+function tocarBip() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.frequency.setValueAtTime(1046, ctx.currentTime);
-    osc.frequency.setValueAtTime(1318, ctx.currentTime + 0.15);
-    gain.gain.setValueAtTime(0.25, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4);
-  } catch(e) {}
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.setValueAtTime(1046, ctx.currentTime);
+    o.frequency.setValueAtTime(1318, ctx.currentTime+0.15);
+    g.gain.setValueAtTime(0.25, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.4);
+    o.start(ctx.currentTime); o.stop(ctx.currentTime+0.4);
+  } catch(e){}
 }
 
-// ✅ Botão abrir/fechar slot — barbeiro controla disponibilidade
-function BotaoSlot({ slot, barbeiroId, data, onToggle }) {
-  const [salvando, setSalvando] = React.useState(false);
-  const aberto = slot.disponivel && !slot.bloqueadoBarbeiro;
+// ── Calendário Mensal ─────────────────────────────────────────
+function CalendarioMensal({ barbeiroId, onDiaSel, dataSel }) {
+  const hoje_str = hoje();
+  const [mes, setMes]     = React.useState(getMesAno().mes);
+  const [ano, setAno]     = React.useState(getMesAno().ano);
+  const [agMap, setAgMap] = React.useState({}); // { 'YYYY-MM-DD': count }
 
-  async function toggle() {
-    setSalvando(true);
-    try {
-      const { doc, setDoc, deleteDoc, collection, query, where, getDocs } = await import('firebase/firestore');
-      const id = `${barbeiroId}_${data}_${slot.hora}`;
-      if (aberto) {
-        // Fecha: cria documento de bloqueio
-        await setDoc(doc(db, 'slots_bloqueados', id), {
-          barbeiroId, data, hora: slot.hora, bloqueadoEm: new Date().toISOString(),
-        });
-      } else {
-        // Abre: remove documento de bloqueio
-        await deleteDoc(doc(db, 'slots_bloqueados', id));
-      }
-      onToggle(slot.hora, !aberto);
-    } catch(e) { console.error(e); }
-    setSalvando(false);
+  React.useEffect(() => {
+    if (!barbeiroId) return;
+    const ini = strData(ano, mes, 1);
+    const fim = strData(ano, mes+1 > 11 ? ano+1 : ano, mes+1 > 11 ? 0 : mes+1, 1);
+    const q = query(
+      collection(db,'agendamentos'),
+      where('barbeiroId','==',barbeiroId),
+      where('data','>=',ini),
+      where('data','<', strData(mes+1>11?ano+1:ano, mes+1>11?0:mes+1, 1)),
+      where('status','in',['confirmado','concluido'])
+    );
+    const unsub = onSnapshot(q, snap => {
+      const map = {};
+      snap.docs.forEach(d => {
+        const dt = d.data().data;
+        map[dt] = (map[dt]||0) + 1;
+      });
+      setAgMap(map);
+    }, ()=>{});
+    return ()=>unsub();
+  }, [barbeiroId, mes, ano]);
+
+  const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const primeiroDia = new Date(ano, mes, 1).getDay();
+  const diasNoMes  = new Date(ano, mes+1, 0).getDate();
+
+  function navMes(dir) {
+    setMes(m => {
+      const novoMes = m + dir;
+      if (novoMes < 0) { setAno(a => a-1); return 11; }
+      if (novoMes > 11) { setAno(a => a+1); return 0; }
+      return novoMes;
+    });
   }
 
-  if (slot.ocupado) return null;
+  const cells = [];
+  for (let i=0; i<primeiroDia; i++) cells.push(null);
+  for (let d=1; d<=diasNoMes; d++) cells.push(d);
 
   return (
-    <button onClick={toggle} disabled={salvando}
-      style={{ padding:'6px 10px', borderRadius:'8px', border:`1px solid ${aberto?'rgba(255,193,7,0.4)':'rgba(76,175,80,0.4)'}`, background:aberto?'rgba(255,193,7,0.1)':'rgba(76,175,80,0.1)', color:aberto?'#FFC107':'#4CAF50', fontSize:'11px', fontWeight:'700', cursor:'pointer', marginTop:'4px' }}>
-      {salvando?'...':aberto?'🔒 Fechar slot':'🔓 Abrir slot'}
-    </button>
+    <div style={{ background:'#1A0F0D', borderRadius:'16px', padding:'16px', marginBottom:'16px', border:'1px solid #3A2018' }}>
+      {/* Navegação mês */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
+        <button onClick={()=>navMes(-1)} style={{ background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'8px', padding:'6px 12px', color:'#F5EFE6', cursor:'pointer', fontSize:'14px' }}>‹</button>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'16px', color:'#E8C96A', fontWeight:'700' }}>
+          {MESES[mes]} {ano}
+        </div>
+        <button onClick={()=>navMes(1)} style={{ background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'8px', padding:'6px 12px', color:'#F5EFE6', cursor:'pointer', fontSize:'14px' }}>›</button>
+      </div>
+
+      {/* Cabeçalho dias semana */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'4px', marginBottom:'8px' }}>
+        {['D','S','T','Q','Q','S','S'].map((d,i) => (
+          <div key={i} style={{ textAlign:'center', fontSize:'10px', color:'#9A8880', fontWeight:'600', padding:'4px 0' }}>{d}</div>
+        ))}
+      </div>
+
+      {/* Grid dias */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'4px' }}>
+        {cells.map((dia, idx) => {
+          if (!dia) return <div key={idx} />;
+          const dataStr = strData(ano, mes, dia);
+          const count   = agMap[dataStr] || 0;
+          const isHojeD = dataStr === hoje_str;
+          const isSel   = dataStr === dataSel;
+          const temAg   = count > 0;
+          const passado = dataStr < hoje_str;
+
+          return (
+            <div key={idx} onClick={() => onDiaSel(dataStr)}
+              style={{ borderRadius:'10px', padding:'6px 2px', textAlign:'center', cursor:'pointer', position:'relative',
+                background: isSel ? '#8B3A2A' : isHojeD ? 'rgba(232,201,106,0.15)' : temAg ? 'rgba(76,175,80,0.1)' : '#231410',
+                border: isSel ? '1.5px solid #E8C96A' : isHojeD ? '1px solid rgba(232,201,106,0.4)' : temAg ? '1px solid rgba(76,175,80,0.3)' : '1px solid #2E1A14',
+                opacity: passado && !temAg ? 0.4 : 1,
+              }}>
+              <div style={{ fontSize:'14px', fontWeight:'700', color: isSel ? '#F5EFE6' : isHojeD ? '#E8C96A' : '#F5EFE6' }}>{dia}</div>
+              {/* Pontinhos de agendamentos */}
+              {temAg && (
+                <div style={{ display:'flex', justifyContent:'center', gap:'2px', marginTop:'2px', flexWrap:'wrap' }}>
+                  {count <= 3 ? Array.from({length:count}).map((_,i) => (
+                    <div key={i} style={{ width:'5px', height:'5px', borderRadius:'50%', background:'#4CAF50' }} />
+                  )) : (
+                    <div style={{ fontSize:'9px', color:'#4CAF50', fontWeight:'700' }}>{count}</div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
+// ── Configuração de Horários do Barbeiro ──────────────────────
+function ConfigHorarios({ barbeiroId, onFechar }) {
+  const DIAS_KEYS = ['dom','seg','ter','qua','qui','sex','sab'];
+  const DIAS_LABEL = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+
+  const [config, setConfig]     = React.useState(null);
+  const [salvando, setSalvando] = React.useState(false);
+  const [toast, setToast]       = React.useState('');
+
+  React.useEffect(() => {
+    // Carrega config do barbeiro ou usa padrão
+    getDoc(doc(db,'barbeiros_config',barbeiroId)).then(snap => {
+      if (snap.exists()) {
+        setConfig(snap.data());
+      } else {
+        // Padrão: seg-sab aberto 9h-19h, dom fechado
+        const padrao = {};
+        DIAS_KEYS.forEach((d,i) => {
+          padrao[d] = { aberto: i > 0, abertura:'09:00', fechamento:'19:00', almoco:{ ativo:false, inicio:'12:00', fim:'13:00' } };
+        });
+        setConfig({ horarios: padrao });
+      }
+    }).catch(()=>{
+      const padrao = {};
+      DIAS_KEYS.forEach((d,i) => {
+        padrao[d] = { aberto: i > 0, abertura:'09:00', fechamento:'19:00', almoco:{ ativo:false, inicio:'12:00', fim:'13:00' } };
+      });
+      setConfig({ horarios: padrao });
+    });
+  }, [barbeiroId]);
+
+  function setDia(diaKey, campo, valor) {
+    setConfig(c => ({ ...c, horarios: { ...c.horarios, [diaKey]: { ...c.horarios[diaKey], [campo]: valor } } }));
+  }
+  function setAlmoco(diaKey, campo, valor) {
+    setConfig(c => ({ ...c, horarios: { ...c.horarios, [diaKey]: { ...c.horarios[diaKey], almoco: { ...c.horarios[diaKey].almoco, [campo]: valor } } } }));
+  }
+
+  async function salvar() {
+    setSalvando(true);
+    try {
+      await setDoc(doc(db,'barbeiros_config',barbeiroId), { ...config, atualizadoEm: serverTimestamp() }, { merge:true });
+      setToast('✅ Horários salvos!');
+      setTimeout(() => { setToast(''); onFechar(); }, 1500);
+    } catch(e) { setToast('❌ Erro ao salvar'); }
+    setSalvando(false);
+  }
+
+  if (!config) return <div style={{ textAlign:'center', padding:'40px', color:'#9A8880' }}>⏳ Carregando...</div>;
+
+  const inp = { background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'8px', padding:'6px 10px', color:'#F5EFE6', fontSize:'13px', outline:'none', fontFamily:"'DM Sans',sans-serif" };
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', zIndex:200, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
+      <div style={{ background:'#1A0F0D', borderRadius:'20px 20px 0 0', width:'100%', maxWidth:'430px', padding:'24px 20px 40px', border:'1px solid #3A2018', borderBottom:'none', maxHeight:'90vh', overflowY:'auto' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+          <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#E8C96A' }}>🕐 Meus Horários</div>
+          <button onClick={onFechar} style={{ background:'none', border:'none', color:'#9A8880', fontSize:'20px', cursor:'pointer' }}>✕</button>
+        </div>
+
+        {DIAS_KEYS.map((dk, i) => {
+          const d = config.horarios?.[dk] || { aberto:false, abertura:'09:00', fechamento:'19:00', almoco:{ativo:false,inicio:'12:00',fim:'13:00'} };
+          return (
+            <div key={dk} style={{ background:'#231410', borderRadius:'12px', padding:'14px', marginBottom:'10px', border:`1px solid ${d.aberto?'#3A2018':'rgba(244,67,54,0.2)'}` }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: d.aberto?'12px':'0' }}>
+                <div style={{ fontWeight:'700', fontSize:'14px', color: d.aberto?'#F5EFE6':'#555' }}>{DIAS_LABEL[i]}</div>
+                <div onClick={() => setDia(dk,'aberto',!d.aberto)}
+                  style={{ width:'44px', height:'24px', borderRadius:'12px', background:d.aberto?'#4CAF50':'#3A2018', position:'relative', cursor:'pointer', transition:'background 0.2s' }}>
+                  <div style={{ position:'absolute', top:'3px', left:d.aberto?'23px':'3px', width:'18px', height:'18px', borderRadius:'50%', background:'#fff', transition:'left 0.2s' }} />
+                </div>
+              </div>
+
+              {d.aberto && (
+                <>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'10px' }}>
+                    <div>
+                      <div style={{ fontSize:'10px', color:'#9A8880', marginBottom:'4px' }}>Abertura</div>
+                      <input type="time" value={d.abertura} onChange={e=>setDia(dk,'abertura',e.target.value)} style={{...inp, width:'100%', boxSizing:'border-box'}} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize:'10px', color:'#9A8880', marginBottom:'4px' }}>Fechamento</div>
+                      <input type="time" value={d.fechamento} onChange={e=>setDia(dk,'fechamento',e.target.value)} style={{...inp, width:'100%', boxSizing:'border-box'}} />
+                    </div>
+                  </div>
+
+                  {/* Almoço */}
+                  <div style={{ background:'#1A0F0D', borderRadius:'10px', padding:'10px 12px' }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: d.almoco?.ativo?'10px':'0' }}>
+                      <div style={{ fontSize:'12px', color:'#9A8880' }}>🍽 Pausa / Almoço</div>
+                      <div onClick={() => setAlmoco(dk,'ativo',!d.almoco?.ativo)}
+                        style={{ width:'36px', height:'20px', borderRadius:'10px', background:d.almoco?.ativo?'#E8C96A':'#3A2018', position:'relative', cursor:'pointer', transition:'background 0.2s' }}>
+                        <div style={{ position:'absolute', top:'2px', left:d.almoco?.ativo?'18px':'2px', width:'16px', height:'16px', borderRadius:'50%', background:'#fff', transition:'left 0.2s' }} />
+                      </div>
+                    </div>
+                    {d.almoco?.ativo && (
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+                        <div>
+                          <div style={{ fontSize:'10px', color:'#9A8880', marginBottom:'4px' }}>Início</div>
+                          <input type="time" value={d.almoco.inicio} onChange={e=>setAlmoco(dk,'inicio',e.target.value)} style={{...inp, width:'100%', boxSizing:'border-box'}} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize:'10px', color:'#9A8880', marginBottom:'4px' }}>Fim</div>
+                          <input type="time" value={d.almoco.fim} onChange={e=>setAlmoco(dk,'fim',e.target.value)} style={{...inp, width:'100%', boxSizing:'border-box'}} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+
+        {toast && <div style={{ textAlign:'center', padding:'10px', fontSize:'13px', color: toast.startsWith('✅')?'#4CAF50':'#F44336', marginBottom:'10px' }}>{toast}</div>}
+
+        <button onClick={salvar} disabled={salvando}
+          style={{ width:'100%', padding:'14px', borderRadius:'14px', border:'none', background:'linear-gradient(135deg,#2E7D7A,#3A9E9A)', color:'#fff', fontWeight:'800', fontSize:'15px', cursor:'pointer', marginTop:'10px' }}>
+          {salvando?'⏳ Salvando...':'✅ Salvar meus horários'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Lista de Clientes do Barbeiro ─────────────────────────────
+function ListaClientesBarbeiro({ barbeiroId, onFechar, inline }) {
+  const [clientes, setClientes] = React.useState([]);
+  const [loading, setLoading]   = React.useState(true);
+  const [busca, setBusca]       = React.useState('');
+
+  React.useEffect(() => {
+    // Busca clientes que já agendaram com esse barbeiro
+    getDocs(query(collection(db,'agendamentos'), where('barbeiroId','==',barbeiroId), where('status','==','concluido'))).then(snap => {
+      const map = {};
+      snap.docs.forEach(d => {
+        const ag = d.data();
+        if (!ag.clienteCpf || ag.clienteCpf === 'encaixe' || ag.clienteCpf?.startsWith('amigo_')) return;
+        if (!map[ag.clienteCpf]) {
+          map[ag.clienteCpf] = { nome: ag.clienteNome, tel: ag.clienteTel, cpf: ag.clienteCpf, visitas: 0, ultimo: ag.data };
+        }
+        map[ag.clienteCpf].visitas++;
+        if (ag.data > map[ag.clienteCpf].ultimo) map[ag.clienteCpf].ultimo = ag.data;
+      });
+      setClientes(Object.values(map).sort((a,b) => b.visitas - a.visitas));
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  }, [barbeiroId]);
+
+  const filtrados = clientes.filter(c =>
+    !busca || c.nome?.toLowerCase().includes(busca.toLowerCase()) || c.tel?.includes(busca)
+  );
+
+  function dispararWhatsApp(cliente) {
+    const tel = cliente.tel?.replace(/\D/g,'');
+    if (!tel) return;
+    const msg = encodeURIComponent(
+      `Olá, ${cliente.nome?.split(' ')[0]}! 👋\n\nTemo um horário disponível para você na Flyguer BarberShop!\n\nQuer agendar? Acesse:\n📲 https://flyguer-barbershop.vercel.app\n\n📍 Shopping Cidade das Artes — Piso 2, Nº 22`
+    );
+    window.open(`https://wa.me/55${tel}?text=${msg}`, '_blank');
+  }
+
+  const inner = (
+    <div>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
+          <div>
+            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#E8C96A' }}>👥 Meus Clientes</div>
+            <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>{clientes.length} clientes atendidos</div>
+          </div>
+        </div>
+
+        <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="🔍 Buscar cliente..."
+          style={{ width:'100%', background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'10px', padding:'10px 14px', color:'#F5EFE6', fontSize:'14px', outline:'none', boxSizing:'border-box', marginBottom:'14px' }} />
+
+        {loading && <div style={{ textAlign:'center', padding:'30px', color:'#9A8880' }}>⏳ Carregando...</div>}
+
+        {!loading && filtrados.length === 0 && (
+          <div style={{ textAlign:'center', padding:'30px', color:'#9A8880' }}>
+            <div style={{ fontSize:'32px', marginBottom:'8px' }}>👥</div>
+            <div>{busca ? 'Nenhum cliente encontrado' : 'Ainda sem clientes atendidos'}</div>
+          </div>
+        )}
+
+        {filtrados.map(c => (
+          <div key={c.cpf} style={{ background:'#231410', border:'1px solid #3A2018', borderRadius:'12px', padding:'12px 14px', marginBottom:'8px', display:'flex', alignItems:'center', gap:'12px' }}>
+            <div style={{ width:'44px', height:'44px', borderRadius:'50%', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'16px', fontWeight:'700', color:'#F5EFE6', flexShrink:0 }}>
+              {(c.nome||'?')[0].toUpperCase()}
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:'700', fontSize:'14px', color:'#F5EFE6' }}>{c.nome}</div>
+              <div style={{ fontSize:'11px', color:'#9A8880' }}>📞 {c.tel||'—'} · {c.visitas} visita{c.visitas!==1?'s':''}</div>
+              <div style={{ fontSize:'10px', color:'#555', marginTop:'2px' }}>Último: {formatarData(c.ultimo)}</div>
+            </div>
+            {c.tel && (
+              <button onClick={() => dispararWhatsApp(c)}
+                style={{ background:'rgba(37,211,102,0.15)', border:'1px solid rgba(37,211,102,0.3)', borderRadius:'10px', padding:'8px 10px', color:'#25D366', fontSize:'11px', fontWeight:'700', cursor:'pointer', flexShrink:0 }}>
+                📲
+              </button>
+            )}
+          </div>
+        ))}
+    </div>
+  );
+
+  if (inline) return inner;
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', zIndex:200, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
+      <div style={{ background:'#1A0F0D', borderRadius:'20px 20px 0 0', width:'100%', maxWidth:'430px', padding:'24px 20px 40px', border:'1px solid #3A2018', borderBottom:'none', maxHeight:'90vh', overflowY:'auto' }}>
+        {inner}
+      </div>
+    </div>
+  );
+}
+
+// ── Card de Agendamento ───────────────────────────────────────
 function CardAgendamento({ ag, onConcluir, concluindo, mostrarValor, mostrarCliente }) {
   const isConcluido = ag.status === 'concluido';
   const isCancelado = ag.status?.includes('cancelado');
+
+  function ligarWhatsApp() {
+    const tel = ag.clienteTel?.replace(/\D/g,'');
+    if (!tel) return;
+    const msg = encodeURIComponent(`Olá, ${ag.clienteNome?.split(' ')[0]}! 👋\nSeu horário é às ${ag.hora}. Te esperamos na Flyguer BarberShop!`);
+    window.open(`https://wa.me/55${tel}?text=${msg}`, '_blank');
+  }
 
   return (
     <div style={{ background:'#231410', borderRadius:'16px', border:isConcluido?'1px solid #2E7D7A':isCancelado?'1px solid #3A1010':'1px solid #3A2018', marginBottom:'12px', overflow:'hidden', opacity:isCancelado?0.5:1 }}>
@@ -80,20 +370,24 @@ function CardAgendamento({ ag, onConcluir, concluindo, mostrarValor, mostrarClie
           </div>
         </div>
         <div style={{ marginBottom:'12px' }}>
-          {/* ✅ Fase 3: nome do cliente só aparece se gerente liberou */}
           {mostrarCliente ? (
-            <div style={{ fontWeight:'700', fontSize:'16px', color:'#F5EFE6' }}>
-              {ag.clienteNome?.split(' ').slice(0,2).join(' ')}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div>
+                <div style={{ fontWeight:'700', fontSize:'16px', color:'#F5EFE6' }}>{ag.clienteNome?.split(' ').slice(0,2).join(' ')}</div>
+                {ag.clienteTel && <div style={{ fontSize:'12px', color:'#9A8880', marginTop:'2px' }}>📞 {ag.clienteTel}</div>}
+              </div>
+              {ag.clienteTel && (
+                <button onClick={ligarWhatsApp}
+                  style={{ background:'rgba(37,211,102,0.15)', border:'1px solid rgba(37,211,102,0.3)', borderRadius:'10px', padding:'8px 12px', color:'#25D366', fontSize:'12px', fontWeight:'700', cursor:'pointer' }}>
+                  📲
+                </button>
+              )}
             </div>
           ) : (
             <div style={{ fontWeight:'700', fontSize:'16px', color:'#9A8880' }}>Cliente</div>
           )}
-          <div style={{ fontSize:'13px', color:'#9A8880', marginTop:'2px' }}>💈 {ag.servico}</div>
-          {mostrarCliente && ag.clienteTel && (
-            <div style={{ fontSize:'12px', color:'#9A8880', marginTop:'2px' }}>📞 {ag.clienteTel}</div>
-          )}
+          <div style={{ fontSize:'13px', color:'#9A8880', marginTop:'4px' }}>💈 {ag.servico}</div>
         </div>
-        {/* ✅ Fase 3: valor só aparece se gerente liberou */}
         {mostrarValor && (
           <div style={{ display:'flex', gap:'10px', background:'#1A0F0D', borderRadius:'10px', padding:'10px 12px', marginBottom:'12px' }}>
             <div style={{ flex:1 }}>
@@ -103,7 +397,7 @@ function CardAgendamento({ ag, onConcluir, concluindo, mostrarValor, mostrarClie
             <div style={{ flex:1 }}>
               <div style={{ fontSize:'10px', color:'#9A8880', marginBottom:'2px' }}>Pagamento</div>
               <div style={{ fontSize:'13px', fontWeight:'600', color:'#F5EFE6' }}>
-                {ag.pagamento==='pix'||ag.pagamento==='pix_sinal'?'💳 Pix pago':'💵 No local'}
+                {ag.pagamento==='pix'||ag.pagamento==='pix_sinal'?'💳 Pix':'💵 Local'}
               </div>
             </div>
           </div>
@@ -119,55 +413,118 @@ function CardAgendamento({ ag, onConcluir, concluindo, mostrarValor, mostrarClie
   );
 }
 
+// ── Grade de bloqueio de slots ────────────────────────────────
+function GradeSlots({ barbeiroId, dataSel, agendamentos }) {
+  const [slotsBloqueados, setSlotsBloqueados] = React.useState(new Set());
+
+  React.useEffect(() => {
+    if (!barbeiroId || !dataSel) return;
+    getDocs(query(collection(db,'slots_bloqueados'), where('barbeiroId','==',barbeiroId), where('data','==',dataSel))).then(snap => {
+      setSlotsBloqueados(new Set(snap.docs.map(d => d.data().hora)));
+    });
+  }, [barbeiroId, dataSel]);
+
+  async function toggleSlot(hora) {
+    const id = `${barbeiroId}_${dataSel}_${hora}`;
+    const bloqueado = slotsBloqueados.has(hora);
+    if (!bloqueado) {
+      await setDoc(doc(db,'slots_bloqueados',id), { barbeiroId, data:dataSel, hora, bloqueadoEm:new Date().toISOString() });
+      setSlotsBloqueados(prev => new Set([...prev, hora]));
+    } else {
+      await deleteDoc(doc(db,'slots_bloqueados',id));
+      setSlotsBloqueados(prev => { const n = new Set(prev); n.delete(hora); return n; });
+    }
+  }
+
+  const slots = [];
+  for (let h=8; h<22; h++) {
+    for (let m=0; m<60; m+=30) {
+      slots.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
+    }
+  }
+
+  return (
+    <div style={{ background:'#1A0F0D', borderRadius:'14px', padding:'14px', marginBottom:'16px', border:'1px solid #3A2018' }}>
+      <div style={{ fontSize:'12px', color:'#E8C96A', fontWeight:'700', marginBottom:'4px' }}>🔧 Controle de disponibilidade — {formatarData(dataSel)}</div>
+      <div style={{ fontSize:'10px', color:'#9A8880', marginBottom:'12px' }}>Toque para abrir ou fechar um horário</div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'6px' }}>
+        {slots.map(hora => {
+          const agAtivo = agendamentos.find(a => a.hora===hora && !a.status?.includes('cancelado'));
+          const bloqueado = slotsBloqueados.has(hora);
+          return (
+            <div key={hora} onClick={() => !agAtivo && toggleSlot(hora)}
+              style={{ borderRadius:'8px', padding:'8px 4px', textAlign:'center', cursor:agAtivo?'default':'pointer',
+                background: agAtivo?'rgba(139,58,42,0.4)':bloqueado?'rgba(244,67,54,0.15)':'rgba(76,175,80,0.08)',
+                border: agAtivo?'1px solid rgba(139,58,42,0.6)':bloqueado?'1px solid rgba(244,67,54,0.4)':'1px solid rgba(76,175,80,0.2)',
+              }}>
+              <div style={{ fontSize:'12px', fontWeight:'700', color:agAtivo?'#E8C96A':bloqueado?'#F44336':'#4CAF50' }}>{hora}</div>
+              <div style={{ fontSize:'8px', color:'#9A8880', marginTop:'2px' }}>
+                {agAtivo ? '✂️ Ocupado' : bloqueado ? '🔒 Fechado' : '✅ Livre'}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── COMPONENTE PRINCIPAL ──────────────────────────────────────
 export default function AgendaBarbeiro({ usuario, onBack, dark }) {
   const s = getStyles(dark);
+  const [aba, setAba]               = React.useState('agenda'); // agenda | grade | clientes
   const [dataSel, setDataSel]       = React.useState(hoje());
   const [agendamentos, setAgendamentos] = React.useState([]);
-  const [carregando, setCarregando] = React.useState(true);
+  const [carregando, setCarregando] = React.useState(false);
   const [concluindo, setConcluindo] = React.useState(null);
   const [disponivel, setDisponivel] = React.useState(usuario?.disponivel ?? true);
   const [salvandoDisp, setSalvandoDisp] = React.useState(false);
-  const [novoToast, setNovoToast]   = React.useState(null); // ✅ Fase 3
-  const [permissoes, setPermissoes] = React.useState({ verValores: false, verClientes: false }); // ✅ Fase 3
+  const [novoToast, setNovoToast]   = React.useState(null);
+  const [permissoes, setPermissoes] = React.useState({ verValores:true, verClientes:true, editarHorarios:true, verListaClientes:true, dispararWhatsApp:true, bloquearSlots:true });
+  const [showHorarios, setShowHorarios] = React.useState(false);
+  const [showClientes, setShowClientes] = React.useState(false);
   const countRef = React.useRef(0);
 
-  // ✅ Fase 3: carrega permissões do barbeiro no Firestore
+  // Carrega permissões
   React.useEffect(() => {
     if (!usuario?.id) return;
-    getDoc(doc(db, 'barbeiros', usuario.id)).then(snap => {
+    getDoc(doc(db,'barbeiros',usuario.id)).then(snap => {
       if (snap.exists()) {
         const d = snap.data();
         setPermissoes({
-          verValores:  d.permVerValores  || false,
-          verClientes: d.permVerClientes || false,
+          verValores:        d.permVerValores        ?? true,
+          verClientes:       d.permVerClientes       ?? true,
+          editarHorarios:    d.permEditarHorarios    ?? true,
+          verListaClientes:  d.permVerListaClientes  ?? true,
+          dispararWhatsApp:  d.permDispararWhatsApp  ?? true,
+          bloquearSlots:     d.permBloquearSlots     ?? true,
         });
         setDisponivel(d.disponivel ?? true);
       }
-    }).catch(() => {});
+    }).catch(()=>{});
   }, [usuario?.id]);
 
-  // ✅ Fase 3: listener com notificação de novo agendamento
+  // Listener de agendamentos do dia selecionado
   React.useEffect(() => {
     if (!usuario?.id) return;
     setCarregando(true);
     const q = query(collection(db,'agendamentos'), where('barbeiroId','==',usuario.id), where('data','==',dataSel));
     const unsub = onSnapshot(q, snap => {
       const ags = snap.docs.map(d=>({firestoreId:d.id,...d.data()})).sort((a,b)=>a.hora.localeCompare(b.hora));
-      // ✅ Fase 3: detecta novo agendamento e notifica
       if (countRef.current > 0 && ags.length > countRef.current) {
         const novo = ags.filter(a=>!a.status?.includes('cancelado')).pop();
         if (novo) {
           setNovoToast(novo);
-          tocarBipNovo();
-          if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
+          tocarBip();
+          if (navigator.vibrate) navigator.vibrate([150,80,150]);
           setTimeout(() => setNovoToast(null), 6000);
         }
       }
       countRef.current = ags.length;
       setAgendamentos(ags);
       setCarregando(false);
-    }, err => { console.error(err); setCarregando(false); });
-    return () => unsub();
+    }, ()=>setCarregando(false));
+    return ()=>unsub();
   }, [usuario?.id, dataSel]);
 
   async function handleConcluir(ag) {
@@ -190,27 +547,11 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
   const confirmados = agendamentos.filter(a=>a.status==='confirmado');
   const concluidos  = agendamentos.filter(a=>a.status==='concluido');
   const totalDia    = agendamentos.filter(a=>!a.status?.includes('cancelado')).reduce((acc,a)=>acc+(a.valor||0),0);
-  const dias = Array.from({length:7},(_,i)=>addDias(hoje(),i));
-
-  // ✅ Grade de slots do dia para o barbeiro gerenciar
-  const [slotsAbertos, setSlotsAbertos] = React.useState({});
-  const [slotsBloqueados, setSlotsBloqueados] = React.useState(new Set());
-  const [mostrarGrade, setMostrarGrade] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!usuario?.id) return;
-    import('firebase/firestore').then(({ collection, query, where, getDocs }) => {
-      getDocs(query(collection(db,'slots_bloqueados'), where('barbeiroId','==',usuario.id), where('data','==',dataSel))).then(snap => {
-        const bloq = new Set(snap.docs.map(d => d.data().hora));
-        setSlotsBloqueados(bloq);
-      });
-    });
-  }, [dataSel, usuario?.id]);
 
   return (
     <div style={{ ...s.app, paddingBottom:'40px' }}>
 
-      {/* ✅ Fase 3: Toast de novo agendamento */}
+      {/* Toast novo agendamento */}
       {novoToast && (
         <div style={{ position:'fixed', top:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:'430px', zIndex:9999, background:'linear-gradient(135deg,#2E7D7A,#3A9E9A)', padding:'14px 20px', borderRadius:'0 0 16px 16px', boxShadow:'0 8px 24px rgba(0,0,0,0.5)' }}>
           <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
@@ -221,7 +562,7 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
                 {permissoes.verClientes ? novoToast.clienteNome?.split(' ')[0] : 'Novo cliente'} · {novoToast.hora} · {novoToast.servico}
               </div>
             </div>
-            <button onClick={() => setNovoToast(null)} style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:'50%', width:'28px', height:'28px', color:'#fff', fontSize:'14px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+            <button onClick={()=>setNovoToast(null)} style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:'50%', width:'28px', height:'28px', color:'#fff', fontSize:'14px', cursor:'pointer' }}>✕</button>
           </div>
         </div>
       )}
@@ -230,127 +571,125 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
       <div style={{ background:'linear-gradient(135deg,#5C2218,#8B3A2A)', padding:'16px 20px', display:'flex', alignItems:'center', gap:'12px' }}>
         <button onClick={onBack} style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:'8px', padding:'6px 10px', color:'#F5EFE6', cursor:'pointer', fontSize:'14px' }}>←</button>
         <div style={{ flex:1 }}>
-          <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'17px', fontWeight:'700', color:'#F5EFE6' }}>📅 Minha Agenda</div>
-          <div style={{ fontSize:'11px', color:'rgba(245,239,230,0.6)' }}>{usuario?.nome}</div>
+          <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'17px', fontWeight:'700', color:'#F5EFE6' }}>✂️ {usuario?.nome}</div>
+          <div style={{ fontSize:'11px', color:'rgba(245,239,230,0.6)' }}>Minha Agenda</div>
         </div>
         <div onClick={salvandoDisp?undefined:toggleDisponivel}
-          style={{ display:'flex', alignItems:'center', gap:'8px', background:'rgba(0,0,0,0.2)', borderRadius:'20px', padding:'6px 12px', cursor:salvandoDisp?'wait':'pointer' }}>
+          style={{ display:'flex', alignItems:'center', gap:'6px', background:'rgba(0,0,0,0.2)', borderRadius:'20px', padding:'6px 12px', cursor:salvandoDisp?'wait':'pointer' }}>
           <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:disponivel?'#4CAF50':'#FFC107' }} />
           <span style={{ fontSize:'12px', color:'#F5EFE6', fontWeight:'600' }}>{salvandoDisp?'...':disponivel?'Disponível':'Ocupado'}</span>
         </div>
       </div>
 
-      {/* Seletor de dias */}
-      <div style={{ overflowX:'auto', display:'flex', gap:'6px', padding:'12px 16px', borderBottom:'1px solid #3A2018' }}>
-        {dias.map(data => {
-          const d = new Date(data+'T12:00:00'), sel = dataSel===data;
-          return (
-            <div key={data} onClick={() => setDataSel(data)}
-              style={{ minWidth:'52px', padding:'8px 6px', borderRadius:'12px', textAlign:'center', cursor:'pointer', background:sel?'#8B3A2A':'#231410', border:sel?'1.5px solid #E8C96A':'1px solid #3A2018' }}>
-              <div style={{ fontSize:'10px', color:sel?'#E8C96A':'#9A8880', fontWeight:'600' }}>{DIAS_SEMANA[d.getDay()]}</div>
-              <div style={{ fontSize:'18px', fontWeight:'700', color:'#F5EFE6', marginTop:'2px' }}>{d.getDate()}</div>
-              {isHoje(data) && <div style={{ fontSize:'8px', color:'#E8C96A', fontWeight:'600' }}>HOJE</div>}
-            </div>
-          );
-        })}
+      {/* Abas */}
+      <div style={{ display:'flex', borderBottom:'1px solid #3A2018', background:'#1A0F0D' }}>
+        {[
+          { id:'agenda',   label:'📅 Agenda'        },
+          { id:'grade',    label:'🔧 Horários'       },
+          ...(permissoes.verListaClientes ? [{ id:'clientes', label:'👥 Clientes' }] : []),
+        ].map(a => (
+          <button key={a.id} onClick={() => setAba(a.id)}
+            style={{ flex:1, padding:'12px 6px', border:'none', background:'transparent', borderBottom:aba===a.id?'2px solid #8B3A2A':'2px solid transparent', color:aba===a.id?'#E8C96A':'#9A8880', fontSize:'12px', fontWeight:aba===a.id?'700':'400', cursor:'pointer' }}>
+            {a.label}
+          </button>
+        ))}
       </div>
 
-      <div style={{ padding:'16px' }}>
-        {/* Resumo */}
-        <div style={{ display:'grid', gridTemplateColumns:permissoes.verValores?'1fr 1fr 1fr':'1fr 1fr', gap:'8px', marginBottom:'20px' }}>
-          {[
-            { label:'Confirmados', value:confirmados.length, color:'#4CAF50' },
-            { label:'Concluídos',  value:concluidos.length,  color:'#2E7D7A' },
-            ...(permissoes.verValores ? [{ label:'Receita', value:`R$${totalDia.toFixed(0)}`, color:'#E8C96A' }] : []),
-          ].map(item => (
-            <div key={item.label} style={{ background:'#231410', borderRadius:'12px', padding:'12px 10px', textAlign:'center', border:'1px solid #3A2018' }}>
-              <div style={{ fontSize:'18px', fontWeight:'700', color:item.color }}>{item.value}</div>
-              <div style={{ fontSize:'10px', color:'#9A8880', marginTop:'2px' }}>{item.label}</div>
-            </div>
-          ))}
-        </div>
+      {/* ═══ ABA AGENDA ═══ */}
+      {aba === 'agenda' && (
+        <div style={{ padding:'16px' }}>
+          {/* Calendário */}
+          <CalendarioMensal barbeiroId={usuario?.id} onDiaSel={setDataSel} dataSel={dataSel} />
 
-        <div style={{ fontSize:'13px', color:'#E8C96A', fontWeight:'600', marginBottom:'14px' }}>
-          {diaSemanaCompleto(dataSel)}, {formatarData(dataSel)}
-          {isHoje(dataSel) && <span style={{ marginLeft:'8px', fontSize:'11px', color:'#9A8880' }}>— Hoje</span>}
-        </div>
-
-        {/* ✅ Fase 3: badge de permissões */}
-        {(permissoes.verValores || permissoes.verClientes) && (
-          <div style={{ background:'rgba(232,201,106,0.08)', border:'1px solid rgba(232,201,106,0.2)', borderRadius:'10px', padding:'8px 12px', marginBottom:'14px', fontSize:'11px', color:'#E8C96A', display:'flex', gap:'8px', flexWrap:'wrap' }}>
-            {permissoes.verValores  && <span>💰 Valores visíveis</span>}
-            {permissoes.verClientes && <span>👤 Clientes visíveis</span>}
+          {/* Resumo do dia */}
+          <div style={{ fontSize:'14px', color:'#E8C96A', fontWeight:'700', marginBottom:'12px' }}>
+            {diaSemanaCompleto(dataSel)}, {formatarData(dataSel)}
+            {dataSel === hoje() && <span style={{ marginLeft:'8px', fontSize:'11px', color:'#9A8880' }}>— Hoje</span>}
           </div>
-        )}
 
-        {/* ✅ Botão gerenciar grade */}
-        <div style={{ marginBottom:'16px' }}>
-          <button onClick={() => setMostrarGrade(g => !g)}
-            style={{ width:'100%', padding:'10px', borderRadius:'12px', border:'1px solid rgba(232,201,106,0.3)', background:'rgba(232,201,106,0.06)', color:'#E8C96A', fontSize:'13px', fontWeight:'600', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
-            🔧 {mostrarGrade ? 'Ocultar grade de horários' : 'Gerenciar minha grade do dia'}
-          </button>
-        </div>
-
-        {/* ✅ Grade de slots — barbeiro abre/fecha */}
-        {mostrarGrade && (
-          <div style={{ background:'#1A0F0D', borderRadius:'14px', padding:'14px', marginBottom:'16px', border:'1px solid #3A2018' }}>
-            <div style={{ fontSize:'12px', color:'#E8C96A', fontWeight:'700', marginBottom:'12px' }}>
-              🔧 Seus horários — {formatarData(dataSel)}
-              <div style={{ fontSize:'10px', color:'#9A8880', fontWeight:'400', marginTop:'2px' }}>Feche slots que não quer receber agendamentos</div>
-            </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px' }}>
-              {Array.from({length:24}, (_,i) => {
-                const h = 8 + Math.floor(i/2);
-                const m = i%2===0 ? '00' : '30';
-                if (h >= 22) return null;
-                const hora = `${String(h).padStart(2,'0')}:${m}`;
-                const agAtivo = agendamentos.find(a => a.hora===hora && !a.status?.includes('cancelado'));
-                const bloqueado = slotsBloqueados.has(hora);
-                return (
-                  <div key={hora} style={{ background:agAtivo?'rgba(139,58,42,0.3)':bloqueado?'rgba(244,67,54,0.1)':'rgba(76,175,80,0.08)', borderRadius:'10px', padding:'8px', border:`1px solid ${agAtivo?'rgba(139,58,42,0.5)':bloqueado?'rgba(244,67,54,0.3)':'rgba(76,175,80,0.2)'}`, textAlign:'center' }}>
-                    <div style={{ fontSize:'13px', fontWeight:'700', color:agAtivo?'#E8C96A':bloqueado?'#F44336':'#4CAF50' }}>{hora}</div>
-                    {agAtivo ? (
-                      <div style={{ fontSize:'9px', color:'#9A8880', marginTop:'2px' }}>✂️ {agAtivo.clienteNome?.split(' ')[0]||'Ocupado'}</div>
-                    ) : (
-                      <button onClick={async () => {
-                        const { doc, setDoc, deleteDoc } = await import('firebase/firestore');
-                        const id = `${usuario.id}_${dataSel}_${hora}`;
-                        if (!bloqueado) {
-                          await setDoc(doc(db,'slots_bloqueados',id), { barbeiroId:usuario.id, data:dataSel, hora, bloqueadoEm:new Date().toISOString() });
-                          setSlotsBloqueados(prev => new Set([...prev, hora]));
-                        } else {
-                          await deleteDoc(doc(db,'slots_bloqueados',id));
-                          setSlotsBloqueados(prev => { const n = new Set(prev); n.delete(hora); return n; });
-                        }
-                      }} style={{ fontSize:'9px', color:bloqueado?'#4CAF50':'#FFC107', background:'none', border:'none', cursor:'pointer', marginTop:'2px', fontWeight:'700' }}>
-                        {bloqueado?'🔓 Abrir':'🔒 Fechar'}
-                      </button>
-                    )}
-                  </div>
-                );
-              }).filter(Boolean)}
-            </div>
+          <div style={{ display:'grid', gridTemplateColumns:permissoes.verValores?'1fr 1fr 1fr':'1fr 1fr', gap:'8px', marginBottom:'16px' }}>
+            {[
+              { label:'Confirmados', value:confirmados.length, color:'#4CAF50' },
+              { label:'Concluídos',  value:concluidos.length,  color:'#2E7D7A' },
+              ...(permissoes.verValores ? [{ label:'Receita', value:`R$${totalDia.toFixed(0)}`, color:'#E8C96A' }] : []),
+            ].map(item => (
+              <div key={item.label} style={{ background:'#231410', borderRadius:'12px', padding:'12px 10px', textAlign:'center', border:'1px solid #3A2018' }}>
+                <div style={{ fontSize:'18px', fontWeight:'700', color:item.color }}>{item.value}</div>
+                <div style={{ fontSize:'10px', color:'#9A8880', marginTop:'2px' }}>{item.label}</div>
+              </div>
+            ))}
           </div>
-        )}
 
-        {carregando ? (
-          <div style={{ textAlign:'center', padding:'40px', color:'#9A8880' }}><div style={{ fontSize:'24px', marginBottom:'8px' }}>⏳</div>Carregando...</div>
-        ) : agendamentos.length === 0 ? (
-          <div style={{ textAlign:'center', padding:'40px' }}>
-            <div style={{ fontSize:'48px', marginBottom:'12px' }}>📅</div>
-            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#E8C96A', marginBottom:'8px' }}>Sem agendamentos</div>
-            <div style={{ fontSize:'13px', color:'#9A8880' }}>Nenhum cliente para {isHoje(dataSel)?'hoje':formatarData(dataSel)}</div>
-          </div>
-        ) : (
-          agendamentos.map(ag => (
+          {/* Agendamentos */}
+          {carregando ? (
+            <div style={{ textAlign:'center', padding:'30px', color:'#9A8880' }}>⏳ Carregando...</div>
+          ) : agendamentos.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'40px', background:'#231410', borderRadius:'16px', border:'1px solid #3A2018' }}>
+              <div style={{ fontSize:'40px', marginBottom:'12px' }}>📅</div>
+              <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'16px', color:'#E8C96A', marginBottom:'6px' }}>Sem agendamentos</div>
+              <div style={{ fontSize:'12px', color:'#9A8880' }}>Nenhum cliente para {dataSel===hoje()?'hoje':formatarData(dataSel)}</div>
+            </div>
+          ) : agendamentos.map(ag => (
             <CardAgendamento key={ag.firestoreId} ag={ag}
               onConcluir={handleConcluir} concluindo={concluindo}
               mostrarValor={permissoes.verValores}
               mostrarCliente={permissoes.verClientes}
             />
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {/* ═══ ABA HORÁRIOS / GRADE ═══ */}
+      {aba === 'grade' && (
+        <div style={{ padding:'16px' }}>
+          {/* Botão configurar horários semanais */}
+          {permissoes.editarHorarios && (
+            <button onClick={() => setShowHorarios(true)}
+              style={{ width:'100%', padding:'13px', borderRadius:'14px', border:'1px solid rgba(232,201,106,0.3)', background:'rgba(232,201,106,0.08)', color:'#E8C96A', fontSize:'14px', fontWeight:'700', cursor:'pointer', marginBottom:'16px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
+              🕐 Configurar meus horários semanais
+            </button>
+          )}
+
+          {/* Grade do dia selecionado */}
+          <div style={{ fontSize:'13px', color:'#E8C96A', fontWeight:'600', marginBottom:'12px' }}>
+            Disponibilidade — {diaSemanaCompleto(dataSel)}, {formatarData(dataSel)}
+          </div>
+
+          {/* Seletor de data simples */}
+          <div style={{ display:'flex', gap:'6px', overflowX:'auto', paddingBottom:'8px', marginBottom:'12px' }}>
+            {Array.from({length:14},(_,i)=>{
+              const d = new Date(); d.setDate(d.getDate()+i);
+              const ds = d.toISOString().split('T')[0];
+              const sel = ds===dataSel;
+              return (
+                <div key={ds} onClick={()=>setDataSel(ds)}
+                  style={{ minWidth:'52px', padding:'8px 6px', borderRadius:'12px', textAlign:'center', cursor:'pointer', background:sel?'#8B3A2A':'#231410', border:sel?'1.5px solid #E8C96A':'1px solid #3A2018', flexShrink:0 }}>
+                  <div style={{ fontSize:'10px', color:sel?'#E8C96A':'#9A8880', fontWeight:'600' }}>{DIAS_SEMANA[d.getDay()]}</div>
+                  <div style={{ fontSize:'16px', fontWeight:'700', color:'#F5EFE6' }}>{d.getDate()}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {permissoes.bloquearSlots && (
+            <GradeSlots barbeiroId={usuario?.id} dataSel={dataSel} agendamentos={agendamentos} />
+          )}
+        </div>
+      )}
+
+      {/* ═══ ABA CLIENTES ═══ */}
+      {aba === 'clientes' && permissoes.verListaClientes && (
+        <div style={{ padding:'16px' }}>
+          <div style={{ background:'rgba(232,201,106,0.08)', border:'1px solid rgba(232,201,106,0.2)', borderRadius:'12px', padding:'12px 14px', marginBottom:'16px' }}>
+            <div style={{ fontSize:'12px', color:'#E8C96A', fontWeight:'700', marginBottom:'4px' }}>👥 Meus Clientes</div>
+            <div style={{ fontSize:'12px', color:'#9A8880' }}>Clientes que já foram atendidos por você. Toque em 📲 para enviar mensagem.</div>
+          </div>
+          <ListaClientesBarbeiro barbeiroId={usuario?.id} onFechar={() => setAba('agenda')} inline />
+        </div>
+      )}
+
+      {/* Modais */}
+      {showHorarios && <ConfigHorarios barbeiroId={usuario?.id} onFechar={() => setShowHorarios(false)} />}
     </div>
   );
 }
