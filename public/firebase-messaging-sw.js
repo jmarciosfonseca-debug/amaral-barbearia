@@ -1,9 +1,9 @@
-// firebase-messaging-sw.js
-// ✅ Service Worker para receber push notifications em background
-// IMPORTANTE: este arquivo deve ficar na pasta /public (não em /src)
+// firebase-messaging-sw.js — Flyguer BarberShop
+// ✅ Service Worker para Push Notifications com app fechado
+// Colocar na raiz do projeto: /public/firebase-messaging-sw.js
 
-importScripts('https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
 firebase.initializeApp({
   apiKey: "AIzaSyBLrzhVC9dB4mVNrKr3q5sIy_zVucOuMtU",
@@ -16,22 +16,38 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// Recebe notificação quando app está em background
+// Notificação em background (app fechado ou minimizado)
 messaging.onBackgroundMessage(payload => {
-  const { title, body, icon } = payload.notification || {};
-  self.registration.showNotification(title || 'Flyguer BarberShop', {
-    body: body || 'Você tem uma atualização.',
-    icon: icon || '/logo-flyguer.png',
-    badge: '/logo-flyguer.png',
+  console.log('[SW] Mensagem em background:', payload);
+
+  const { title, body, icon, data } = payload.notification || {};
+
+  self.registration.showNotification(title || '✂️ Flyguer BarberShop', {
+    body:    body  || 'Você tem uma nova notificação.',
+    icon:    icon  || '/logo-flyguer.png',
+    badge:   '/logo-flyguer.png',
     vibrate: [200, 100, 200],
-    data: payload.data || {},
+    tag:     data?.tag || 'flyguer-notif',
+    data:    data  || {},
+    actions: [
+      { action:'abrir', title:'Abrir app' },
+      { action:'fechar', title:'Dispensar'  },
+    ],
   });
 });
 
-// Ao clicar na notificação — abre o app
+// Clique na notificação — abre o app
 self.addEventListener('notificationclick', event => {
   event.notification.close();
+  if (event.action === 'fechar') return;
   event.waitUntil(
-    clients.openWindow('https://flyguer-barbershop.vercel.app')
+    clients.matchAll({ type:'window', includeUncontrolled:true }).then(clientList => {
+      for (const client of clientList) {
+        if (client.url.includes('flyguer-barbershop') && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      return clients.openWindow('https://flyguer-barbershop.vercel.app');
+    })
   );
 });
