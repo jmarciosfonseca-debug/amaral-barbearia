@@ -37,20 +37,37 @@ function hoje() { return new Date().toISOString().split('T')[0]; }
 function formatarData(dataStr) { const [a,m,d] = dataStr.split('-'); return `${d}/${m}/${a}`; }
 function diaSemana(dataStr) { return DIAS_SEMANA[new Date(dataStr+'T12:00:00').getDay()]; }
 
-function gerarHorarios(abertura, fechamento, almoco, duracaoMin, agendados) {
+function gerarHorarios(abertura, fechamento, almoco, duracaoMin, agendamentos) {
+  // ✅ Fix: bloqueia slots intermediários com base na duração de cada agendamento
   const horarios = [];
   const [hA,mA] = abertura.split(':').map(Number);
   const [hF,mF] = fechamento.split(':').map(Number);
   let atual = hA*60+mA, fim = hF*60+mF;
+
+  // Monta set de minutos bloqueados considerando duração
+  const bloqueadosMin = new Set();
+  agendamentos.forEach(ag => {
+    if (!ag.hora) return;
+    const [h,m] = ag.hora.split(':').map(Number);
+    const inicio = h*60+m;
+    const dur = ag.duracao || 30;
+    for (let t = inicio; t < inicio+dur; t+=30) bloqueadosMin.add(t);
+  });
+
   while (atual+duracaoMin <= fim) {
     const hora = `${String(Math.floor(atual/60)).padStart(2,'0')}:${String(atual%60).padStart(2,'0')}`;
-    let bloqueado = false;
+    let bloqueadoAlmoco = false;
     if (almoco?.ativo) {
       const [hAl,mAl] = almoco.inicio.split(':').map(Number);
       const [hFl,mFl] = almoco.fim.split(':').map(Number);
-      if (atual >= hAl*60+mAl && atual < hFl*60+mFl) bloqueado = true;
+      if (atual >= hAl*60+mAl && atual < hFl*60+mFl) bloqueadoAlmoco = true;
     }
-    horarios.push({ hora, disponivel: !bloqueado && !agendados.includes(hora), bloqueado });
+    // Verifica se o slot de início ou qualquer slot interno está ocupado
+    let ocupado = false;
+    for (let t = atual; t < atual+duracaoMin; t+=30) {
+      if (bloqueadosMin.has(t)) { ocupado = true; break; }
+    }
+    horarios.push({ hora, disponivel: !bloqueadoAlmoco && !ocupado, bloqueado: bloqueadoAlmoco });
     atual += 30;
   }
   return horarios;
@@ -536,11 +553,18 @@ function EscolherDataHora({ barbeiro, servico, onEscolher, onBack, dark, dataHor
     if (!dataSel||!config) return;
     setCarregando(true);
     if (!dataHoraPreSelecionada) setHoraSel(null);
-    getDocs(query(collection(db,'agendamentos'), where('data','==',dataSel))).then(snap => {
-      const horasOcupadas = snap.docs.map(d=>d.data()).filter(a=>a.barbeiroId===barbeiro.id&&['confirmado','pendente'].includes(a.status)).map(a=>a.hora);
+    Promise.all([
+      getDocs(query(collection(db,'agendamentos'), where('data','==',dataSel))),
+      getDocs(query(collection(db,'slots_bloqueados'), where('barbeiroId','==',barbeiro.id), where('data','==',dataSel))),
+    ]).then(([snapAg, snapSlots]) => {
+      // ✅ Fix: agendamentos com duração + slots bloqueados pelo barbeiro
+      const agendamentosOcupados = snapAg.docs.map(d=>d.data()).filter(a=>a.barbeiroId===barbeiro.id&&['confirmado','pendente'].includes(a.status));
+      // Adiciona slots bloqueados como agendamentos virtuais de 30min
+      const slotsBloq = snapSlots.docs.map(d => ({ hora: d.data().hora, duracao: 30 }));
+      const todos = [...agendamentosOcupados, ...slotsBloq];
       const diaSem = DIAS_KEYS[new Date(dataSel+'T12:00:00').getDay()];
       const horConfig = config.horarios?.[diaSem];
-      setHorarios(!horConfig?.aberto ? [] : gerarHorarios(horConfig.abertura, horConfig.fechamento, config.almoco, servico.duracao, horasOcupadas));
+      setHorarios(!horConfig?.aberto ? [] : gerarHorarios(horConfig.abertura, horConfig.fechamento, config.almoco, servico.duracao, todos));
     }).catch(console.error).finally(() => setCarregando(false));
   }, [dataSel, config, barbeiro.id, servico.duracao]);
 
