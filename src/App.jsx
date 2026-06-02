@@ -284,9 +284,37 @@ function TelaRedefinirSenha({ usuario, onConcluido, dark }) {
 }
 
 // Splash Screen
+// ✅ Modal Tour 360° Panoee
+function ModalTour360({ onFechar }) {
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.95)', zIndex:9999, display:'flex', flexDirection:'column' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', background:'#1A0F0D', borderBottom:'1px solid #3A2018' }}>
+        <div>
+          <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'16px', color:'#E8C96A', fontWeight:'700' }}>🏠 Flyguer BarberShop</div>
+          <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>Tour virtual 360° — Shopping Cidade das Artes</div>
+        </div>
+        <button onClick={onFechar} style={{ background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'50%', width:'36px', height:'36px', color:'#F5EFE6', fontSize:'18px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>✕</button>
+      </div>
+      <div style={{ flex:1, position:'relative' }}>
+        <iframe
+          src="https://tour.panoee.net/6a1e212ca475c8a5fdbdd167"
+          style={{ width:'100%', height:'100%', border:'none' }}
+          allow="fullscreen; gyroscope; accelerometer"
+          allowFullScreen
+          title="Flyguer BarberShop — Tour 360°"
+        />
+      </div>
+      <div style={{ padding:'12px 16px', background:'#1A0F0D', borderTop:'1px solid #3A2018', textAlign:'center' }}>
+        <div style={{ fontSize:'11px', color:'#9A8880' }}>📍 Piso 2, Nº 22 · Arraste para explorar</div>
+      </div>
+    </div>
+  );
+}
+
 function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark, onVerPromo }) {
   const s = getStyles(dark);
   const [promo, setPromo] = React.useState(null);
+  const [tour360, setTour360] = React.useState(false);
 
   React.useEffect(() => {
     import('firebase/firestore').then(({ doc, getDoc }) => {
@@ -347,12 +375,18 @@ function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark, onVer
         <Divider />
         <p style={{ fontSize:'13px', color:'#9A8880', textAlign:'center', marginBottom:'20px' }}>Estamos prontos para cuidar do seu estilo.</p>
         <button style={{ ...s.btnGold, marginBottom:'10px' }} onClick={onClienteNovo}>👤 Criar Conta de Cliente</button>
-        <button style={{ ...s.btnDark, marginBottom:'16px' }} onClick={onClienteCadastrado}>🔒 Acessar Cadastro Existente</button>
+        <button style={{ ...s.btnDark, marginBottom:'10px' }} onClick={onClienteCadastrado}>🔒 Acessar Cadastro Existente</button>
+        <button onClick={() => setTour360(true)}
+          style={{ width:'100%', padding:'13px', borderRadius:'14px', border:'1px solid rgba(232,201,106,0.3)', background:'rgba(232,201,106,0.06)', color:'#E8C96A', fontSize:'14px', fontWeight:'600', cursor:'pointer', marginBottom:'16px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
+          🏠 Conheça a barbearia — Tour 360°
+        </button>
         <WarnBanner>Use um número de WhatsApp válido para receber confirmações.</WarnBanner>
         <div onClick={onStaff} style={{ textAlign:'center', fontSize:'11px', color:'#444', cursor:'pointer', paddingBottom:'8px' }}>Acesso da equipe</div>
       </div>
+      {tour360 && <ModalTour360 onFechar={() => setTour360(false)} />}
     </div>
   );
+}
 }
 
 function EmBreve({ titulo, descricao, passo, onBack, dark }) {
@@ -372,6 +406,7 @@ function EmBreve({ titulo, descricao, passo, onBack, dark }) {
 // Home Cliente
 function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
   const s = getStyles(dark);
+  const [tour360Cliente, setTour360Cliente] = React.useState(false);
   const [lembrete, setLembrete]       = React.useState(null);
   const [alertaVisivel, setAlertaVisivel] = React.useState(false);
 
@@ -446,7 +481,18 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
             </div>
           </div>
         ))}
+        {/* ✅ Tour 360° na home do cliente */}
+        <div onClick={() => setTour360Cliente(true)}
+          style={{ display:'flex', alignItems:'center', gap:'14px', padding:'14px', background:'rgba(232,201,106,0.06)', borderRadius:'14px', border:'1px solid rgba(232,201,106,0.2)', marginBottom:'10px', cursor:'pointer' }}>
+          <div style={{ fontSize:'24px' }}>🏠</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontWeight:'600', fontSize:'14px', color:'#E8C96A' }}>Conheça a Barbearia</div>
+            <div style={{ fontSize:'11px', color:s.textSub }}>Tour virtual 360° da Flyguer</div>
+          </div>
+          <div style={{ fontSize:'16px', color:'#E8C96A' }}>▶</div>
+        </div>
       </div>
+      {tour360Cliente && <ModalTour360 onFechar={() => setTour360Cliente(false)} />}
     </div>
   );
 }
