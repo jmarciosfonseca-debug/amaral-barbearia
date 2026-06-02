@@ -145,7 +145,8 @@ function AlertaAgendamento({ agendamento, onFechar }) {
 // ✅ Tela de Login da Equipe com Firebase Auth
 function StaffLoginScreen({ onBack, onSuccess, dark }) {
   const s = getStyles(dark);
-  const [email, setEmail]   = React.useState('');
+  // ✅ Pré-preenche email salvo (igual ao CPF do cliente)
+  const [email, setEmail]   = React.useState(() => localStorage.getItem('flyguer_staff_email') || '');
   const [senha, setSenha]   = React.useState('');
   const [erro, setErro]     = React.useState('');
   const [loading, setLoading] = React.useState(false);
@@ -156,6 +157,8 @@ function StaffLoginScreen({ onBack, onSuccess, dark }) {
     try {
       const cred = await signInWithEmailAndPassword(auth, email.trim(), senha.trim());
       const user = cred.user;
+      // ✅ Salva email no localStorage após login bem-sucedido
+      localStorage.setItem('flyguer_staff_email', email.trim());
       // Busca perfil no Firestore
       const { doc, getDoc } = await import('firebase/firestore');
       const snap = await getDoc(doc(db, 'barbeiros_auth', user.uid));
