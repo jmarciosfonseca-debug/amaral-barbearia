@@ -265,7 +265,7 @@ function AgendarViaPromo({ cliente, promo, onConcluir, onBack, dark }) {
       const [hF,mF] = hc.fechamento.split(':').map(Number);
       let atual = hA*60+mA, fim = hF*60+mF;
       while (atual+30 <= fim) {
-        const hora = ${String(Math.floor(atual/60)).padStart(2,'0')}:;
+        const hora = `${String(Math.floor(atual/60)).padStart(2,'0')}:${String(atual%60).padStart(2,'0')}`;
         slots.push({ hora, disponivel: !indisponiveis.has(hora) });
         atual += 30;
       }
@@ -709,7 +709,7 @@ function ModalLevarAmigo({ agendamentoPrincipal, cliente, barbeiros, config, onC
       const [hF,mF] = hc.fechamento.split(':').map(Number);
       let atual = hA*60+mA, fim = hF*60+mF;
       while (atual+30 <= fim) {
-        const hora = ${String(Math.floor(atual/60)).padStart(2,'0')}:;
+        const hora = `${String(Math.floor(atual/60)).padStart(2,'0')}:${String(atual%60).padStart(2,'0')}`;
         slots.push({ hora, disponivel: !indisponiveis.has(hora) });
         atual += 30;
       }
@@ -1212,3 +1212,4 @@ export default function Agendamento({ cliente, onBack, dark, promoParaResgatar }
     onBack={onBack} dark={dark} promoAtiva={promoAtiva}
   />;
 }
+
