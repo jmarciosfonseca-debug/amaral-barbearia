@@ -77,7 +77,7 @@ function ModalCancelar({ agendamento, onConfirmar, onFechar }) {
       setCancelado(true);
       // âœ… Fase 2: abre WhatsApp automaticamente para notificar a barbearia
       setTimeout(() => {
-        notificarCancelamentoWhatsApp(agendamento);
+        notificarCancelamentoWhatsApp(agendamento); // âœ… novo â€” abre WA da barbearia
         onConfirmar();
       }, 1000);
     } catch(e) { console.error(e); }
