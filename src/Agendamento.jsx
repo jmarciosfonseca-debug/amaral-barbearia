@@ -543,8 +543,8 @@ function CalendarioCliente({ diasDisponiveis, isDiaAberto, dataSel, onDiaSel, ag
   const primeiroDia = new Date(ano, mes, 1).getDay();
   const diasNoMes  = new Date(ano, mes+1, 0).getDate();
 
-  // Set de datas disponíveis para o cliente
-  const dispSet = new Set(diasDisponiveis);
+  // ✅ CalendarioCliente usa o mês inteiro — não depende de lista externa
+  // isDiaAberto controla quais dias têm horários disponíveis
 
   const _hj2 = new Date();
   const mesAtual = _hj2.getMonth();
@@ -586,7 +586,8 @@ function CalendarioCliente({ diasDisponiveis, isDiaAberto, dataSel, onDiaSel, ag
           const dataStr = strData(ano, mes, dia);
           const isHojeD = dataStr === hoje_str;
           const isSel   = dataStr === dataSel;
-          const disponivel = dispSet.has(dataStr) && isDiaAberto(dataStr);
+          // ✅ Disponível = dia não passou E dia tem horário aberto
+          const disponivel = !passado && isDiaAberto(dataStr);
           const passado  = dataStr < hoje_str;
           return (
             <div key={idx} onClick={() => disponivel && onDiaSel(dataStr)}
