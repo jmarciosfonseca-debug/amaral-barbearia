@@ -1202,17 +1202,19 @@ function Confirmado({ agendamento, onVoltar, dark }) {
           </div>
         ))}
       </div>
-      <div style={{ background:'rgba(46,125,122,0.1)', border:'1px solid rgba(46,125,122,0.3)', borderRadius:'14px', padding:'14px', marginBottom:'16px', textAlign:'left' }}>
-        <div style={{ fontSize:'12px', fontWeight:'700', color:'#2E7D7A', marginBottom:'6px' }}>📲 Lembretes automáticos</div>
-        <div style={{ fontSize:'12px', color:'#9A8880', lineHeight:'1.6' }}>
-          Você receberá um lembrete pelo <strong style={{ color:'#F5EFE6' }}>WhatsApp 2 horas antes</strong> do atendimento.
-        </div>
-      </div>
       {!ehPre && (
-        <button onClick={abrirCalendario}
-          style={{ width:'100%', padding:'12px', borderRadius:'12px', border:'1px solid rgba(66,133,244,0.4)', background:'rgba(66,133,244,0.08)', color:'#4285F4', fontSize:'13px', fontWeight:'700', cursor:'pointer', marginBottom:'10px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
-          📅 Adicionar ao Google Calendar
-        </button>
+        <>
+          <div style={{ background:'rgba(46,125,122,0.1)', border:'1px solid rgba(46,125,122,0.3)', borderRadius:'14px', padding:'14px', marginBottom:'16px', textAlign:'left' }}>
+            <div style={{ fontSize:'12px', fontWeight:'700', color:'#2E7D7A', marginBottom:'6px' }}>📲 Lembretes automáticos</div>
+            <div style={{ fontSize:'12px', color:'#9A8880', lineHeight:'1.6' }}>
+              Você receberá um lembrete pelo <strong style={{ color:'#F5EFE6' }}>WhatsApp 2 horas antes</strong> do atendimento.
+            </div>
+          </div>
+          <button onClick={abrirCalendario}
+            style={{ width:'100%', padding:'12px', borderRadius:'12px', border:'1px solid rgba(66,133,244,0.4)', background:'rgba(66,133,244,0.08)', color:'#4285F4', fontSize:'13px', fontWeight:'700', cursor:'pointer', marginBottom:'10px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
+            📅 Adicionar ao Google Calendar
+          </button>
+        </>
       )}
       <button onClick={onVoltar} style={{ width:'100%', padding:'14px', borderRadius:'14px', border:'none', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontSize:'15px', fontWeight:'700', cursor:'pointer' }}>
         Voltar ao início
