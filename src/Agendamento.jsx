@@ -534,7 +534,9 @@ function EscolherServico({ barbeiro, onEscolher, onBack, dark }) {
 
 // ✅ Calendário mensal do cliente — substitui seletor em linha
 function CalendarioCliente({ diasDisponiveis, isDiaAberto, dataSel, onDiaSel, agendamentosCliente }) {
-  const hoje_str = new Date().toISOString().split('T')[0];
+  // ✅ Fix timezone: usa data local
+  const _hj = new Date();
+  const hoje_str = `${_hj.getFullYear()}-${String(_hj.getMonth()+1).padStart(2,'0')}-${String(_hj.getDate()).padStart(2,'0')}`;
   const [mes, setMes]   = React.useState(new Date().getMonth());
   const [ano, setAno]   = React.useState(new Date().getFullYear());
   const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -544,11 +546,17 @@ function CalendarioCliente({ diasDisponiveis, isDiaAberto, dataSel, onDiaSel, ag
   // Set de datas disponíveis para o cliente
   const dispSet = new Set(diasDisponiveis);
 
+  const _hj2 = new Date();
+  const mesAtual = _hj2.getMonth();
+  const anoAtual = _hj2.getFullYear();
+
   function navMes(dir) {
     let novoMes = mes + dir;
     let novoAno = ano;
     if (novoMes < 0)  { novoMes = 11; novoAno = ano - 1; }
     if (novoMes > 11) { novoMes = 0;  novoAno = ano + 1; }
+    // Não permite voltar para meses passados
+    if (novoAno < anoAtual || (novoAno === anoAtual && novoMes < mesAtual)) return;
     setMes(novoMes); setAno(novoAno);
   }
 
@@ -606,8 +614,14 @@ function EscolherDataHora({ barbeiro, servico, onEscolher, onBack, dark, dataHor
   const s = getStyles(dark);
   const DIAS_KEYS = ['dom','seg','ter','qua','qui','sex','sab'];
   const diasDisponiveis = React.useMemo(() => {
+    // ✅ 60 dias — cobre o mês atual e o próximo completo
     const dias = [];
-    for (let i=0;i<14;i++) { const d=new Date(); d.setDate(d.getDate()+i); dias.push(d.toISOString().split('T')[0]); }
+    const hoje = new Date();
+    for (let i=0; i<60; i++) {
+      const d = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + i);
+      const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      dias.push(ds);
+    }
     return dias;
   }, []);
   const [dataSel, setDataSel]   = React.useState(dataHoraPreSelecionada?.data || null);
