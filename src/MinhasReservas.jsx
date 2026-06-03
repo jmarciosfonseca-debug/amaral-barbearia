@@ -32,12 +32,13 @@ function normalizarTel(tel) {
 
 function BadgeStatus({ status, pagamento }) {
   const configs = {
-    confirmado:         { label: '✅ Confirmado', bg: 'rgba(76,175,80,0.15)',   color: '#4CAF50' },
-    pendente:           { label: '⏳ Pendente',   bg: 'rgba(255,193,7,0.15)',   color: '#FFC107' },
-    cancelado_cliente:  { label: '✗ Cancelado',  bg: 'rgba(244,67,54,0.15)',   color: '#F44336' },
-    cancelado_barbeiro: { label: '✗ Cancelado',  bg: 'rgba(244,67,54,0.15)',   color: '#F44336' },
-    concluido:          { label: '✓ Concluído',  bg: 'rgba(46,125,122,0.15)',  color: '#2E7D7A' },
-    reagendado:         { label: '🔄 Reagendado',bg: 'rgba(201,168,76,0.15)',  color: '#C9A84C' },
+    confirmado:         { label: '✅ Confirmado',    bg: 'rgba(76,175,80,0.15)',   color: '#4CAF50' },
+    pendente:           { label: '⏳ Pendente',       bg: 'rgba(255,193,7,0.15)',   color: '#FFC107' },
+    pre_agendamento:    { label: '📌 Pré-agendado',  bg: 'rgba(255,193,7,0.12)',   color: '#FFC107' },
+    cancelado_cliente:  { label: '✗ Cancelado',      bg: 'rgba(244,67,54,0.15)',   color: '#F44336' },
+    cancelado_barbeiro: { label: '✗ Cancelado',      bg: 'rgba(244,67,54,0.15)',   color: '#F44336' },
+    concluido:          { label: '✓ Concluído',      bg: 'rgba(46,125,122,0.15)',  color: '#2E7D7A' },
+    reagendado:         { label: '🔄 Reagendado',    bg: 'rgba(201,168,76,0.15)',  color: '#C9A84C' },
   };
   const cfg = configs[status] || { label: status, bg: '#2E1A14', color: '#9A8880' };
   return (
@@ -299,16 +300,169 @@ function ModalRepetir({ agOriginal, cliente, onConcluir, onFechar, dark }) {
   );
 }
 
-function CardAgendamento({ ag, onCancelar, onReagendar, onAvaliar, onExcluir, onRepetir }) {
-  const passado     = isPassado(ag.data, ag.hora);
-  const ehHistorico = passado || ag.status?.includes('cancelado');
-  const podeCancelar= !passado && ag.status !== 'cancelado_cliente' && ag.status !== 'cancelado_barbeiro' && ag.status !== 'concluido';
-  const podeAvaliar = ag.status === 'concluido' && !ag.avaliado;
-  const podeRepetir = ehHistorico && ag.barbeiroId && ag.servico;
+
+// ✅ Calendário mensal do cliente com verde/amarelo
+function CalendarioReservas({ agendamentos, onDiaSel, diaSel }) {
+  const hoje_str = new Date().toISOString().split('T')[0];
+  const [mes, setMes] = React.useState(new Date().getMonth());
+  const [ano, setAno] = React.useState(new Date().getFullYear());
+  const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const primeiroDia = new Date(ano, mes, 1).getDay();
+  const diasNoMes   = new Date(ano, mes+1, 0).getDate();
+
+  // Mapa de datas com status
+  const mapaStatus = {};
+  agendamentos.forEach(ag => {
+    if (!ag.data) return;
+    const [a, m] = ag.data.split('-');
+    if (parseInt(a)===ano && parseInt(m)-1===mes) {
+      if (!mapaStatus[ag.data] || ag.status==='confirmado') {
+        mapaStatus[ag.data] = ag.status;
+      }
+    }
+  });
+
+  function navMes(dir) {
+    let nm = mes + dir, na = ano;
+    if (nm < 0)  { nm = 11; na = ano - 1; }
+    if (nm > 11) { nm = 0;  na = ano + 1; }
+    setMes(nm); setAno(na);
+  }
+
+  function strData(a, m, d) {
+    return `${a}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  }
+
+  const cells = [];
+  for (let i=0; i<primeiroDia; i++) cells.push(null);
+  for (let d=1; d<=diasNoMes; d++) cells.push(d);
+
+  const preAgendamentos = agendamentos.filter(ag => ag.status === 'pre_agendamento');
 
   return (
-    <div style={{ background:'#231410', borderRadius:'16px', border:passado?'1px solid #2A1208':'1px solid #3A2018', marginBottom:'12px', overflow:'hidden', opacity:passado?0.85:1 }}>
-      <div style={{ height:'3px', background:ag.status==='confirmado'?'#4CAF50':ag.status==='concluido'?'#2E7D7A':ag.status?.includes('cancelado')?'#F44336':'#FFC107' }} />
+    <div style={{ background:'#1A0F0D', borderRadius:'16px', padding:'14px', marginBottom:'16px', border:'1px solid #3A2018' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
+        <button onClick={() => navMes(-1)} style={{ background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'8px', padding:'4px 10px', color:'#F5EFE6', cursor:'pointer', fontSize:'16px' }}>‹</button>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'15px', color:'#E8C96A', fontWeight:'700' }}>{MESES[mes]} {ano}</div>
+        <button onClick={() => navMes(1)} style={{ background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'8px', padding:'4px 10px', color:'#F5EFE6', cursor:'pointer', fontSize:'16px' }}>›</button>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'2px', marginBottom:'6px' }}>
+        {['D','S','T','Q','Q','S','S'].map((d,i) => (
+          <div key={i} style={{ textAlign:'center', fontSize:'10px', color:'#9A8880', fontWeight:'600', padding:'3px 0' }}>{d}</div>
+        ))}
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'4px' }}>
+        {cells.map((dia, idx) => {
+          if (!dia) return <div key={idx} />;
+          const dataStr = strData(ano, mes, dia);
+          const status  = mapaStatus[dataStr];
+          const isHojeD = dataStr === hoje_str;
+          const isSel   = dataStr === diaSel;
+          const ehConf  = status === 'confirmado' || status === 'concluido';
+          const ehPre   = status === 'pre_agendamento';
+          const temAg   = !!status;
+          return (
+            <div key={idx} onClick={() => temAg && onDiaSel(dataStr)}
+              style={{ borderRadius:'8px', padding:'6px 2px', textAlign:'center', cursor: temAg ? 'pointer' : 'default',
+                background: isSel ? '#3A2018' : ehConf ? 'rgba(76,175,80,0.15)' : ehPre ? 'rgba(255,193,7,0.12)' : isHojeD ? 'rgba(232,201,106,0.1)' : 'transparent',
+                border: isSel ? '1.5px solid #E8C96A' : ehConf ? '1px solid rgba(76,175,80,0.4)' : ehPre ? '1px solid rgba(255,193,7,0.4)' : isHojeD ? '1px solid rgba(232,201,106,0.3)' : '1px solid transparent',
+              }}>
+              <div style={{ fontSize:'13px', fontWeight:'700', color: ehConf ? '#4CAF50' : ehPre ? '#FFC107' : isHojeD ? '#E8C96A' : '#F5EFE6' }}>{dia}</div>
+              {ehConf && <div style={{ width:'5px', height:'5px', borderRadius:'50%', background:'#4CAF50', margin:'2px auto 0' }} />}
+              {ehPre  && <div style={{ width:'5px', height:'5px', borderRadius:'50%', background:'#FFC107', margin:'2px auto 0' }} />}
+            </div>
+          );
+        })}
+      </div>
+      {/* Legenda */}
+      <div style={{ display:'flex', gap:'12px', marginTop:'10px', paddingTop:'10px', borderTop:'1px solid #2E1A14' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'10px', color:'#9A8880' }}>
+          <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'#4CAF50' }} /> Confirmado
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'10px', color:'#9A8880' }}>
+          <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'#FFC107' }} /> Pré-agendado
+        </div>
+      </div>
+      {/* Banner de confirmação */}
+      {preAgendamentos.length > 0 && (
+        <div style={{ marginTop:'10px', background:'rgba(255,193,7,0.1)', border:'1px solid rgba(255,193,7,0.3)', borderRadius:'10px', padding:'10px 12px' }}>
+          <div style={{ fontSize:'12px', fontWeight:'700', color:'#FFC107', marginBottom:'4px' }}>📌 {preAgendamentos.length} pré-agendamento{preAgendamentos.length>1?'s':''} aguardando</div>
+          <div style={{ fontSize:'11px', color:'#F5EFE6', lineHeight:'1.6' }}>
+            Após seu próximo atendimento, confirme para garantir seu horário na barbearia.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ✅ Banner de confirmação de pré-agendamento (aparece após atendimento concluído)
+function BannerConfirmarPre({ agendamento, onConfirmar, onFechar }) {
+  const [confirmando, setConfirmando] = React.useState(false);
+
+  async function confirmar() {
+    setConfirmando(true);
+    try {
+      const { doc: fDoc, updateDoc } = await import('firebase/firestore');
+      await updateDoc(fDoc(db, 'agendamentos', agendamento.firestoreId), {
+        status: 'confirmado',
+        confirmadoEm: new Date().toISOString(),
+      });
+      // Notifica barbearia
+      const msg = encodeURIComponent(
+        `✅ CONFIRMAÇÃO DE AGENDAMENTO
+
+` +
+        `👤 ${agendamento.clienteNome}
+` +
+        `✂️ ${agendamento.barbeiroNome}
+` +
+        `💈 ${agendamento.servico}
+` +
+        `📅 ${agendamento.data?.split('-').reverse().join('/')} às ${agendamento.hora}
+
+` +
+        `_Confirmado pelo cliente via app_`
+      );
+      setTimeout(() => window.open(`https://wa.me/5511977643509?text=${msg}`, '_blank'), 500);
+      onConfirmar();
+    } catch(e) { console.error(e); }
+    setConfirmando(false);
+  }
+
+  return (
+    <div style={{ margin:'0 16px 16px', background:'linear-gradient(135deg,rgba(255,193,7,0.15),rgba(255,152,0,0.1))', border:'1.5px solid rgba(255,193,7,0.5)', borderRadius:'16px', padding:'16px', overflow:'hidden', position:'relative' }}>
+      <div style={{ position:'absolute', top:'-10px', right:'-10px', fontSize:'48px', opacity:0.1 }}>📌</div>
+      <div style={{ fontSize:'11px', color:'#FFC107', fontWeight:'700', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'8px' }}>✅ Confirme seu próximo horário</div>
+      <div style={{ fontWeight:'700', fontSize:'14px', color:'#F5EFE6', marginBottom:'4px' }}>{agendamento.servico} com {agendamento.barbeiroNome}</div>
+      <div style={{ fontSize:'12px', color:'#9A8880', marginBottom:'14px' }}>
+        📅 {agendamento.data?.split('-').reverse().join('/')} às {agendamento.hora}
+      </div>
+      <div style={{ display:'flex', gap:'8px' }}>
+        <button onClick={onFechar} style={{ flex:1, padding:'10px', borderRadius:'10px', border:'1px solid #3A2018', background:'#2E1A14', color:'#9A8880', fontSize:'12px', cursor:'pointer' }}>
+          Depois
+        </button>
+        <button onClick={confirmar} disabled={confirmando}
+          style={{ flex:2, padding:'10px', borderRadius:'10px', border:'none', background:'linear-gradient(135deg,#A07830,#E8C96A)', color:'#1A0F0D', fontSize:'13px', fontWeight:'800', cursor:'pointer' }}>
+          {confirmando ? '...' : '✅ Confirmar agendamento'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CardAgendamento({ ag, onCancelar, onReagendar, onAvaliar, onExcluir, onRepetir, onConfirmarPre }) {
+  const passado     = isPassado(ag.data, ag.hora);
+  const ehPre       = ag.status === 'pre_agendamento';
+  const ehHistorico = passado || ag.status?.includes('cancelado');
+  const podeCancelar= !passado && ag.status !== 'cancelado_cliente' && ag.status !== 'cancelado_barbeiro' && ag.status !== 'concluido' && !ehPre;
+  const podeAvaliar = ag.status === 'concluido' && !ag.avaliado;
+  const podeRepetir = ehHistorico && ag.barbeiroId && ag.servico;
+  const podeConfirmar = ehPre && !passado;
+
+  return (
+    <div style={{ background:'#231410', borderRadius:'16px', border: ehPre ? '1.5px solid rgba(255,193,7,0.5)' : passado?'1px solid #2A1208':'1px solid #3A2018', marginBottom:'12px', overflow:'hidden', opacity:passado?0.85:1 }}>
+      <div style={{ height:'3px', background: ehPre ? '#FFC107' : ag.status==='confirmado'?'#4CAF50':ag.status==='concluido'?'#2E7D7A':ag.status?.includes('cancelado')?'#F44336':'#FFC107' }} />
       <div style={{ padding:'14px' }}>
         <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'10px' }}>
           <div>
@@ -350,6 +504,21 @@ function CardAgendamento({ ag, onCancelar, onReagendar, onAvaliar, onExcluir, on
             🔄 Repetir este agendamento
           </button>
         )}
+        {podeConfirmar && (
+          <div style={{ marginBottom:'8px' }}>
+            <div style={{ background:'rgba(255,193,7,0.1)', border:'1px solid rgba(255,193,7,0.3)', borderRadius:'10px', padding:'8px 12px', marginBottom:'8px', fontSize:'11px', color:'#FFC107', textAlign:'center' }}>
+              🟡 Pré-agendamento — confirme após seu próximo atendimento
+            </div>
+            <button onClick={() => onConfirmarPre && onConfirmarPre(ag)}
+              style={{ width:'100%', padding:'10px', borderRadius:'10px', border:'none', background:'linear-gradient(135deg,#A07830,#C9A84C)', color:'#1A0F0D', fontSize:'13px', fontWeight:'700', cursor:'pointer', marginBottom:'6px' }}>
+              ✅ Confirmar este agendamento
+            </button>
+            <button onClick={() => onCancelar(ag)}
+              style={{ width:'100%', padding:'8px', borderRadius:'10px', border:'1px solid rgba(244,67,54,0.3)', background:'transparent', color:'#F44336', fontSize:'12px', cursor:'pointer' }}>
+              ✗ Cancelar pré-agendamento
+            </button>
+          </div>
+        )}
         {podeCancelar && (
           <div style={{ display:'flex', gap:'8px' }}>
             <button onClick={() => onReagendar(ag)} style={{ flex:1, padding:'10px', borderRadius:'10px', border:'1px solid #3A2018', background:'#2E1A14', color:'#E8C96A', fontSize:'13px', fontWeight:'600', cursor:'pointer' }}>🔄 Reagendar</button>
@@ -375,6 +544,9 @@ export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
   const [repetindo, setRepetindo]       = React.useState(null);
   const [repetidoOk, setRepetidoOk]    = React.useState(false);
   const [aba, setAba]                   = React.useState('proximos');
+  const [diaSel, setDiaSel]             = React.useState(null);
+  const [bannerPre, setBannerPre]       = React.useState(null);
+  const [bannerFechado, setBannerFechado] = React.useState(false);
 
   React.useEffect(() => {
     if (!cliente?.cpf) return;
@@ -407,10 +579,35 @@ export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
     catch(e) { console.error(e); }
   }
 
+  // ✅ Confirmar pré-agendamento — vira confirmado e notifica barbearia
+  async function handleConfirmarPre(ag) {
+    try {
+      const { notificarBarbeariaNovoAgendamento } = await import('./notificacoes');
+      await updateDoc(doc(db,'agendamentos',ag.firestoreId), {
+        status: 'confirmado',
+        confirmadoEm: serverTimestamp(),
+      });
+      notificarBarbeariaNovoAgendamento({ ...ag, status: 'confirmado' });
+    } catch(e) { console.error('Erro ao confirmar pré:', e); }
+  }
+
+  // ✅ Banner de pré-agendamento — aparece quando tem atendimento concluído
+  const preAgendamentos = agendamentos.filter(ag => ag.status === 'pre_agendamento' && !isPassado(ag.data, ag.hora));
+  const ultimoConcluidoRecente = agendamentos.find(ag => ag.status === 'concluido');
+  const mostrarBannerPre = preAgendamentos.length > 0 && ultimoConcluidoRecente;
+
   const proximos  = agendamentos.filter(ag => !isPassado(ag.data, ag.hora) && !ag.status?.includes('cancelado'));
-  const historico = agendamentos.filter(ag => isPassado(ag.data, ag.hora) || ag.status?.includes('cancelado'));
+  const historico = agendamentos.filter(ag => (isPassado(ag.data, ag.hora) || ag.status?.includes('cancelado')) && ag.status !== 'pre_agendamento');
+  const preAgendamentos = agendamentos.filter(ag => ag.status === 'pre_agendamento' && !isPassado(ag.data, ag.hora));
   const lista = aba === 'proximos' ? proximos : historico;
   const ultimoConcluido = agendamentos.find(ag => ag.status === 'concluido');
+
+  // ✅ Mostra banner de confirmação se tem pré-agendamento e último atendimento foi concluído
+  const proximoPreAgendamento = preAgendamentos.sort((a,b) => a.data?.localeCompare(b.data))[0];
+  const deveExibirBanner = !bannerFechado && proximoPreAgendamento && ultimoConcluido;
+
+  // Filtra dias selecionados no calendário
+  const agendamentosDoDia = diaSel ? agendamentos.filter(ag => ag.data === diaSel) : [];
 
   if (avaliando) return <AvaliacaoServico agendamento={avaliando} cliente={cliente} dark={dark} onConcluir={() => setAvaliando(null)} onPular={() => setAvaliando(null)} />;
 
@@ -423,6 +620,30 @@ export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
           <div style={{ fontSize:'11px', color:'rgba(245,239,230,0.6)' }}>{cliente.nome.split(' ')[0]}</div>
         </div>
       </div>
+
+      {/* ✅ Banner pré-agendamento pendente */}
+      {mostrarBannerPre && aba === 'proximos' && (
+        <div style={{ margin:'16px 16px 0', background:'rgba(255,193,7,0.1)', border:'1.5px solid rgba(255,193,7,0.4)', borderRadius:'16px', padding:'16px' }}>
+          <div style={{ fontSize:'11px', color:'#FFC107', fontWeight:'700', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'8px' }}>
+            🟡 {preAgendamentos.length} pré-agendamento{preAgendamentos.length > 1 ? 's' : ''} aguardando
+          </div>
+          <div style={{ fontSize:'12px', color:'#9A8880', marginBottom:'12px', lineHeight:'1.6' }}>
+            Você foi atendido! Confirme seus próximos agendamentos para que o barbeiro os receba.
+          </div>
+          {preAgendamentos.map(ag => (
+            <div key={ag.firestoreId} style={{ background:'#1A0F0D', borderRadius:'10px', padding:'10px 12px', marginBottom:'8px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'10px' }}>
+              <div>
+                <div style={{ fontSize:'13px', color:'#F5EFE6', fontWeight:'600' }}>{ag.servico}</div>
+                <div style={{ fontSize:'11px', color:'#9A8880' }}>✂️ {ag.barbeiroNome} · {formatarData(ag.data)} às {ag.hora}</div>
+              </div>
+              <button onClick={() => handleConfirmarPre(ag)}
+                style={{ padding:'8px 14px', borderRadius:'10px', border:'none', background:'linear-gradient(135deg,#A07830,#C9A84C)', color:'#1A0F0D', fontSize:'12px', fontWeight:'700', cursor:'pointer', flexShrink:0 }}>
+                ✅ Confirmar
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {ultimoConcluido && aba === 'proximos' && proximos.length === 0 && (
         <div style={{ margin:'16px 16px 0', background:'linear-gradient(135deg,#1A2E1A,#1A3A2A)', border:'1px solid rgba(76,175,80,0.3)', borderRadius:'16px', padding:'16px' }}>
@@ -453,6 +674,40 @@ export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
         </div>
       )}
 
+      {/* ✅ Calendário mensal com verde/amarelo */}
+      <div style={{ padding:'16px 16px 0' }}>
+        <CalendarioReservas
+          agendamentos={agendamentos}
+          onDiaSel={d => setDiaSel(diaSel===d ? null : d)}
+          diaSel={diaSel}
+        />
+        {diaSel && agendamentosDoDia.length > 0 && (
+          <div style={{ background:'#231410', border:'1px solid #3A2018', borderRadius:'12px', padding:'12px 14px', marginBottom:'8px' }}>
+            <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'700', marginBottom:'8px' }}>
+              {diaSel.split('-').reverse().join('/')}
+            </div>
+            {agendamentosDoDia.map(ag => (
+              <div key={ag.firestoreId} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'6px 0', borderBottom:'1px solid #2E1A14' }}>
+                <div style={{ width:'8px', height:'8px', borderRadius:'50%', background: ag.status==='confirmado'?'#4CAF50':ag.status==='pre_agendamento'?'#FFC107':ag.status==='concluido'?'#2E7D7A':'#F44336', flexShrink:0 }} />
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:'13px', color:'#F5EFE6', fontWeight:'600' }}>{ag.hora} — {ag.servico}</div>
+                  <div style={{ fontSize:'11px', color:'#9A8880' }}>✂️ {ag.barbeiroNome} · {ag.status==='pre_agendamento'?'📌 Pré-agendado':ag.status==='confirmado'?'✅ Confirmado':ag.status==='concluido'?'✓ Concluído':'✗ Cancelado'}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ✅ Banner de confirmação de pré-agendamento */}
+      {deveExibirBanner && (
+        <BannerConfirmarPre
+          agendamento={proximoPreAgendamento}
+          onConfirmar={() => setBannerFechado(true)}
+          onFechar={() => setBannerFechado(true)}
+        />
+      )}
+
       <div style={{ display:'flex', borderBottom:'1px solid #3A2018', marginTop:'16px' }}>
         {[{id:'proximos',label:`Próximos (${proximos.length})`},{id:'historico',label:`Histórico (${historico.length})`}].map(a => (
           <button key={a.id} onClick={() => setAba(a.id)} style={{ flex:1, padding:'14px', border:'none', background:'transparent', borderBottom:aba===a.id?'2px solid #8B3A2A':'2px solid transparent', color:aba===a.id?'#F5EFE6':'#9A8880', fontSize:'13px', fontWeight:aba===a.id?'700':'400', cursor:'pointer' }}>
@@ -479,6 +734,7 @@ export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
               onAvaliar={ag => setAvaliando(ag)}
               onExcluir={handleExcluir}
               onRepetir={ag => { setRepetindo(ag); setRepetidoOk(false); }}
+              onConfirmarPre={handleConfirmarPre}
             />
           ))
         )}
