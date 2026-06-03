@@ -421,12 +421,52 @@ function EscolherBarbeiro({ onEscolher, onBack, dark, promoAtiva }) {
     setBuscando(false);
   }
 
+  const [perfilAberto, setPerfilAberto] = React.useState(null);
+
+  if (perfilAberto) {
+    return (
+      <div style={{ ...s.app }}>
+        <div style={{ background:'linear-gradient(135deg,#5C2218,#8B3A2A)', padding:'20px', position:'relative' }}>
+          <button onClick={() => setPerfilAberto(null)} style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:'8px', padding:'6px 10px', color:'#F5EFE6', cursor:'pointer', fontSize:'14px', marginBottom:'16px' }}>← Voltar</button>
+          <div style={{ display:'flex', alignItems:'center', gap:'16px' }}>
+            <div style={{ width:'72px', height:'72px', borderRadius:'50%', background:'linear-gradient(135deg,#3A1208,#5C2218)', border:'3px solid #E8C96A', overflow:'hidden', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'28px', fontWeight:'700', color:'#F5EFE6' }}>
+              {perfilAberto.foto ? <img src={perfilAberto.foto} alt={perfilAberto.nome} style={{ width:'100%',height:'100%',objectFit:'cover' }}/> : perfilAberto.nome.charAt(0)}
+            </div>
+            <div>
+              <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'22px', color:'#F5EFE6', fontWeight:'700' }}>{perfilAberto.nome}</div>
+              <div style={{ fontSize:'13px', color:'rgba(245,239,230,0.7)', marginTop:'2px' }}>{perfilAberto.cargo||'Barbeiro'}</div>
+              {perfilAberto.experiencia && <div style={{ fontSize:'12px', color:'#E8C96A', marginTop:'4px' }}>✂️ {perfilAberto.experiencia}</div>}
+            </div>
+          </div>
+        </div>
+        <div style={{ padding:'20px', paddingBottom:'100px' }}>
+          {perfilAberto.bio && (
+            <div style={{ background:'#231410', borderRadius:'14px', padding:'16px', border:'1px solid #3A2018', marginBottom:'16px' }}>
+              <div style={{ fontSize:'12px', color:'#E8C96A', fontWeight:'700', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'8px' }}>Sobre</div>
+              <div style={{ fontSize:'14px', color:'#F5EFE6', lineHeight:'1.7' }}>{perfilAberto.bio}</div>
+            </div>
+          )}
+          <div style={{ background:'#231410', borderRadius:'14px', padding:'14px', border:'1px solid #3A2018', display:'flex', alignItems:'center', gap:'12px' }}>
+            <div style={{ width:'12px', height:'12px', borderRadius:'50%', background:perfilAberto.disponivel?'#4CAF50':'#FFC107', flexShrink:0 }} />
+            <div style={{ fontSize:'13px', color:'#F5EFE6' }}>{perfilAberto.disponivel?'Disponível agora':'Ocupado no momento'}</div>
+          </div>
+        </div>
+        <div style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:'430px', background:'#1A0F0D', borderTop:'1px solid #3A2018', padding:'12px 16px 28px', zIndex:100 }}>
+          <button onClick={() => { setPerfilAberto(null); onEscolher(perfilAberto); }}
+            style={{ width:'100%', padding:'14px', borderRadius:'14px', border:'none', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontSize:'15px', fontWeight:'700', cursor:'pointer' }}>
+            ✂️ Agendar com {perfilAberto.nome.split(' ')[0]}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ ...s.app, padding:'20px', paddingBottom:'40px' }}>
       <BotaoVoltar onClick={onBack} />
       <StepIndicator step={0} total={4} />
       <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'20px', color:'#F5EFE6', marginBottom:'6px', marginTop:'8px' }}>Escolha o barbeiro</div>
-      <div style={{ fontSize:'12px', color:'#9A8880', marginBottom:'16px' }}>Selecione com quem deseja se barbear</div>
+      <div style={{ fontSize:'12px', color:'#9A8880', marginBottom:'16px' }}>Toque no nome para agendar · foto para ver o perfil</div>
       <button onClick={handlePrimeiroDisponivel} disabled={buscandoPrimeiro || !config}
         style={{ width:'100%', padding:'14px', borderRadius:'14px', border:'none', background:buscandoPrimeiro?'#2E1A14':'linear-gradient(135deg,#2E7D7A,#3A9E9A)', color:buscandoPrimeiro?'#555':'#fff', fontWeight:'700', fontSize:'14px', cursor:buscandoPrimeiro?'wait':'pointer', marginBottom:'16px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
         {buscandoPrimeiro ? '⏳ Buscando...' : '⚡ Quero o primeiro horário disponível'}
@@ -448,20 +488,23 @@ function EscolherBarbeiro({ onEscolher, onBack, dark, promoAtiva }) {
       )}
       {carregando ? <div style={{ textAlign:'center', color:'#9A8880', padding:'40px' }}>Carregando...</div> : (
         barbeiros.map(b => (
-          <Card key={b.id} onClick={() => onEscolher(b)}>
-            <div style={{ display:'flex', alignItems:'center', gap:'14px' }}>
-              <div style={{ width:'56px', height:'56px', borderRadius:'50%', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', fontWeight:'700', color:'#F5EFE6', border:b.disponivel?'2px solid #4CAF50':'2px solid #FFC107', overflow:'hidden', flexShrink:0 }}>
-                {b.foto ? <img src={b.foto} alt={b.nome} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : b.nome.charAt(0)}
-              </div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontWeight:'700', fontSize:'16px', color:'#F5EFE6' }}>{b.nome}</div>
-                <div style={{ fontSize:'12px', color:'#9A8880' }}>{b.cargo}</div>
-              </div>
+          <div key={b.id} style={{ background:'#231410', borderRadius:'16px', padding:'14px', border:'1px solid #3A2018', marginBottom:'10px', display:'flex', alignItems:'center', gap:'14px' }}>
+            <div onClick={() => setPerfilAberto(b)} style={{ width:'56px', height:'56px', borderRadius:'50%', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', fontWeight:'700', color:'#F5EFE6', border:b.disponivel?'2px solid #4CAF50':'2px solid #FFC107', overflow:'hidden', flexShrink:0, cursor:'pointer' }}>
+              {b.foto ? <img src={b.foto} alt={b.nome} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : b.nome.charAt(0)}
+            </div>
+            <div style={{ flex:1 }} onClick={() => onEscolher(b)} >
+              <div style={{ fontWeight:'700', fontSize:'16px', color:'#F5EFE6', cursor:'pointer' }}>{b.nome}</div>
+              <div style={{ fontSize:'12px', color:'#9A8880' }}>{b.cargo}</div>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'6px', alignItems:'flex-end' }}>
               <div style={{ fontSize:'11px', padding:'4px 10px', borderRadius:'20px', fontWeight:'600', background:b.disponivel?'rgba(76,175,80,0.15)':'rgba(255,193,7,0.15)', color:b.disponivel?'#4CAF50':'#FFC107' }}>
                 {b.disponivel ? '● Disponível' : '● Ocupado'}
               </div>
+              <button onClick={() => setPerfilAberto(b)} style={{ fontSize:'10px', color:'#9A8880', background:'none', border:'1px solid #3A2018', borderRadius:'8px', padding:'3px 8px', cursor:'pointer' }}>
+                Ver perfil
+              </button>
             </div>
-          </Card>
+          </div>
         ))
       )}
     </div>
