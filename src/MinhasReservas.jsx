@@ -11,7 +11,6 @@ import {
   onSnapshot, doc, updateDoc, serverTimestamp,
 } from 'firebase/firestore';
 import { getStyles } from './getStyles';
-import { notificarBarbeariaCancel } from './notificacoes';
 import AvaliacaoServico from './AvaliacaoServico';
 
 function hoje() { return new Date().toISOString().split('T')[0]; }
@@ -78,8 +77,7 @@ function ModalCancelar({ agendamento, onConfirmar, onFechar }) {
       setCancelado(true);
       // ✅ Fase 2: abre WhatsApp automaticamente para notificar a barbearia
       setTimeout(() => {
-        notificarBarbeariaCancel(agendamento);      // notificacoes.js (existente)
-        notificarCancelamentoWhatsApp(agendamento); // ✅ novo — abre WA da barbearia
+        notificarCancelamentoWhatsApp(agendamento);
         onConfirmar();
       }, 1000);
     } catch(e) { console.error(e); }
