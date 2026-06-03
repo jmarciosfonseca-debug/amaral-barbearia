@@ -337,7 +337,6 @@ function CalendarioReservas({ agendamentos, onDiaSel, diaSel }) {
   for (let i=0; i<primeiroDia; i++) cells.push(null);
   for (let d=1; d<=diasNoMes; d++) cells.push(d);
 
-  const preAgendamentos = agendamentos.filter(ag => ag.status === 'pre_agendamento');
 
   return (
     <div style={{ background:'#1A0F0D', borderRadius:'16px', padding:'14px', marginBottom:'16px', border:'1px solid #3A2018' }}>
@@ -592,7 +591,6 @@ export default function MinhasReservas({ cliente, onBack, onReagendar, dark }) {
   }
 
   // ✅ Banner de pré-agendamento — aparece quando tem atendimento concluído
-  const preAgendamentos = agendamentos.filter(ag => ag.status === 'pre_agendamento' && !isPassado(ag.data, ag.hora));
   const ultimoConcluidoRecente = agendamentos.find(ag => ag.status === 'concluido');
   const mostrarBannerPre = preAgendamentos.length > 0 && ultimoConcluidoRecente;
 
