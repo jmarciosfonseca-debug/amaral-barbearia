@@ -653,10 +653,31 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
         <div style={{ padding:'16px' }}>
           {/* Botão configurar horários semanais */}
           {permissoes.editarHorarios && (
-            <button onClick={() => setShowHorarios(true)}
-              style={{ width:'100%', padding:'13px', borderRadius:'14px', border:'1px solid rgba(232,201,106,0.3)', background:'rgba(232,201,106,0.08)', color:'#E8C96A', fontSize:'14px', fontWeight:'700', cursor:'pointer', marginBottom:'16px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
-              🕐 Configurar meus horários semanais
-            </button>
+            <div style={{ display:'flex', gap:'8px', marginBottom:'16px' }}>
+              <button onClick={() => setShowHorarios(true)}
+                style={{ flex:1, padding:'13px', borderRadius:'14px', border:'1px solid rgba(232,201,106,0.3)', background:'rgba(232,201,106,0.08)', color:'#E8C96A', fontSize:'13px', fontWeight:'700', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}>
+                🕐 Horários semanais
+              </button>
+              <button onClick={async () => {
+                // ✅ Bloqueia/desbloqueia o dia inteiro
+                const { collection: col, query: q, where: w, getDocs: gd, doc: fd, setDoc, deleteDoc } = await import('firebase/firestore');
+                const snap = await gd(q(col(db,'slots_bloqueados'), w('barbeiroId','==',usuario.id), w('data','==',dataSel)));
+                if (snap.size > 0) {
+                  // Desbloqueia tudo
+                  await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+                  setSlotsBloqueados(new Set());
+                } else {
+                  // Bloqueia todas as horas do dia
+                  const slots = [];
+                  for (let h=8; h<24; h++) for (let m=0; m<60; m+=30) slots.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
+                  await Promise.all(slots.map(hora => setDoc(fd(db,'slots_bloqueados',`${usuario.id}_${dataSel}_${hora}`), { barbeiroId:usuario.id, data:dataSel, hora, bloqueadoEm:new Date().toISOString() })));
+                  setSlotsBloqueados(new Set(slots));
+                }
+              }}
+                style={{ padding:'13px 16px', borderRadius:'14px', border:'1px solid rgba(244,67,54,0.3)', background:'rgba(244,67,54,0.08)', color:'#F44336', fontSize:'13px', fontWeight:'700', cursor:'pointer', display:'flex', alignItems:'center', gap:'6px', whiteSpace:'nowrap' }}>
+                🔒 {slotsBloqueados.size > 0 ? 'Abrir dia' : 'Fechar dia'}
+              </button>
+            </div>
           )}
 
           {/* Grade do dia selecionado */}
