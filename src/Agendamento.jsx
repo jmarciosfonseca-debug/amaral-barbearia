@@ -954,6 +954,19 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, promoAtiva, onConfirm
     if (travado && pagPref==='local') { setErro('Você deve pagar o sinal via Pix para confirmar.'); return; }
     setSalvando(true); setErro('');
     try {
+      // ✅ Verifica se cliente já tem agendamento confirmado neste mês
+      const [ano, mes] = dataHora.data.split('-');
+      const inicioMes = `${ano}-${mes}-01`;
+      const fimMes    = `${ano}-${mes}-31`;
+      const snapMes = await getDocs(query(
+        collection(db,'agendamentos'),
+        where('clienteCpf','==',cliente.cpf),
+        where('data','>=',inicioMes),
+        where('data','<=',fimMes),
+        where('status','in',['confirmado','pendente']),
+      ));
+      const ehPreAgendamento = !snapMes.empty;
+
       const agendamento = {
         clienteCpf: cliente.cpf, clienteNome: cliente.nome, clienteTel: cliente.telefone,
         barbeiroId: barbeiro.id, barbeiroNome: barbeiro.nome,
@@ -962,15 +975,18 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, promoAtiva, onConfirm
         data: dataHora.data, hora: dataHora.hora,
         pagamento: travado?'pix_sinal':pagPref,
         sinal: travado?valorTotal*0.5:0,
-        status: 'confirmado', agendadoPor: 'cliente',
+        // ✅ Se já tem agendamento confirmado no mês → pre_agendamento
+        status: ehPreAgendamento ? 'pre_agendamento' : 'confirmado',
+        agendadoPor: 'cliente',
         travaCancelamento: travado,
         promoResgatada: promoResgate ? promoResgate.promoTitulo : null,
         lembrete24hEnviado: false, lembrete2hEnviado: false,
         criadoEm: serverTimestamp(),
       };
       await addDoc(collection(db,'agendamentos'), agendamento);
-      notificarBarbeariaNovoAgendamento(agendamento);
-      onConfirmar(agendamento);
+      // ✅ Só notifica barbearia se for confirmado (não pré)
+      if (!ehPreAgendamento) notificarBarbeariaNovoAgendamento(agendamento);
+      onConfirmar({ ...agendamento, ehPreAgendamento });
     } catch(e) { setErro('Erro ao confirmar. Tente novamente.'); console.error(e); }
     finally { setSalvando(false); }
   }
@@ -1114,6 +1130,7 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, promoAtiva, onConfirm
 // ─────────────────────────────────────────────────────────────
 function Confirmado({ agendamento, onVoltar, dark }) {
   const s = getStyles(dark);
+  const ehPre = agendamento.ehPreAgendamento || agendamento.status === 'pre_agendamento';
 
   function abrirCalendario() {
     // ✅ Fix: timezone local para não deslocar o dia
@@ -1154,9 +1171,21 @@ function Confirmado({ agendamento, onVoltar, dark }) {
 
   return (
     <div style={{ ...s.app, padding:'32px 20px 60px', textAlign:'center' }}>
-      <div style={{ fontSize:'64px', marginBottom:'16px' }}>🎉</div>
-      <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'24px', color:'#E8C96A', marginBottom:'8px' }}>Agendado!</div>
-      <div style={{ fontSize:'14px', color:'#9A8880', marginBottom:'24px' }}>Seu horário está confirmado</div>
+      <div style={{ fontSize:'64px', marginBottom:'16px' }}>{ehPre ? '📌' : '🎉'}</div>
+      <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'24px', color: ehPre ? '#FFC107' : '#E8C96A', marginBottom:'8px' }}>
+        {ehPre ? 'Pré-agendado!' : 'Agendado!'}
+      </div>
+      <div style={{ fontSize:'14px', color:'#9A8880', marginBottom:'24px' }}>
+        {ehPre ? 'Aguardando seu próximo atendimento para confirmar' : 'Seu horário está confirmado'}
+      </div>
+      {ehPre && (
+        <div style={{ background:'rgba(255,193,7,0.12)', border:'1px solid rgba(255,193,7,0.4)', borderRadius:'14px', padding:'14px', marginBottom:'16px', textAlign:'left' }}>
+          <div style={{ fontSize:'12px', fontWeight:'700', color:'#FFC107', marginBottom:'6px' }}>📌 O que é um pré-agendamento?</div>
+          <div style={{ fontSize:'12px', color:'#F5EFE6', lineHeight:'1.7' }}>
+            Você já tem um agendamento confirmado este mês. Este ficará reservado e <strong>só será confirmado após seu próximo atendimento</strong>. A barbearia será notificada na confirmação.
+          </div>
+        </div>
+      )}
       <div style={{ background:'#231410', borderRadius:'16px', padding:'20px', border:'1.5px solid #8B3A2A', marginBottom:'16px', textAlign:'left' }}>
         {[
           { icon:'✂️', label:'Barbeiro', value:agendamento.barbeiroNome },
@@ -1179,10 +1208,12 @@ function Confirmado({ agendamento, onVoltar, dark }) {
           Você receberá um lembrete pelo <strong style={{ color:'#F5EFE6' }}>WhatsApp 2 horas antes</strong> do atendimento.
         </div>
       </div>
-      <button onClick={abrirCalendario}
-        style={{ width:'100%', padding:'12px', borderRadius:'12px', border:'1px solid rgba(66,133,244,0.4)', background:'rgba(66,133,244,0.08)', color:'#4285F4', fontSize:'13px', fontWeight:'700', cursor:'pointer', marginBottom:'10px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
-        📅 Adicionar ao Google Calendar
-      </button>
+      {!ehPre && (
+        <button onClick={abrirCalendario}
+          style={{ width:'100%', padding:'12px', borderRadius:'12px', border:'1px solid rgba(66,133,244,0.4)', background:'rgba(66,133,244,0.08)', color:'#4285F4', fontSize:'13px', fontWeight:'700', cursor:'pointer', marginBottom:'10px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
+          📅 Adicionar ao Google Calendar
+        </button>
+      )}
       <button onClick={onVoltar} style={{ width:'100%', padding:'14px', borderRadius:'14px', border:'none', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontSize:'15px', fontWeight:'700', cursor:'pointer' }}>
         Voltar ao início
       </button>
