@@ -531,6 +531,77 @@ function EscolherServico({ barbeiro, onEscolher, onBack, dark }) {
   );
 }
 
+
+// ✅ Calendário mensal do cliente — substitui seletor em linha
+function CalendarioCliente({ diasDisponiveis, isDiaAberto, dataSel, onDiaSel, agendamentosCliente }) {
+  const hoje_str = new Date().toISOString().split('T')[0];
+  const [mes, setMes]   = React.useState(new Date().getMonth());
+  const [ano, setAno]   = React.useState(new Date().getFullYear());
+  const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const primeiroDia = new Date(ano, mes, 1).getDay();
+  const diasNoMes  = new Date(ano, mes+1, 0).getDate();
+
+  // Set de datas disponíveis para o cliente
+  const dispSet = new Set(diasDisponiveis);
+
+  function navMes(dir) {
+    let novoMes = mes + dir;
+    let novoAno = ano;
+    if (novoMes < 0)  { novoMes = 11; novoAno = ano - 1; }
+    if (novoMes > 11) { novoMes = 0;  novoAno = ano + 1; }
+    setMes(novoMes); setAno(novoAno);
+  }
+
+  function strData(a, m, d) {
+    return `${a}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  }
+
+  const cells = [];
+  for (let i=0; i<primeiroDia; i++) cells.push(null);
+  for (let d=1; d<=diasNoMes; d++) cells.push(d);
+
+  return (
+    <div style={{ background:'#1A0F0D', borderRadius:'16px', padding:'14px', marginBottom:'16px', border:'1px solid #3A2018' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
+        <button onClick={() => navMes(-1)} style={{ background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'8px', padding:'4px 10px', color:'#F5EFE6', cursor:'pointer', fontSize:'16px' }}>‹</button>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'15px', color:'#E8C96A', fontWeight:'700' }}>{MESES[mes]} {ano}</div>
+        <button onClick={() => navMes(1)} style={{ background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'8px', padding:'4px 10px', color:'#F5EFE6', cursor:'pointer', fontSize:'16px' }}>›</button>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'2px', marginBottom:'6px' }}>
+        {['D','S','T','Q','Q','S','S'].map((d,i) => (
+          <div key={i} style={{ textAlign:'center', fontSize:'10px', color:'#9A8880', fontWeight:'600', padding:'3px 0' }}>{d}</div>
+        ))}
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'4px' }}>
+        {cells.map((dia, idx) => {
+          if (!dia) return <div key={idx} />;
+          const dataStr = strData(ano, mes, dia);
+          const isHojeD = dataStr === hoje_str;
+          const isSel   = dataStr === dataSel;
+          const disponivel = dispSet.has(dataStr) && isDiaAberto(dataStr);
+          const passado  = dataStr < hoje_str;
+          return (
+            <div key={idx} onClick={() => disponivel && onDiaSel(dataStr)}
+              style={{ borderRadius:'8px', padding:'6px 2px', textAlign:'center',
+                cursor: disponivel ? 'pointer' : 'not-allowed',
+                background: isSel ? '#8B3A2A' : isHojeD ? 'rgba(232,201,106,0.15)' : 'transparent',
+                border: isSel ? '1.5px solid #E8C96A' : isHojeD ? '1px solid rgba(232,201,106,0.4)' : '1px solid transparent',
+                opacity: passado || !disponivel ? 0.3 : 1,
+              }}>
+              <div style={{ fontSize:'13px', fontWeight:'700', color: isSel ? '#F5EFE6' : isHojeD ? '#E8C96A' : disponivel ? '#F5EFE6' : '#555' }}>{dia}</div>
+            </div>
+          );
+        })}
+      </div>
+      {dataSel && (
+        <div style={{ marginTop:'10px', padding:'8px 10px', background:'rgba(139,58,42,0.2)', borderRadius:'8px', textAlign:'center', fontSize:'12px', color:'#E8C96A', fontWeight:'600' }}>
+          Selecionado: {dataSel.split('-').reverse().join('/')}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EscolherDataHora({ barbeiro, servico, onEscolher, onBack, dark, dataHoraPreSelecionada }) {
   const s = getStyles(dark);
   const DIAS_KEYS = ['dom','seg','ter','qua','qui','sex','sab'];
@@ -585,19 +656,14 @@ function EscolherDataHora({ barbeiro, servico, onEscolher, onBack, dark, dataHor
           ⚡ Primeiro horário disponível pré-selecionado — confirme ou troque abaixo.
         </div>
       )}
-      <div style={{ overflowX:'auto', display:'flex', gap:'8px', paddingBottom:'8px', marginBottom:'20px' }}>
-        {diasDisponiveis.map(data => {
-          const aberto = isDiaAberto(data), sel = dataSel===data;
-          const d = new Date(data+'T12:00:00');
-          return (
-            <div key={data} onClick={() => aberto&&setDataSel(data)} style={{ minWidth:'56px', padding:'10px 8px', borderRadius:'12px', textAlign:'center', cursor:aberto?'pointer':'not-allowed', background:sel?'#8B3A2A':aberto?'#231410':'#1A0F0D', border:sel?'1.5px solid #E8C96A':'1px solid #3A2018', opacity:aberto?1:0.4 }}>
-              <div style={{ fontSize:'10px', color:sel?'#E8C96A':'#9A8880', fontWeight:'600' }}>{DIAS_SEMANA[d.getDay()]}</div>
-              <div style={{ fontSize:'18px', fontWeight:'700', color:'#F5EFE6', marginTop:'2px' }}>{d.getDate()}</div>
-              <div style={{ fontSize:'10px', color:sel?'#E8C96A':'#9A8880' }}>{String(d.getMonth()+1).padStart(2,'0')}</div>
-            </div>
-          );
-        })}
-      </div>
+      {/* ✅ Calendário mensal — substitui seletor em linha */}
+      <CalendarioCliente
+        diasDisponiveis={diasDisponiveis}
+        isDiaAberto={isDiaAberto}
+        dataSel={dataSel}
+        onDiaSel={setDataSel}
+        agendamentosCliente={[]}
+      />
       {dataSel && (
         <>
           <div style={{ fontSize:'13px', color:'#E8C96A', fontWeight:'600', marginBottom:'12px' }}>Horários disponíveis — {formatarData(dataSel)}</div>
@@ -1050,14 +1116,40 @@ function Confirmado({ agendamento, onVoltar, dark }) {
   const s = getStyles(dark);
 
   function abrirCalendario() {
-    const dataInicio = `${agendamento.data.replace(/-/g,'')}T${agendamento.hora.replace(':','')}00`;
+    // ✅ Fix: timezone local para não deslocar o dia
+    const [hh, mm] = agendamento.hora.split(':');
+    const dataInicio = `${agendamento.data.replace(/-/g,'')}T${String(hh).padStart(2,'0')}${String(mm).padStart(2,'0')}00`;
     const durMin = agendamento.duracao || 30;
     const fim = new Date(`${agendamento.data}T${agendamento.hora}:00`);
     fim.setMinutes(fim.getMinutes() + durMin);
-    const dataFim = fim.toISOString().replace(/[-:]/g,'').split('.')[0];
-    const texto = encodeURIComponent(`Flyguer BarberShop — ${agendamento.servico} com ${agendamento.barbeiroNome}`);
-    const local = encodeURIComponent('Shopping Cidade das Artes — Piso 2, Nº 22');
-    window.open(`https://calendar.google.com/calendar/r/eventedit?text=${texto}&dates=${dataInicio}/${dataFim}&location=${local}&details=Agendado+pelo+app+Flyguer+BarberShop`, '_blank');
+    const anoF = fim.getFullYear();
+    const mesF = String(fim.getMonth()+1).padStart(2,'0');
+    const diaF = String(fim.getDate()).padStart(2,'0');
+    const horF = String(fim.getHours()).padStart(2,'0');
+    const minF = String(fim.getMinutes()).padStart(2,'0');
+    const dataFim = `${anoF}${mesF}${diaF}T${horF}${minF}00`;
+    const texto = encodeURIComponent(`✂️ Flyguer BarberShop — ${agendamento.servico}`);
+    const local = encodeURIComponent('Flyguer BarberShop — Shopping Cidade das Artes, Piso 2, Nº 22, São Paulo - SP');
+    const detalhes = encodeURIComponent(
+      `💈 Barbeiro: ${agendamento.barbeiroNome}
+` +
+      `✂️ Serviço: ${agendamento.servico}
+` +
+      `⏱ Duração: ${durMin} min
+` +
+      `💰 Valor: R$ ${(agendamento.valor||0).toFixed(2).replace('.',',')}
+
+` +
+      `📍 Shopping Cidade das Artes — Piso 2, Nº 22
+` +
+      `📲 App: https://flyguer-barbershop.vercel.app
+` +
+      `📞 WhatsApp: (11) 97764-3509
+
+` +
+      `Agendado pelo app Flyguer BarberShop`
+    );
+    window.open(`https://calendar.google.com/calendar/r/eventedit?text=${texto}&dates=${dataInicio}/${dataFim}&location=${local}&details=${detalhes}`, '_blank');
   }
 
   return (
