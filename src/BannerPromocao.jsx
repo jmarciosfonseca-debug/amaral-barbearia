@@ -2,7 +2,7 @@
 // ✅ Banner em tempo real com countdown, urgência visual e race condition protection
 
 import React from 'react';
-import { escutarPromocao, resgatarPromocao, clienteJaResgatou, promoEstaAtiva } from './promocaoEngine';
+import { escutarPromocao, resgatarPromocao, clienteJaResgatou } from './promocaoEngine';
 
 function useContador(expiracaoTimestamp) {
   const [segundos, setSegundos] = React.useState(null);
@@ -34,11 +34,11 @@ function useContador(expiracaoTimestamp) {
 }
 
 export default function BannerPromocao({ cliente, onResgatado }) {
-  const [promo, setPromo]         = React.useState(null);
-  const [ativa, setAtiva]         = React.useState(false);
+  const [promo, setPromo]           = React.useState(null);
+  const [ativa, setAtiva]           = React.useState(false);
   const [jaResgatou, setJaResgatou] = React.useState(false);
-  const [estado, setEstado]       = React.useState('idle'); // idle | resgatando | sucesso | esgotado | erro
-  const [pulsar, setPulsar]       = React.useState(false);
+  const [estado, setEstado]         = React.useState('idle'); // idle | resgatando | sucesso | esgotado | erro
+  const [pulsar, setPulsar]         = React.useState(false);
   const contador = useContador(promo?.expiracaoTimestamp);
 
   // ✅ Listener em tempo real
@@ -50,7 +50,7 @@ export default function BannerPromocao({ cliente, onResgatado }) {
     return unsub;
   }, []);
 
-  // Verificar se já resgatou
+  // Verificar se já resgatou (só quando logado)
   React.useEffect(() => {
     if (!cliente?.cpf || !promo) return;
     clienteJaResgatou(cliente.cpf).then(setJaResgatou);
@@ -63,26 +63,33 @@ export default function BannerPromocao({ cliente, onResgatado }) {
     setPulsar(restantes <= 3);
   }, [promo?.resgatados, promo?.vagas]);
 
-  // Não mostra se não há promoção ativa ou cliente já resgatou
-  if (!ativa || !promo || jaResgatou) return null;
+  // Não mostra se não há promoção ativa, ou se cliente logado já resgatou
+  if (!ativa || !promo) return null;
+  if (cliente?.cpf && jaResgatou) return null;
 
   const vagasRestantes = (promo.vagas || 0) - (promo.resgatados || 0);
   const pct = Math.max(0, Math.min(100, (vagasRestantes / promo.vagas) * 100));
 
   async function handleResgatar() {
     if (estado === 'resgatando') return;
+
+    // ✅ Sem login: salva promo e redireciona para login
+    if (!cliente?.cpf) {
+      if (onResgatado) onResgatado(promo, 'login_required');
+      return;
+    }
+
     setEstado('resgatando');
     try {
       const resultado = await resgatarPromocao(cliente);
       if (resultado.ok) {
         setEstado('sucesso');
         setJaResgatou(true);
-        // Notifica WhatsApp da barbearia
         const msg = encodeURIComponent(
           `🔥 PROMOÇÃO RESGATADA!\n\n` +
           `👤 ${cliente.nome}\n` +
-          `📞 ${cliente.telefone||'—'}\n` +
-          `🎁 ${promo.titulo}${promo.descricao?'\n✅ '+promo.descricao:''}\n\n` +
+          `📞 ${cliente.telefone || '—'}\n` +
+          `🎁 ${promo.titulo}${promo.descricao ? '\n✅ ' + promo.descricao : ''}\n\n` +
           `_Resgatado pelo app Flyguer_`
         );
         setTimeout(() => {
@@ -118,7 +125,7 @@ export default function BannerPromocao({ cliente, onResgatado }) {
     );
   }
 
-  // Tela de esgotado (race condition perdida)
+  // Tela de esgotado
   if (estado === 'esgotado') {
     return (
       <div style={{ ...styles.container, background:'linear-gradient(135deg,#2A2A2A,#1A1A1A)' }}>
@@ -131,6 +138,14 @@ export default function BannerPromocao({ cliente, onResgatado }) {
     );
   }
 
+  // ✅ Texto do botão adaptado ao contexto
+  function textoBotao() {
+    if (estado === 'resgatando') return '⏳ Garantindo sua vaga...';
+    if (estado === 'erro')       return '⚠️ Tente novamente';
+    if (!cliente?.cpf)           return '🔥 Quero essa promoção!';
+    return '🔥 Garantir minha vaga agora!';
+  }
+
   return (
     <div style={{
       ...styles.container,
@@ -139,7 +154,7 @@ export default function BannerPromocao({ cliente, onResgatado }) {
       <style>{`
         @keyframes pulsar {
           0%,100% { box-shadow: 0 0 0 0 rgba(244,67,54,0.4); }
-          50% { box-shadow: 0 0 0 12px rgba(244,67,54,0); }
+          50%      { box-shadow: 0 0 0 12px rgba(244,67,54,0); }
         }
         @keyframes slideIn {
           from { transform: translateY(-20px); opacity: 0; }
@@ -179,14 +194,29 @@ export default function BannerPromocao({ cliente, onResgatado }) {
       <div style={{ marginBottom:'12px' }}>
         <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'6px' }}>
           <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.8)', fontWeight:'600' }}>
-            {vagasRestantes === 1 ? '⚠️ ÚLTIMA VAGA!' : `⚡ ${vagasRestantes} vaga${vagasRestantes!==1?'s':''} restante${vagasRestantes!==1?'s':''}`}
+            {vagasRestantes === 1
+              ? '⚠️ ÚLTIMA VAGA!'
+              : `⚡ ${vagasRestantes} vaga${vagasRestantes !== 1 ? 's' : ''} restante${vagasRestantes !== 1 ? 's' : ''}`}
           </div>
           <div style={{ fontSize:'11px', color:'rgba(255,255,255,0.5)' }}>{promo.resgatados}/{promo.vagas}</div>
         </div>
         <div style={{ height:'6px', background:'rgba(0,0,0,0.3)', borderRadius:'3px', overflow:'hidden' }}>
-          <div style={{ height:'100%', width:`${100-pct}%`, background: pct > 50 ? '#4CAF50' : pct > 20 ? '#FFC107' : '#F44336', borderRadius:'3px', transition:'width 0.5s ease' }} />
+          <div style={{
+            height:'100%',
+            width:`${100 - pct}%`,
+            background: pct > 50 ? '#4CAF50' : pct > 20 ? '#FFC107' : '#F44336',
+            borderRadius:'3px',
+            transition:'width 0.5s ease',
+          }} />
         </div>
       </div>
+
+      {/* ✅ Aviso de login necessário para não-logados */}
+      {!cliente?.cpf && (
+        <div style={{ fontSize:'11px', color:'rgba(255,255,255,0.7)', textAlign:'center', marginBottom:'10px' }}>
+          Faça login ou cadastre-se para garantir sua vaga
+        </div>
+      )}
 
       {/* Botão */}
       <button
@@ -194,17 +224,18 @@ export default function BannerPromocao({ cliente, onResgatado }) {
         disabled={estado === 'resgatando'}
         style={{
           width:'100%', padding:'16px', borderRadius:'14px', border:'none',
-          background: estado==='resgatando'
+          background: estado === 'resgatando'
             ? 'rgba(0,0,0,0.3)'
             : vagasRestantes === 1
               ? 'linear-gradient(135deg,#FF1744,#FF5252)'
               : 'linear-gradient(135deg,#fff,rgba(255,255,255,0.9))',
-          color: estado==='resgatando' ? '#888' : '#8B0000',
-          fontSize:'16px', fontWeight:'900', cursor: estado==='resgatando' ? 'wait' : 'pointer',
+          color: estado === 'resgatando' ? '#888' : '#8B0000',
+          fontSize:'16px', fontWeight:'900',
+          cursor: estado === 'resgatando' ? 'wait' : 'pointer',
           transition:'all 0.2s',
         }}
       >
-        {estado === 'resgatando' ? '⏳ Garantindo sua vaga...' : estado === 'erro' ? '⚠️ Tente novamente' : '🔥 Garantir minha vaga agora!'}
+        {textoBotao()}
       </button>
     </div>
   );
