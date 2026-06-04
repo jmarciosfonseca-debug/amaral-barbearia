@@ -178,7 +178,29 @@ export default function FichaPublicaBarbeiro({ barbeiroId, onBack, onAgendar, cl
               </>
             )}
 
-            {blocosPub.length===0 && !barbeiro.bio && (
+            {/* ── Redes sociais ── */}
+            {(barbeiro.links||[]).length > 0 && (
+              <>
+                <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'700', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'10px', marginTop:'4px' }}>
+                  Redes & Links
+                </div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:'8px', marginBottom:'8px' }}>
+                  {(barbeiro.links||[]).map((link,idx) => {
+                    const ICONS = { instagram:'📸', tiktok:'▶️', facebook:'👤', youtube:'🎬', whatsapp:'📲', site:'🌐' };
+                    const LABELS = { instagram:'Instagram', tiktok:'TikTok', facebook:'Facebook', youtube:'YouTube', whatsapp:'WhatsApp', site:'Site' };
+                    return (
+                      <button key={idx} onClick={()=>window.open(link.url,'_blank')}
+                        style={{ display:'flex', alignItems:'center', gap:'6px', padding:'8px 14px', borderRadius:'20px', border:'1px solid #3A2018', background:'#231410', color:'#F5EFE6', fontSize:'12px', cursor:'pointer', fontWeight:'600' }}>
+                        <span style={{ fontSize:'16px' }}>{ICONS[link.rede]||'🌐'}</span>
+                        {LABELS[link.rede]||'Link'}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {blocosPub.length===0 && !barbeiro.bio && (barbeiro.links||[]).length===0 && (
               <div style={{ textAlign:'center', padding:'20px', color:'#9A8880', fontSize:'13px' }}>
                 Perfil em construção 🔨
               </div>
