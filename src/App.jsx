@@ -6,7 +6,7 @@ import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential,
 } from 'firebase/auth';
-import { collection, query, where, getDocs, onSnapshot, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { getStyles, PERFIL, APP_CONFIG, COLORS } from './getStyles';
 import LoginFlow from './Login';
 import ConfigBarbearia from './ConfigBarbearia';
@@ -75,8 +75,8 @@ async function solicitarPushPermissao(userId) {
     if (permission !== 'granted') return;
     const token = await getToken(messaging, { vapidKey: VAPID_KEY });
     if (token && userId) {
-      const { doc: fd, setDoc, getDoc } = await import('firebase/firestore');
-      const snapPerfil = await getDoc(fd(db, 'barbeiros_auth', userId));
+      const { doc: fd, setDoc, getDoc: gDoc } = await import('firebase/firestore');
+      const snapPerfil = await gDoc(fd(db, 'barbeiros_auth', userId));
       const perfil = snapPerfil.exists() ? snapPerfil.data() : {};
       await setDoc(fd(db, 'fcm_tokens', userId), {
         token, userId, perfil: perfil.perfil||'desconhecido',
@@ -152,8 +152,7 @@ function StaffLoginScreen({ onBack, onSuccess, dark }) {
     try {
       const cred = await signInWithEmailAndPassword(auth, email.trim(), senha.trim());
       localStorage.setItem('flyguer_staff_email', email.trim());
-      const { doc: fd, getDoc } = await import('firebase/firestore');
-      const snap = await getDoc(fd(db, 'barbeiros_auth', cred.user.uid));
+      const snap = await getDoc(doc(db, 'barbeiros_auth', cred.user.uid));
       if (!snap.exists()) { setErro('Perfil não encontrado.'); await signOut(auth); setLoading(false); return; }
       onSuccess({ ...snap.data(), uid: cred.user.uid });
     } catch(e) {
@@ -277,7 +276,6 @@ function ModalTour360({ onFechar }) {
   );
 }
 
-// ✅ Banner 24/48h antes de pré-agendamento pendente
 function BannerPreAgendamento({ cliente }) {
   const [preProximo, setPreProximo] = React.useState(null);
 
@@ -342,7 +340,7 @@ function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark, onVer
         <div style={{ fontSize:'11px', color:'rgba(245,239,230,0.5)', marginTop:'4px' }}>Shopping Cidade das Artes — Piso 2, Nº 22</div>
       </div>
       <div style={{ padding:'20px 20px 0' }}>
-        {/* ✅ Banner promoção — cliente null, redireciona para login ao clicar */}
+        {/* ✅ Banner promoção — sem login. Ao clicar, salva promo e vai para login */}
         <BannerPromocao
           cliente={null}
           onResgatado={(promo, motivo) => {
@@ -394,13 +392,43 @@ function EmBreve({ titulo, onBack, dark }) {
   );
 }
 
+// ✅ Tela de bloqueio pós-login quando CPF já resgatou a promoção
+function TelaPromoJaResgatada({ cliente, onIrParaHome, onAgendar, dark }) {
+  const s = getStyles(dark);
+  return (
+    <div style={{ ...s.app, padding:'32px 20px', textAlign:'center' }}>
+      <div style={{ fontSize:'56px', marginBottom:'16px' }}>✅</div>
+      <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'22px', color:'#E8C96A', marginBottom:'8px' }}>
+        Você já garantiu sua vaga!
+      </div>
+      <div style={{ fontSize:'14px', color:'#9A8880', marginBottom:'24px' }}>
+        Olá, {cliente.nome.split(' ')[0]}! Este CPF já resgatou esta promoção.
+      </div>
+      <div style={{ background:'rgba(139,0,0,0.2)', border:'1px solid rgba(244,67,54,0.3)', borderRadius:'14px', padding:'16px', marginBottom:'24px', textAlign:'left' }}>
+        <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.6)', marginBottom:'4px' }}>Sua promoção está registrada</div>
+        <div style={{ fontSize:'15px', fontWeight:'700', color:'#F5EFE6' }}>🔥 Promoção resgatada com sucesso</div>
+        <div style={{ fontSize:'12px', color:'#9A8880', marginTop:'4px' }}>Vá para agendamento para marcar seu horário</div>
+      </div>
+      <button
+        onClick={onAgendar}
+        style={{ width:'100%', padding:'14px', borderRadius:'14px', border:'none', background:'linear-gradient(135deg,#8B0000,#F44336)', color:'#fff', fontSize:'15px', fontWeight:'700', cursor:'pointer', marginBottom:'10px' }}>
+        📅 Agendar meu horário agora →
+      </button>
+      <button
+        onClick={onIrParaHome}
+        style={{ width:'100%', padding:'12px', borderRadius:'12px', border:'1px solid #3A2018', background:'transparent', color:'#9A8880', fontSize:'13px', cursor:'pointer' }}>
+        Ir para home
+      </button>
+    </div>
+  );
+}
+
 function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
   const s = getStyles(dark);
   const [tour360Cliente, setTour360Cliente] = React.useState(false);
   const [lembrete, setLembrete]             = React.useState(null);
   const [alertaVisivel, setAlertaVisivel]   = React.useState(false);
 
-  // Lembrete de agendamento hoje
   React.useEffect(() => {
     if (!cliente?.cpf) return;
     const hojeStr = new Date().toISOString().split('T')[0];
@@ -428,7 +456,6 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
   return (
     <div style={{ ...s.app, paddingBottom:'80px' }}>
       {alertaVisivel && lembrete && <AlertaAgendamento agendamento={lembrete} onFechar={() => setAlertaVisivel(false)} />}
-
       <div style={{ ...s.header }}>
         <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
           <div onClick={() => onNavegar('perfil_cliente')} style={{ ...s.avatar, width:'40px', height:'40px', fontSize:'16px', overflow:'hidden', cursor:'pointer', border:'2px solid #C9A84C' }}>
@@ -441,20 +468,14 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
         </div>
         <button onClick={onLogout} style={{ background:'#2E1A14', border:'none', borderRadius:'8px', padding:'6px 12px', fontSize:'12px', color:'#9A8880', cursor:'pointer' }}>Sair</button>
       </div>
-
-      {/* ✅ Banner promoção para cliente logado — executa resgate direto */}
+      {/* ✅ Banner promoção — cliente logado executa resgate direto */}
       <div style={{ paddingTop:'4px' }}>
         <BannerPromocao
           cliente={cliente}
-          onResgatado={(promo) => {
-            onNavegar('agendamento_promo');
-          }}
+          onResgatado={(promo) => { onNavegar('agendamento_promo'); }}
         />
       </div>
-
-      {/* ✅ Banner pré-agendamento 24/48h */}
       <BannerPreAgendamento cliente={cliente} />
-
       <div style={{ padding:'16px 20px' }}>
         {lembrete && !alertaVisivel && (
           <div style={{ background:'linear-gradient(135deg,#A07830,#C9A84C)', borderRadius:'14px', padding:'14px', marginBottom:'14px', display:'flex', alignItems:'center', gap:'12px' }}>
@@ -465,13 +486,11 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
             </div>
           </div>
         )}
-
         <div style={{ background:'linear-gradient(135deg,#5C2218,#8B3A2A)', borderRadius:'18px', padding:'20px', marginBottom:'20px' }}>
           <div style={{ fontSize:'12px', color:'rgba(245,239,230,0.6)', marginBottom:'4px', fontWeight:'600' }}>BEM-VINDO DE VOLTA!</div>
           <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'20px', color:'#F5EFE6', fontWeight:'700' }}>{cliente.nome.split(' ')[0]}</div>
           <div style={{ fontSize:'12px', color:'rgba(245,239,230,0.6)', marginTop:'4px' }}>Cadastro ativo ✅</div>
         </div>
-
         <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'600', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'12px' }}>O que deseja fazer?</div>
         {[
           { icon:'📅', label:'Fazer Agendamento', sub:'Escolha barbeiro, dia e horário', acao:()=>onNavegar('agendamento') },
@@ -585,8 +604,7 @@ export default function App() {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
-          const { doc: fd, getDoc } = await import('firebase/firestore');
-          const snap = await getDoc(fd(db, 'barbeiros_auth', user.uid));
+          const snap = await getDoc(doc(db, 'barbeiros_auth', user.uid));
           if (snap.exists()) {
             const perfil = snap.data();
             if (!perfil.primeiroAcesso) {
@@ -604,10 +622,31 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // ✅ Após login do cliente: se veio de promo, vai direto para agendamento_promo
-  function handleLoginClienteSucesso(clienteLogado) {
+  // ✅ CORREÇÃO PRINCIPAL — Checagem de duplo resgate pós-login
+  async function handleLoginClienteSucesso(clienteLogado) {
     setCliente(clienteLogado);
-    setTela(promoParaResgatar ? 'agendamento_promo' : 'home_cliente');
+
+    // Fluxo tradicional — sem promo pendente
+    if (!promoParaResgatar) {
+      setTela('home_cliente');
+      return;
+    }
+
+    // Fluxo de promoção — verifica se CPF já resgatou ANTES de avançar
+    try {
+      const snapResgate = await getDoc(doc(db, 'resgates_promo', `${clienteLogado.cpf}_ativa`));
+      if (snapResgate.exists()) {
+        // ✅ CPF já resgatou → bloqueia e mostra tela de aviso
+        // Mantém promoParaResgatar para que o botão "Agendar agora" funcione
+        setTela('promo_ja_resgatada');
+        return;
+      }
+    } catch(e) {
+      console.error('[handleLoginClienteSucesso] Erro ao checar resgate:', e);
+    }
+
+    // CPF não resgatou ainda → segue para agendamento da promoção
+    setTela('agendamento_promo');
   }
 
   async function handleStaffLogin(usuarioLogado) {
@@ -641,7 +680,7 @@ export default function App() {
 
   async function handleLogout() {
     try { await signOut(auth); } catch(e) {}
-    setUsuario(null); setCliente(null); setTela('splash');
+    setUsuario(null); setCliente(null); setPromoParaResgatar(null); setTela('splash');
   }
 
   function voltar() {
@@ -676,6 +715,7 @@ export default function App() {
       <div style={{ maxWidth:'430px', margin:'0 auto', minHeight:'100vh', position:'relative' }} className="app-container">
         {toggleTema}
         <ErrorBoundary modulo="App">
+
           {tela==='splash' && (
             <SplashScreen
               onClienteNovo={()=>setTela('login_cliente')}
@@ -683,21 +723,72 @@ export default function App() {
               onStaff={()=>setTela('staff_login')}
               dark={dark}
               onVerPromo={(promo) => {
-                // ✅ Salva promo e leva para login — após login vai para agendamento_promo
+                // ✅ Salva promo e leva para login
                 setPromoParaResgatar(promo);
                 setTela('login_cliente');
               }}
             />
           )}
-          {tela==='login_cliente' && <ErrorBoundary modulo="LoginCliente"><LoginFlow onSucesso={handleLoginClienteSucesso} onBack={()=>setTela('splash')} dark={dark} /></ErrorBoundary>}
-          {tela==='home_cliente' && cliente && <ErrorBoundary modulo="HomeCliente"><HomeCliente cliente={cliente} onLogout={()=>{setCliente(null);setTela('splash');}} onNavegar={(t)=>{ if(t==='agendamento_promo') setTela('agendamento_promo'); else setTela(t); }} dark={dark} /></ErrorBoundary>}
+
+          {tela==='login_cliente' && (
+            <ErrorBoundary modulo="LoginCliente">
+              <LoginFlow onSucesso={handleLoginClienteSucesso} onBack={()=>{setPromoParaResgatar(null);setTela('splash');}} dark={dark} />
+            </ErrorBoundary>
+          )}
+
+          {/* ✅ Tela de bloqueio: CPF já resgatou esta promoção */}
+          {tela==='promo_ja_resgatada' && cliente && (
+            <TelaPromoJaResgatada
+              cliente={cliente}
+              dark={dark}
+              onIrParaHome={() => { setPromoParaResgatar(null); setTela('home_cliente'); }}
+              onAgendar={() => {
+                // Vai para agendamento via promo para marcar o horário (resgate já existe no Firestore)
+                setTela('agendamento_promo');
+              }}
+            />
+          )}
+
+          {tela==='home_cliente' && cliente && (
+            <ErrorBoundary modulo="HomeCliente">
+              <HomeCliente
+                cliente={cliente}
+                onLogout={()=>{setCliente(null);setPromoParaResgatar(null);setTela('splash');}}
+                onNavegar={(t) => {
+                  if (t==='agendamento_promo') setTela('agendamento_promo');
+                  else setTela(t);
+                }}
+                dark={dark}
+              />
+            </ErrorBoundary>
+          )}
+
           {tela==='staff_login' && <StaffLoginScreen onBack={()=>setTela('splash')} onSuccess={handleStaffLogin} dark={dark} />}
           {tela==='redefinir_senha' && usuario && <TelaRedefinirSenha usuario={usuario} onConcluido={() => { const u={...usuario,primeiroAcesso:false}; setUsuario(u); handleStaffLogin(u); }} dark={dark} />}
           {tela==='home_gerente' && usuario && <ErrorBoundary modulo="HomeGerente"><HomeGerente usuario={usuario} onLogout={handleLogout} onNavegar={handleNavegarGerente} dark={dark} /></ErrorBoundary>}
           {tela==='home_barbeiro' && usuario && <ErrorBoundary modulo="HomeBarbeiro"><HomeBarbeiro usuario={usuario} onLogout={handleLogout} onNavegar={mod=>{ if(mod==='equipe') setTela('gestao_equipe'); if(mod==='agenda_barbeiro') setTela('agenda_barbeiro'); }} dark={dark} /></ErrorBoundary>}
           {tela==='minhas_reservas' && cliente && <ErrorBoundary modulo="MinhasReservas"><MinhasReservas cliente={cliente} onBack={()=>setTela('home_cliente')} onReagendar={()=>setTela('agendamento')} dark={dark} /></ErrorBoundary>}
-          {tela==='agendamento_promo' && cliente && promoParaResgatar && <ErrorBoundary modulo="AgendamentoPromo"><Agendamento cliente={cliente} onBack={()=>setTela('home_cliente')} dark={dark} promoParaResgatar={promoParaResgatar} /></ErrorBoundary>}
-          {tela==='agendamento' && cliente && <ErrorBoundary modulo="Agendamento"><Agendamento cliente={cliente} onBack={()=>setTela('home_cliente')} dark={dark} promoParaResgatar={null} /></ErrorBoundary>}
+
+          {/* ✅ agendamento_promo — usa promoParaResgatar. A transação atômica acontece em AgendarViaPromo.confirmar() */}
+          {tela==='agendamento_promo' && cliente && promoParaResgatar && (
+            <ErrorBoundary modulo="AgendamentoPromo">
+              <Agendamento
+                cliente={cliente}
+                onBack={()=>setTela('home_cliente')}
+                dark={dark}
+                promoParaResgatar={promoParaResgatar}
+                onConcluido={() => { setPromoParaResgatar(null); setTela('home_cliente'); }}
+              />
+            </ErrorBoundary>
+          )}
+
+          {/* ✅ agendamento TRADICIONAL — promoParaResgatar sempre null */}
+          {tela==='agendamento' && cliente && (
+            <ErrorBoundary modulo="Agendamento">
+              <Agendamento cliente={cliente} onBack={()=>setTela('home_cliente')} dark={dark} promoParaResgatar={null} />
+            </ErrorBoundary>
+          )}
+
           {tela==='recepcao' && <ErrorBoundary modulo="PainelRecepcao"><PainelRecepcao onBack={()=>usuario?.perfil===PERFIL.GERENTE?setTela('home_gerente'):setTela('splash')} dark={dark} onNavegarAssinaturas={()=>setTela('gerenciar_assinaturas')} /></ErrorBoundary>}
           {tela==='financeiro' && usuario && <ErrorBoundary modulo="Financeiro"><Financeiro onBack={()=>setTela('home_gerente')} dark={dark} /></ErrorBoundary>}
           {tela==='agenda_barbeiro' && usuario && <ErrorBoundary modulo="AgendaBarbeiro"><AgendaBarbeiro usuario={usuario} onBack={()=>setTela(usuario.perfil===PERFIL.GERENTE?'home_gerente':'home_barbeiro')} dark={dark} /></ErrorBoundary>}
@@ -714,6 +805,7 @@ export default function App() {
           {tela==='comunicado' && usuario && <ErrorBoundary modulo="ComunicadoGerente"><ComunicadoGerente onBack={()=>setTela('home_gerente')} dark={dark} /></ErrorBoundary>}
           {tela==='whatsapp_business' && usuario && <ErrorBoundary modulo="WhatsAppBusiness"><MensagemWhatsAppBusiness onBack={()=>setTela('home_gerente')} dark={dark} /></ErrorBoundary>}
           {tela==='em_breve' && <EmBreve titulo={emBreveInfo?.titulo} onBack={voltar} dark={dark} />}
+
         </ErrorBoundary>
       </div>
     </GlobalErrorBoundary>
