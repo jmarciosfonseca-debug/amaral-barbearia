@@ -1,14 +1,9 @@
 /* responsive.css — Flyguer BarberShop */
-/* ✅ 430px centralizado em mobile e painéis internos           */
-/* ✅ Splash tela cheia no desktop                              */
-/* ✅ overflow-y: auto para scroll vertical no PC               */
-/* ✅ min-height: 100vh no fundo para ocupar tela inteira       */
 
 *, *::before, *::after {
   box-sizing: border-box;
 }
 
-/* ─── FUNDO GERAL ────────────────────────────────────────────── */
 html, body {
   margin: 0;
   padding: 0;
@@ -20,11 +15,10 @@ html, body {
   -webkit-text-size-adjust: 100%;
 }
 
-/* ─── CONTAINER PRINCIPAL ────────────────────────────────────── */
-/* Todas as telas internas: 430px centralizado                   */
+/* ─── CONTAINER — comportamento padrão (todas as telas internas) */
 .app-container {
-  max-width: 430px;
   width: 100%;
+  max-width: 430px;
   margin: 0 auto;
   min-height: 100vh;
   position: relative;
@@ -34,44 +28,32 @@ html, body {
   overflow-x: hidden;
 }
 
-/* ─── DESKTOP E TABLET — container interno fixo em 430px ─────── */
-@media (min-width: 430px) {
-  .app-container {
-    max-width: 430px !important;
-    margin: 0 auto !important;
-  }
+/* ─── SPLASH — tela cheia no desktop ─────────────────────────── */
+/* Só ativa quando tela === 'splash' via className dinâmico       */
+.app-container.splash-mode {
+  max-width: 100%;
+  margin: 0;
+  box-shadow: none;
 }
 
-/* ─── SPLASH TELA CHEIA NO DESKTOP ──────────────────────────── */
-/* Classe .splash-mode aplicada só quando tela === 'splash'       */
-/* Não afeta nenhuma outra tela do app                            */
-@media (min-width: 430px) {
-  .app-container.splash-mode {
-    max-width: 100vw !important;
-    width: 100% !important;
-    margin: 0 !important;
-    box-shadow: none !important;
-    background: #1A0F0D;
-  }
-
-  /* Conteúdo da splash centralizado com largura máxima confortável */
-  .splash-inner {
-    max-width: 680px;
-    margin: 0 auto;
-    padding: 0 24px;
-  }
-
-  /* Hero da splash (banner de topo) ocupa 100% da tela no desktop */
-  .splash-hero {
-    width: 100%;
-    max-width: 100%;
-  }
+/* Conteúdo da splash centralizado e confortável no desktop */
+.app-container.splash-mode .splash-inner {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 0 32px;
 }
 
-/* Mobile: splash-inner e splash-hero sem efeito adicional */
+/* Hero da splash sempre 100% */
+.app-container.splash-mode .splash-hero {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Mobile: splash sem restrições extras */
 @media (max-width: 429px) {
-  .splash-inner {
+  .app-container.splash-mode .splash-inner {
     padding: 0;
+    max-width: 100%;
   }
 }
 
@@ -118,7 +100,7 @@ button:disabled {
 }
 .fade-in { animation: fadeIn 0.25s ease forwards; }
 
-/* ─── RECEPÇÃO (layout interno) ─────────────────────────────── */
+/* ─── RECEPÇÃO ───────────────────────────────────────────────── */
 .recepcao-fila-grid {
   display: flex;
   flex-direction: column;
