@@ -541,7 +541,9 @@ function AbaPerfil({ usuario }) {
   function adicionarLink(){
     if(!novoLink.handle.trim())return;
     const rede=REDES.find(r=>r.id===novoLink.rede);
-    const url=novoLink.rede==='site'?novoLink.handle:(rede.prefix+novoLink.handle.replace('@',''));
+    // ✅ Se o handle já é uma URL completa (começa com http), usa direto sem concatenar prefixo
+    const handle=novoLink.handle.trim();
+    const url=handle.startsWith('http')?handle:novoLink.rede==='site'?handle:(rede.prefix+handle.replace('@',''));
     setDados(d=>({...d,links:[...d.links,{...novoLink,url,id:Date.now()}]}));
     setNovoLink({rede:'instagram',handle:'',url:''});setAddLink(false);
   }
