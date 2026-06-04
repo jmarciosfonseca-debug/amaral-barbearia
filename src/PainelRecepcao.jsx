@@ -608,9 +608,130 @@ function AbaClientes() {
 }
 
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────
+// ─── SOM DE NOTIFICAÇÃO ──────────────────────────────────────
+function tocarSino() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [880, 1100, 880].forEach((freq, i) => {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.3, ctx.currentTime + i * 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.15 + 0.3);
+      osc.start(ctx.currentTime + i * 0.15);
+      osc.stop(ctx.currentTime + i * 0.15 + 0.3);
+    });
+  } catch(e) {}
+}
+
+// ─── COMPONENTE PRINCIPAL COM NOTIFICAÇÕES ────────────────────
 export default function PainelRecepcao({ onBack, dark }) {
   const s = getStyles(dark);
-  const [aba, setAba] = React.useState('agenda');
+  const [aba, setAba]                     = React.useState('agenda');
+  const [notifs, setNotifs]               = React.useState([]);
+  const [notifVistas, setNotifVistas]     = React.useState([]);
+  const [sinoAberto, setSinoAberto]       = React.useState(false);
+  const [popup, setPopup]                 = React.useState(null);
+  const [barbeiros, setBarbeiros]         = React.useState([]);
+  const [statsHoje, setStatsHoje]         = React.useState({ confirmados:0, concluidos:0, receita:0 });
+  const [proximoCliente, setProximo]      = React.useState(null);
+  const [contRegressiva, setContReg]      = React.useState('');
+  const ultimoIdRef                       = React.useRef(new Set());
+
+  const hoje = React.useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }, []);
+
+  // ── Carrega barbeiros e status ──
+  React.useEffect(() => {
+    getDocs(query(collection(db,'barbeiros'), where('ativo','==',true))).then(snap => {
+      setBarbeiros(snap.docs.map(d=>({id:d.id,...d.data()})).filter(b=>b.papel!=='recepcao'));
+    });
+  }, []);
+
+  // ── Stats do dia em tempo real + próximo cliente + notificações ──
+  React.useEffect(() => {
+    const unsub = onSnapshot(
+      query(collection(db,'agendamentos'), where('data','==',hoje)),
+      snap => {
+        const ags = snap.docs.map(d => ({ firestoreId:d.id, ...d.data() }));
+
+        // Stats
+        const conf = ags.filter(a=>['confirmado','pendente'].includes(a.status));
+        const conc = ags.filter(a=>a.status==='concluido');
+        setStatsHoje({
+          confirmados: conf.length,
+          concluidos:  conc.length,
+          receita:     conc.reduce((s,a)=>s+(a.valor||0),0),
+        });
+
+        // Próximo cliente (horário mais próximo do agora)
+        const agora = new Date();
+        const futuros = conf
+          .filter(a => new Date(`${a.data}T${a.hora}:00`) > agora)
+          .sort((a,b) => a.hora.localeCompare(b.hora));
+        setProximo(futuros[0] || null);
+
+        // ✅ Notificações — novos agendamentos não vistos antes
+        const novos = [];
+        snap.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const ag = { firestoreId: change.doc.id, ...change.doc.data() };
+            if (!ultimoIdRef.current.has(change.doc.id)) {
+              ultimoIdRef.current.add(change.doc.id);
+              // Ignora os já carregados na primeira leitura (mais de 10s atrás)
+              const criado = ag.criadoEm?.toDate?.() || new Date(0);
+              const diffSeg = (new Date() - criado) / 1000;
+              if (diffSeg < 30 && ['confirmado','pendente'].includes(ag.status)) {
+                novos.push(ag);
+              }
+            }
+          }
+        });
+
+        if (novos.length > 0) {
+          tocarSino();
+          if (navigator.vibrate) navigator.vibrate([200,100,200]);
+          setNotifs(prev => [...novos, ...prev].slice(0, 20));
+          setPopup(novos[0]); // popup do mais recente
+          setTimeout(() => setPopup(null), 8000);
+        }
+      },
+      console.error
+    );
+    return () => unsub();
+  }, [hoje]);
+
+  // ── Contagem regressiva para próximo cliente ──
+  React.useEffect(() => {
+    if (!proximoCliente) { setContReg(''); return; }
+    function atualizar() {
+      const [h,m] = proximoCliente.hora.split(':').map(Number);
+      const alvo = new Date(); alvo.setHours(h,m,0,0);
+      const diff = Math.max(0, Math.floor((alvo - new Date()) / 1000));
+      if (diff === 0) { setContReg('AGORA!'); return; }
+      const hh = Math.floor(diff/3600);
+      const mm = Math.floor((diff%3600)/60);
+      const ss = diff % 60;
+      setContReg(hh > 0
+        ? `${hh}h ${String(mm).padStart(2,'0')}min`
+        : `${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`
+      );
+    }
+    atualizar();
+    const iv = setInterval(atualizar, 1000);
+    return () => clearInterval(iv);
+  }, [proximoCliente]);
+
+  const naoVistas = notifs.filter(n => !notifVistas.includes(n.firestoreId));
+
+  function marcarTodasVistas() {
+    setNotifVistas(prev => [...prev, ...notifs.map(n=>n.firestoreId)]);
+  }
+
+  function formatarData(s) { if(!s)return''; const[a,m,d]=s.split('-'); return`${d}/${m}/${a}`; }
 
   const ABAS = [
     { id:'agenda',   label:'📅 Agenda'  },
@@ -620,13 +741,113 @@ export default function PainelRecepcao({ onBack, dark }) {
 
   return (
     <div style={{ ...s.app, paddingBottom:'30px' }}>
+
+      {/* ── POPUP NOVO AGENDAMENTO ── */}
+      {popup && (
+        <div style={{ position:'fixed', top:'12px', left:'50%', transform:'translateX(-50%)', width:'calc(100% - 32px)', maxWidth:'860px', zIndex:9998, animation:'slideDown 0.3s ease' }}>
+          <style>{`@keyframes slideDown{from{transform:translateX(-50%) translateY(-100%);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}} @keyframes pulsar{0%,100%{box-shadow:0 0 0 0 rgba(232,201,106,0.4)}50%{box-shadow:0 0 0 8px rgba(232,201,106,0)}}`}</style>
+          <div style={{ background:'linear-gradient(135deg,#5C2218,#8B3A2A)', borderRadius:'16px', padding:'14px 16px', border:'2px solid #E8C96A', display:'flex', alignItems:'center', gap:'12px', animation:'pulsar 1.5s infinite' }}>
+            <div style={{ fontSize:'32px', flexShrink:0 }}>🔔</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:'12px', color:'#E8C96A', fontWeight:'700', marginBottom:'2px' }}>NOVO AGENDAMENTO!</div>
+              <div style={{ fontSize:'14px', color:'#F5EFE6', fontWeight:'700' }}>{popup.clienteNome}</div>
+              <div style={{ fontSize:'12px', color:'rgba(245,239,230,0.8)' }}>✂️ {popup.barbeiroNome} · {popup.servico} · {popup.hora}</div>
+            </div>
+            <button onClick={()=>setPopup(null)}
+              style={{ background:'rgba(0,0,0,0.3)', border:'none', borderRadius:'50%', width:'28px', height:'28px', color:'#F5EFE6', fontSize:'16px', cursor:'pointer', flexShrink:0 }}>✕</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── HEADER COM SINO ── */}
       <div style={{ background:'linear-gradient(135deg,#5C2218,#8B3A2A)', padding:'16px 20px', display:'flex', alignItems:'center', gap:'12px' }}>
         <button onClick={onBack} style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:'8px', padding:'6px 10px', color:'#F5EFE6', cursor:'pointer', fontSize:'14px' }}>←</button>
-        <div>
+        <div style={{ flex:1 }}>
           <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'17px', fontWeight:'700', color:'#F5EFE6' }}>Painel da Recepção</div>
           <div style={{ fontSize:'11px', color:'rgba(245,239,230,0.6)' }}>Flyguer BarberShop</div>
         </div>
+        {/* Sino de notificações */}
+        <div style={{ position:'relative' }}>
+          <button onClick={()=>{ setSinoAberto(v=>!v); if(!sinoAberto) marcarTodasVistas(); }}
+            style={{ background:'rgba(0,0,0,0.25)', border:`1px solid ${naoVistas.length>0?'#E8C96A':'rgba(255,255,255,0.15)'}`, borderRadius:'10px', padding:'8px 12px', color:naoVistas.length>0?'#E8C96A':'#F5EFE6', fontSize:'20px', cursor:'pointer', position:'relative' }}>
+            🔔
+            {naoVistas.length > 0 && (
+              <div style={{ position:'absolute', top:'-6px', right:'-6px', background:'#F44336', borderRadius:'50%', width:'18px', height:'18px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'10px', fontWeight:'700', color:'#fff' }}>
+                {naoVistas.length}
+              </div>
+            )}
+          </button>
+
+          {/* Painel de notificações */}
+          {sinoAberto && (
+            <div style={{ position:'absolute', top:'110%', right:0, width:'300px', background:'#1A0F0D', border:'1px solid #3A2018', borderRadius:'14px', zIndex:999, boxShadow:'0 8px 32px rgba(0,0,0,0.8)', overflow:'hidden' }}>
+              <div style={{ padding:'12px 14px', borderBottom:'1px solid #3A2018', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ fontSize:'13px', color:'#E8C96A', fontWeight:'700' }}>🔔 Notificações</div>
+                <button onClick={()=>setSinoAberto(false)} style={{ background:'none', border:'none', color:'#9A8880', fontSize:'16px', cursor:'pointer' }}>✕</button>
+              </div>
+              <div style={{ maxHeight:'320px', overflowY:'auto' }}>
+                {notifs.length === 0 ? (
+                  <div style={{ padding:'20px', textAlign:'center', color:'#9A8880', fontSize:'13px' }}>Nenhuma notificação ainda</div>
+                ) : notifs.map(n => (
+                  <div key={n.firestoreId} style={{ padding:'10px 14px', borderBottom:'1px solid #2E1A14', background:notifVistas.includes(n.firestoreId)?'transparent':'rgba(232,201,106,0.05)' }}>
+                    <div style={{ fontSize:'12px', fontWeight:'700', color:'#F5EFE6' }}>{n.clienteNome}</div>
+                    <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>✂️ {n.barbeiroNome} · {n.servico} · {n.hora}</div>
+                    <div style={{ fontSize:'10px', color:'#E8C96A', marginTop:'2px' }}>R$ {(n.valor||0).toFixed(2).replace('.',',')}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* ── DASHBOARD DO DIA ── */}
+      <div style={{ padding:'12px 16px', borderBottom:'1px solid #3A2018' }}>
+        {/* Stats */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', marginBottom:'10px' }}>
+          {[
+            { label:'Confirmados', value:statsHoje.confirmados, cor:'#4CAF50' },
+            { label:'Concluídos',  value:statsHoje.concluidos,  cor:'#2E7D7A' },
+            { label:'Receita',     value:`R$${statsHoje.receita.toFixed(0)}`, cor:'#E8C96A' },
+          ].map(s=>(
+            <div key={s.label} style={{ background:'#231410', borderRadius:'10px', padding:'10px', textAlign:'center', border:'1px solid #3A2018' }}>
+              <div style={{ fontSize:'16px', fontWeight:'700', color:s.cor }}>{s.value}</div>
+              <div style={{ fontSize:'9px', color:'#9A8880', marginTop:'2px' }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Próximo cliente com contagem regressiva */}
+        {proximoCliente && (
+          <div style={{ background:'linear-gradient(135deg,#1A0F0D,#2E1A14)', borderRadius:'12px', padding:'12px 14px', border:'1px solid rgba(232,201,106,0.3)', display:'flex', alignItems:'center', gap:'12px' }}>
+            <div style={{ textAlign:'center', flexShrink:0 }}>
+              <div style={{ fontSize:'22px', fontWeight:'900', color:'#E8C96A', lineHeight:1 }}>{contRegressiva}</div>
+              <div style={{ fontSize:'9px', color:'#9A8880', marginTop:'2px' }}>próximo</div>
+            </div>
+            <div style={{ width:'1px', height:'36px', background:'#3A2018', flexShrink:0 }}/>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:'13px', fontWeight:'700', color:'#F5EFE6' }}>{proximoCliente.clienteNome?.split(' ')[0]}</div>
+              <div style={{ fontSize:'11px', color:'#9A8880' }}>✂️ {proximoCliente.barbeiroNome} · {proximoCliente.hora} · {proximoCliente.servico}</div>
+            </div>
+            {proximoCliente.clienteTel && (
+              <button onClick={()=>window.open(`https://wa.me/55${proximoCliente.clienteTel.replace(/\D/g,'')}`, '_blank')}
+                style={{ padding:'6px 10px', borderRadius:'8px', border:'none', background:'rgba(37,211,102,0.15)', color:'#25D366', fontSize:'13px', cursor:'pointer', flexShrink:0 }}>📲</button>
+            )}
+          </div>
+        )}
+
+        {/* Status dos barbeiros */}
+        <div style={{ display:'flex', gap:'8px', marginTop:'10px', overflowX:'auto', paddingBottom:'4px' }}>
+          {barbeiros.map(b=>(
+            <div key={b.id} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 10px', borderRadius:'20px', background:'#231410', border:`1px solid ${b.disponivel?'rgba(76,175,80,0.3)':'rgba(255,193,7,0.3)'}`, flexShrink:0 }}>
+              <div style={{ width:'7px', height:'7px', borderRadius:'50%', background:b.disponivel?'#4CAF50':'#FFC107' }}/>
+              <span style={{ fontSize:'11px', color:'#F5EFE6', fontWeight:'600', whiteSpace:'nowrap' }}>{b.nome?.split(' ')[0]}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── ABAS ── */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px', padding:'12px 16px', borderBottom:'1px solid #3A2018' }}>
         {ABAS.map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
@@ -635,11 +856,17 @@ export default function PainelRecepcao({ onBack, dark }) {
           </button>
         ))}
       </div>
+
       <div style={{ padding:'16px' }}>
         {aba === 'agenda'   && <AbaAgenda />}
         {aba === 'clientes' && <AbaClientes />}
         {aba === 'servicos' && <AbaServicos />}
       </div>
+
+      {/* Fecha sino ao clicar fora */}
+      {sinoAberto && (
+        <div onClick={()=>setSinoAberto(false)} style={{ position:'fixed', inset:0, zIndex:998 }}/>
+      )}
     </div>
   );
 }
