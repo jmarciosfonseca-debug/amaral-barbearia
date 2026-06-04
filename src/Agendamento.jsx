@@ -2,6 +2,7 @@
 // ✅ FINAL: Botão "Levar um Amigo" — 2 agendamentos simultâneos
 // ✅ Fase 2: lembrete24hEnviado + lembrete2hEnviado
 // ✅ Fase 2: Primeiro horário disponível
+// ✅ FIX: Transação atômica de vaga executada SOMENTE no confirmar() do AgendarViaPromo
 
 import React from 'react';
 import { db } from './firebase';
@@ -11,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { getStyles, DIAS_SEMANA } from './getStyles';
 import { notificarBarbeariaNovoAgendamento } from './notificacoes';
+import { resgatarPromocao } from './promocaoEngine';
 
 function gerarPixPayload({ chave, nome, cidade, valor, descricao }) {
   function campo(id, v) { return `${id}${String(v.length).padStart(2,'0')}${v}`; }
@@ -89,127 +91,14 @@ function Card({ children, style, onClick }) {
 function BotaoVoltar({ onClick }) {
   return <button onClick={onClick} style={{ background:'none', border:'none', color:'#E8C96A', fontSize:'14px', cursor:'pointer', padding:'0' }}>← Voltar</button>;
 }
-// ─────────────────────────────────────────────────────────────
-// TELA RESGATAR PROMO
-// ─────────────────────────────────────────────────────────────
-function TelaResgatarPromo({ cliente, promo, onResgatado, onPular, dark }) {
-  const s = getStyles(dark);
-  const [resgatando, setResgatando] = React.useState(false);
-  const [erro, setErro]             = React.useState('');
-  const [jaResgatou, setJaResgatou] = React.useState(false);
-  const vagasRestantes = (promo.vagas || 0) - (promo.resgatados || 0);
-  const encerrada = promo.ehRelampago && vagasRestantes <= 0;
-
-  React.useEffect(() => {
-    import('firebase/firestore').then(({ doc: fDoc, getDoc: gDoc }) => {
-      gDoc(fDoc(db, 'resgates_promo', `${cliente.cpf}_ativa`)).then(snap => {
-        if (snap.exists()) setJaResgatou(true);
-      }).catch(() => {});
-    });
-  }, [cliente.cpf]);
-
-  async function resgatar() {
-    setResgatando(true); setErro('');
-    try {
-      const { doc: fDoc, setDoc, updateDoc: upDoc, getDoc: gDoc } = await import('firebase/firestore');
-      const snapR = await gDoc(fDoc(db, 'resgates_promo', `${cliente.cpf}_ativa`));
-      if (snapR.exists()) { setJaResgatou(true); setResgatando(false); return; }
-      const snapPromo = await gDoc(fDoc(db, 'config', 'promocao_ativa'));
-      const dadosPromo = snapPromo.data();
-      if (dadosPromo.ehRelampago && (dadosPromo.resgatados || 0) >= dadosPromo.vagas) {
-        setErro('encerrada'); setResgatando(false); return;
-      }
-      await setDoc(fDoc(db, 'resgates_promo', `${cliente.cpf}_ativa`), {
-        clienteCpf: cliente.cpf, clienteNome: cliente.nome, clienteTel: cliente.telefone || '',
-        promoTitulo: promo.titulo, promoDescricao: promo.descricao || '',
-        resgatadoEm: serverTimestamp(), expiracao: promo.expiracao || null,
-        utilizado: false, utilizadoEm: null,
-      });
-      const novosResgatados = (dadosPromo.resgatados || 0) + 1;
-      await upDoc(fDoc(db, 'config', 'promocao_ativa'), { resgatados: novosResgatados });
-      if (dadosPromo.ehRelampago && novosResgatados >= dadosPromo.vagas) {
-        await upDoc(fDoc(db, 'config', 'promocao_ativa'), { ativo: false });
-      }
-      const msg = encodeURIComponent(`🔥 PROMOÇÃO RESGATADA!\n\n👤 ${cliente.nome}\n📞 ${cliente.telefone||'—'}\n🎁 ${promo.titulo}${promo.descricao?'\n✅ '+promo.descricao:''}\n\n_Resgatado pelo app_`);
-      setTimeout(() => window.open(`https://wa.me/5511977643509?text=${msg}`, '_blank'), 800);
-      onResgatado({ ...promo, _resgatado: true });
-    } catch(e) { setErro('Erro ao resgatar. Tente novamente.'); console.error(e); }
-    setResgatando(false);
-  }
-
-  if (jaResgatou) {
-    return (
-      <div style={{ ...s.app, padding:'32px 20px', textAlign:'center' }}>
-        <button onClick={onPular} style={{ background:'none', border:'none', color:'#E8C96A', fontSize:'14px', cursor:'pointer', marginBottom:'24px', display:'block' }}>← Voltar</button>
-        <div style={{ fontSize:'56px', marginBottom:'16px' }}>✅</div>
-        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'22px', color:'#E8C96A', marginBottom:'8px' }}>Você já resgatou!</div>
-        <div style={{ fontSize:'14px', color:'#9A8880', marginBottom:'24px' }}>Esta promoção está na sua ficha</div>
-        <div style={{ background:'linear-gradient(135deg,#8B0000,#F44336)', borderRadius:'16px', padding:'18px', marginBottom:'24px', textAlign:'left' }}>
-          <div style={{ fontWeight:'700', fontSize:'16px', color:'#fff', marginBottom:'4px' }}>{promo.titulo}</div>
-          {promo.descricao && <div style={{ fontSize:'13px', color:'rgba(255,255,255,0.85)' }}>🎁 {promo.descricao}</div>}
-        </div>
-        <button onClick={() => onResgatado({ ...promo, _jaResgatou: true })}
-          style={{ width:'100%', padding:'14px', borderRadius:'14px', border:'none', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontSize:'15px', fontWeight:'700', cursor:'pointer', marginBottom:'10px' }}>
-          📅 Agendar agora →
-        </button>
-        <button onClick={onPular} style={{ width:'100%', padding:'12px', borderRadius:'12px', border:'1px solid #3A2018', background:'transparent', color:'#9A8880', fontSize:'13px', cursor:'pointer' }}>
-          Ir para home
-        </button>
-      </div>
-    );
-  }
-
-  if (encerrada || erro === 'encerrada') {
-    return (
-      <div style={{ ...s.app, padding:'32px 20px', textAlign:'center' }}>
-        <div style={{ fontSize:'56px', marginBottom:'16px' }}>🔒</div>
-        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'22px', color:'#9A8880', marginBottom:'8px' }}>Promoção encerrada</div>
-        <div style={{ fontSize:'14px', color:'#555', marginBottom:'24px' }}>Todas as vagas foram preenchidas.<br/>Parabéns a quem pegou! 🎉</div>
-        <button onClick={onPular} style={{ padding:'12px 32px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontSize:'14px', fontWeight:'700', cursor:'pointer' }}>
-          Fazer agendamento normal
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ ...s.app, padding:'24px 20px' }}>
-      <button onClick={onPular} style={{ background:'none', border:'none', color:'#E8C96A', fontSize:'14px', cursor:'pointer', marginBottom:'24px' }}>← Voltar</button>
-      <div style={{ background:'linear-gradient(135deg,#8B0000,#F44336)', borderRadius:'20px', padding:'24px', marginBottom:'24px', position:'relative', overflow:'hidden' }}>
-        <div style={{ position:'absolute', top:'-20px', right:'-20px', fontSize:'80px', opacity:0.15 }}>🔥</div>
-        <div style={{ fontSize:'11px', color:'rgba(255,255,255,0.7)', fontWeight:'700', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'8px' }}>📣 PROMOÇÃO ESPECIAL</div>
-        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'22px', color:'#fff', fontWeight:'900', marginBottom:'6px' }}>{promo.titulo}</div>
-        <div style={{ fontSize:'14px', color:'rgba(255,255,255,0.85)', lineHeight:'1.5', marginBottom:'16px' }}>{promo.mensagem}</div>
-        {promo.descricao && (
-          <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:'10px', padding:'10px 14px', marginBottom:'16px' }}>
-            <div style={{ fontSize:'11px', color:'rgba(255,255,255,0.7)', marginBottom:'4px' }}>Você vai ganhar:</div>
-            <div style={{ fontSize:'15px', fontWeight:'700', color:'#fff' }}>🎁 {promo.descricao}</div>
-          </div>
-        )}
-        {promo.ehRelampago && (
-          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-            <div style={{ background:'rgba(255,255,255,0.2)', borderRadius:'8px', padding:'6px 12px', fontSize:'13px', fontWeight:'700', color:'#fff' }}>
-              ⚡ {vagasRestantes} vaga{vagasRestantes!==1?'s':''} restante{vagasRestantes!==1?'s':''}
-            </div>
-          </div>
-        )}
-      </div>
-      {erro && erro !== 'encerrada' && (
-        <div style={{ background:'rgba(244,67,54,0.1)', border:'1px solid #F44336', borderRadius:'10px', padding:'10px 12px', marginBottom:'16px', fontSize:'13px', color:'#F44336', textAlign:'center' }}>⚠️ {erro}</div>
-      )}
-      <button onClick={resgatar} disabled={resgatando}
-        style={{ width:'100%', padding:'16px', borderRadius:'14px', border:'none', background:resgatando?'#2E1A14':'linear-gradient(135deg,#8B0000,#F44336)', color:resgatando?'#555':'#fff', fontSize:'16px', fontWeight:'800', cursor:resgatando?'wait':'pointer', marginBottom:'12px' }}>
-        {resgatando ? '⏳ Registrando...' : '🔥 Confirmar e Pegar Promoção!'}
-      </button>
-      <button onClick={onPular} style={{ width:'100%', padding:'12px', borderRadius:'12px', border:'1px solid #3A2018', background:'transparent', color:'#9A8880', fontSize:'13px', cursor:'pointer' }}>
-        Pular e agendar normalmente
-      </button>
-    </div>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────
 // AGENDAMENTO VIA PROMO
+// ✅ FIX: resgatarPromocao() chamado AQUI no confirmar(),
+//         não antes. Isso garante:
+//         1) A vaga só é decrementada quando o cliente confirma
+//         2) Se o cliente veio de promo_ja_resgatada (já tem resgate),
+//            o updateDoc marca como utilizado sem decrementar vaga de novo
 // ─────────────────────────────────────────────────────────────
 function AgendarViaPromo({ cliente, promo, onConcluir, onBack, dark }) {
   const s = getStyles(dark);
@@ -226,7 +115,9 @@ function AgendarViaPromo({ cliente, promo, onConcluir, onBack, dark }) {
 
   const diasDisponiveis = React.useMemo(() => {
     const dias = [];
-    const exp = promo.expiracao ? new Date(promo.expiracao) : null;
+    const exp = promo.expiracaoTimestamp
+      ? (promo.expiracaoTimestamp.toDate ? promo.expiracaoTimestamp.toDate() : new Date(promo.expiracaoTimestamp))
+      : (promo.expiracao ? new Date(promo.expiracao) : null);
     for (let i = 0; i < 14; i++) {
       const d = new Date(); d.setDate(d.getDate() + i);
       if (promo.validade === 'hoje' && i > 0) break;
@@ -265,8 +156,30 @@ function AgendarViaPromo({ cliente, promo, onConcluir, onBack, dark }) {
 
   async function confirmar() {
     if (!barbeiro || !dataSel || !horaSel) { setErro('Selecione barbeiro, data e horário'); return; }
-    setSalv(true);
+    setSalv(true); setErro('');
     try {
+      // ✅ PASSO 1: Verificar se já tem resgate registrado para este CPF
+      const snapResgate = await getDoc(doc(db, 'resgates_promo', `${cliente.cpf}_ativa`));
+      const jaTemResgate = snapResgate.exists();
+
+      if (!jaTemResgate) {
+        // ✅ PASSO 2a: Não tem resgate → executa transação atômica (decrementa vaga + cria resgate)
+        const resultado = await resgatarPromocao(cliente);
+        if (!resultado.ok) {
+          if (resultado.motivo === 'encerrada' || resultado.motivo === 'concorrencia') {
+            setErro('⚠️ Poxa! As vagas acabaram agora mesmo. Tente a próxima promoção!');
+          } else if (resultado.motivo === 'ja_resgatou') {
+            // Corrida entre abas — continua normalmente
+          } else {
+            setErro('Erro ao garantir a vaga. Tente novamente.');
+            setSalv(false); return;
+          }
+        }
+      }
+      // Se jaTemResgate === true: cliente veio da tela promo_ja_resgatada,
+      // vaga já foi decrementada antes — não decrementa de novo.
+
+      // ✅ PASSO 3: Salvar agendamento no Firestore
       const ag = {
         clienteCpf: cliente.cpf, clienteNome: cliente.nome, clienteTel: cliente.telefone || '',
         barbeiroId: barbeiro.id, barbeiroNome: barbeiro.nome,
@@ -277,11 +190,28 @@ function AgendarViaPromo({ cliente, promo, onConcluir, onBack, dark }) {
         lembrete24hEnviado: false, lembrete2hEnviado: false, criadoEm: serverTimestamp(),
       };
       await addDoc(collection(db,'agendamentos'), ag);
-      await updateDoc(doc(db,'resgates_promo',`${cliente.cpf}_ativa`), { utilizado: true, utilizadoEm: serverTimestamp() });
-      const msg = encodeURIComponent(`✂️ AGENDAMENTO VIA PROMOÇÃO\n\n👤 ${cliente.nome}\n📞 ${cliente.telefone||'—'}\n🔥 Promo: ${promo.titulo}\n✂️ Barbeiro: ${barbeiro.nome}\n📅 ${formatarData(dataSel)} às ${horaSel}\n${promo.descricao?'🎁 '+promo.descricao:''}`);
+
+      // ✅ PASSO 4: Marcar resgate como utilizado
+      await updateDoc(doc(db,'resgates_promo',`${cliente.cpf}_ativa`), {
+        utilizado: true,
+        utilizadoEm: serverTimestamp(),
+      });
+
+      // ✅ PASSO 5: Notificar barbearia via WhatsApp
+      const msg = encodeURIComponent(
+        `✂️ AGENDAMENTO VIA PROMOÇÃO\n\n` +
+        `👤 ${cliente.nome}\n📞 ${cliente.telefone||'—'}\n` +
+        `🔥 Promo: ${promo.titulo}\n✂️ Barbeiro: ${barbeiro.nome}\n` +
+        `📅 ${formatarData(dataSel)} às ${horaSel}\n` +
+        `${promo.descricao?'🎁 '+promo.descricao:''}`
+      );
       setTimeout(() => window.open(`https://wa.me/5511977643509?text=${msg}`, '_blank'), 500);
+
       onConcluir(ag);
-    } catch(e) { setErro('Erro ao agendar: ' + e.message); }
+    } catch(e) {
+      setErro('Erro ao agendar: ' + e.message);
+      console.error('[AgendarViaPromo.confirmar]', e);
+    }
     setSalv(false);
   }
 
@@ -347,7 +277,7 @@ function AgendarViaPromo({ cliente, promo, onConcluir, onBack, dark }) {
           }
         </>
       )}
-      {erro && <div style={{ fontSize:'12px', color:'#F44336', marginBottom:'12px', textAlign:'center' }}>⚠️ {erro}</div>}
+      {erro && <div style={{ fontSize:'12px', color:'#F44336', marginBottom:'12px', textAlign:'center', background:'rgba(244,67,54,0.1)', borderRadius:'8px', padding:'10px' }}>⚠️ {erro}</div>}
       {barbeiro && dataSel && horaSel && (
         <div style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:'430px', background:'#1A0F0D', borderTop:'1px solid #3A2018', padding:'12px 16px 28px', zIndex:100 }}>
           <button onClick={confirmar} disabled={salvando}
@@ -400,6 +330,7 @@ function EscolherBarbeiro({ onEscolher, onBack, dark, promoAtiva }) {
   const [config, setConfig]         = React.useState(null);
   const [buscandoPrimeiro, setBuscando] = React.useState(false);
   const [erroPrimeiro, setErroPrimeiro] = React.useState('');
+  const [perfilAberto, setPerfilAberto] = React.useState(null);
 
   React.useEffect(() => {
     getDocs(query(collection(db,'barbeiros'), where('ativo','==',true)))
@@ -420,8 +351,6 @@ function EscolherBarbeiro({ onEscolher, onBack, dark, promoAtiva }) {
     } catch(e) { setErroPrimeiro('Erro ao buscar horário.'); }
     setBuscando(false);
   }
-
-  const [perfilAberto, setPerfilAberto] = React.useState(null);
 
   if (perfilAberto) {
     return (
@@ -492,7 +421,7 @@ function EscolherBarbeiro({ onEscolher, onBack, dark, promoAtiva }) {
             <div onClick={() => setPerfilAberto(b)} style={{ width:'56px', height:'56px', borderRadius:'50%', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', fontWeight:'700', color:'#F5EFE6', border:b.disponivel?'2px solid #4CAF50':'2px solid #FFC107', overflow:'hidden', flexShrink:0, cursor:'pointer' }}>
               {b.foto ? <img src={b.foto} alt={b.nome} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : b.nome.charAt(0)}
             </div>
-            <div style={{ flex:1 }} onClick={() => onEscolher(b)} >
+            <div style={{ flex:1 }} onClick={() => onEscolher(b)}>
               <div style={{ fontWeight:'700', fontSize:'16px', color:'#F5EFE6', cursor:'pointer' }}>{b.nome}</div>
               <div style={{ fontSize:'12px', color:'#9A8880' }}>{b.cargo}</div>
             </div>
@@ -568,9 +497,6 @@ function EscolherServico({ barbeiro, onEscolher, onBack, dark }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// CALENDÁRIO MENSAL DO CLIENTE
-// ─────────────────────────────────────────────────────────────
 function CalendarioCliente({ isDiaAberto, dataSel, onDiaSel }) {
   const agora   = new Date();
   const anoHoje = agora.getFullYear();
@@ -589,9 +515,7 @@ function CalendarioCliente({ isDiaAberto, dataSel, onDiaSel }) {
     if (na < anoHoje || (na === anoHoje && nm < mesHoje)) return;
     setMes(nm); setAno(na);
   }
-  function mkData(a, m, d) {
-    return `${a}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-  }
+  function mkData(a, m, d) { return `${a}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
   const cells = [];
   for (let i = 0; i < primeiroDia; i++) cells.push(null);
   for (let d = 1; d <= diasNoMes; d++) cells.push(d);
@@ -716,9 +640,6 @@ function EscolherDataHora({ barbeiro, servico, onEscolher, onBack, dark, dataHor
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// MODAL LEVAR UM AMIGO
-// ─────────────────────────────────────────────────────────────
 function ModalLevarAmigo({ agendamentoPrincipal, cliente, barbeiros, config, onConcluir, onFechar }) {
   const DIAS_KEYS = ['dom','seg','ter','qua','qui','sex','sab'];
   const [barbeiroAmigo, setBarbeiroAmigo] = React.useState(null);
@@ -861,9 +782,6 @@ function ModalLevarAmigo({ agendamentoPrincipal, cliente, barbeiros, config, onC
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// PAGAMENTO
-// ─────────────────────────────────────────────────────────────
 function Pagamento({ cliente, barbeiro, servico, dataHora, promoAtiva, onConfirmar, onBack, dark }) {
   const s = getStyles(dark);
   const [pagPref, setPagPref]       = React.useState('local');
@@ -1075,9 +993,6 @@ function Pagamento({ cliente, barbeiro, servico, dataHora, promoAtiva, onConfirm
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// CONFIRMADO
-// ─────────────────────────────────────────────────────────────
 function Confirmado({ agendamento, onVoltar, dark }) {
   const s = getStyles(dark);
   const ehPre = agendamento.ehPreAgendamento || agendamento.status === 'pre_agendamento';
@@ -1153,35 +1068,36 @@ function Confirmado({ agendamento, onVoltar, dark }) {
 // COMPONENTE PRINCIPAL
 // ─────────────────────────────────────────────────────────────
 export default function Agendamento({ cliente, onBack, dark, promoParaResgatar }) {
-  const [etapa, setEtapa]             = React.useState(promoParaResgatar ? 'resgatar_promo' : 'barbeiro');
+  // ✅ Se promoParaResgatar existe → pula TelaResgatarPromo e vai direto para AgendarViaPromo
+  //    O resgate (transação atômica) acontece no confirmar() do AgendarViaPromo
+  const [etapa, setEtapa]             = React.useState(promoParaResgatar ? 'agendar_promo' : 'barbeiro');
   const [barbeiro, setBarbeiro]       = React.useState(null);
   const [servico, setServico]         = React.useState(null);
   const [dataHora, setDataHora]       = React.useState(null);
   const [agendamento, setAgendamento] = React.useState(null);
   const [promoAtiva, setPromoAtiva]   = React.useState(promoParaResgatar || null);
-  const [promoAgendando, setPromoAgendando] = React.useState(null);
   const [dataHoraPreSelecionada, setDataHoraPreSelecionada] = React.useState(null);
 
   React.useEffect(() => {
     if (promoParaResgatar || promoAtiva) return;
-    import('firebase/firestore').then(({ doc: fDoc, getDoc }) => {
-      getDoc(fDoc(db, 'config', 'promocao_ativa')).then(snap => {
-        if (snap.exists()) { const p = snap.data(); if (p.ativo) setPromoAtiva(p); }
-      }).catch(()=>{});
+    getDoc(doc(db, 'config', 'promocao_ativa')).then(snap => {
+      if (snap.exists()) { const p = snap.data(); if (p.ativo) setPromoAtiva(p); }
     }).catch(()=>{});
   }, []);
 
-  if (etapa==='resgatar_promo' && promoAtiva) {
-    return <TelaResgatarPromo cliente={cliente} promo={promoAtiva} dark={dark}
-      onResgatado={(promo) => { setPromoAgendando(promo); setEtapa('agendar_promo'); }}
-      onPular={() => setEtapa('barbeiro')} />;
-  }
-  if (etapa==='agendar_promo' && promoAgendando) {
-    return <AgendarViaPromo cliente={cliente} promo={promoAgendando} dark={dark}
+  // Fluxo de promoção
+  if (etapa==='agendar_promo' && promoAtiva) {
+    return <AgendarViaPromo
+      cliente={cliente}
+      promo={promoAtiva}
+      dark={dark}
       onConcluir={(ag) => { setAgendamento(ag); setEtapa('confirmado'); }}
-      onBack={() => setEtapa('resgatar_promo')} />;
+      onBack={onBack}
+    />;
   }
-  if (etapa==='confirmado'&&agendamento) return <Confirmado agendamento={agendamento} onVoltar={onBack} dark={dark} />;
+
+  // Fluxo comum
+  if (etapa==='confirmado' && agendamento) return <Confirmado agendamento={agendamento} onVoltar={onBack} dark={dark} />;
   if (etapa==='pagamento') return <Pagamento cliente={cliente} barbeiro={barbeiro} servico={servico} dataHora={dataHora} promoAtiva={promoAtiva} onConfirmar={ag=>{setAgendamento(ag);setEtapa('confirmado');}} onBack={()=>setEtapa('dataHora')} dark={dark} />;
   if (etapa==='dataHora') return <EscolherDataHora barbeiro={barbeiro} servico={servico} onEscolher={dh=>{setDataHora(dh);setEtapa('pagamento');}} onBack={()=>setEtapa('servico')} dark={dark} dataHoraPreSelecionada={dataHoraPreSelecionada} />;
   if (etapa==='servico') return <EscolherServico barbeiro={barbeiro} onEscolher={sv=>{setServico(sv);setEtapa('dataHora');}} onBack={()=>setEtapa('barbeiro')} dark={dark} />;
