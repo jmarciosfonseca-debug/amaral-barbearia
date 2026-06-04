@@ -1,337 +1,288 @@
 // Promocao.jsx — Flyguer BarberShop
-// ✅ Fase 3: botão disparo sem mostrar quantidade
-// ✅ Fase 3: promoção relâmpago bloqueia automaticamente ao esgotar vagas
-// ✅ Fase 3: calendário do prazo exato (hoje=1 dia, 48h=2 dias, etc)
-// ✅ Fase 3: promoção não usada some automaticamente no prazo
+// ✅ v3: Gerente cria promoções com vagas, prazo, tempo real
 
 import React from 'react';
 import { db } from './firebase';
+import {
+  collection, doc, getDoc, getDocs, onSnapshot,
+  query, where, serverTimestamp,
+} from 'firebase/firestore';
 import { getStyles } from './getStyles';
+import { criarPromocao, encerrarPromocao, promoEstaAtiva } from './promocaoEngine';
 
-const MODELOS = [
-  { id:'promo',    emoji:'🔥', label:'Promoção Relâmpago',    texto:'Hoje temos promoção especial! Corte + Barba por R$ 35,00 — só até às 18h! Corre! 🔥' },
-  { id:'novidade', emoji:'✨', label:'Novidade',               texto:'Temos novidade na Flyguer BarberShop! Venha conferir nossos novos serviços e promoções. Te esperamos!' },
-  { id:'vaga',     emoji:'📅', label:'Vaga disponível',       texto:'Surgiu uma vaga hoje! Horário disponível agora — agende pelo app ou nos chame no WhatsApp. 📅' },
-  { id:'feriado',  emoji:'🎉', label:'Aviso de feriado',      texto:'Lembrando que no feriado estaremos funcionando em horário especial. Agende com antecedência!' },
-  { id:'custom',   emoji:'✏️', label:'Mensagem personalizada', texto:'' },
-];
-
-// ✅ Fase 3: prazo em dias a partir de hoje
-const PRAZOS = [
-  { id:'hoje',  label:'Só hoje',    dias:0 },
-  { id:'48h',   label:'48 horas',   dias:2 },
-  { id:'72h',   label:'3 dias',     dias:3 },
-  { id:'7d',    label:'7 dias',     dias:7 },
-  { id:'30d',   label:'30 dias',    dias:30 },
-];
-
-function calcularExpiracao(prazoId) {
-  const p = PRAZOS.find(x => x.id === prazoId);
-  if (!p) return null;
-  const d = new Date();
-  if (p.dias === 0) {
-    // hoje: expira à meia-noite
-    d.setHours(23, 59, 59, 999);
-  } else {
-    d.setDate(d.getDate() + p.dias);
-    d.setHours(23, 59, 59, 999);
-  }
-  return d.toISOString();
+function formatarData(ts) {
+  if (!ts) return '—';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleString('pt-BR');
 }
 
+function useContadorRegressivo(expiracaoTimestamp) {
+  const [txt, setTxt] = React.useState('');
+  React.useEffect(() => {
+    if (!expiracaoTimestamp) return;
+    function atualizar() {
+      const expira = expiracaoTimestamp.toMillis
+        ? expiracaoTimestamp.toMillis()
+        : new Date(expiracaoTimestamp).getTime();
+      const diff = Math.max(0, Math.floor((expira - Date.now()) / 1000));
+      if (diff <= 0) { setTxt('EXPIRADA'); return; }
+      const h = String(Math.floor(diff/3600)).padStart(2,'0');
+      const m = String(Math.floor((diff%3600)/60)).padStart(2,'0');
+      const s = String(diff%60).padStart(2,'0');
+      setTxt(`${h}:${m}:${s}`);
+    }
+    atualizar();
+    const id = setInterval(atualizar, 1000);
+    return () => clearInterval(id);
+  }, [expiracaoTimestamp]);
+  return txt;
+}
+
+// ─── PAINEL GERENTE ───────────────────────────────────────────
 export default function Promocao({ onBack, dark }) {
   const s = getStyles(dark);
-  const [toastMsg, setToastMsg]     = React.useState('');
-  const [toastTipo, setToastTipo]   = React.useState('ok');
-  function showToast(msg, tipo='ok') { setToastMsg(msg); setToastTipo(tipo); setTimeout(()=>setToastMsg(''),4000); }
+  const [promoAtual, setPromoAtual] = React.useState(null);
+  const [resgates, setResgates]     = React.useState([]);
+  const [aba, setAba]               = React.useState('status'); // status | criar
+  const [form, setForm]             = React.useState({
+    titulo: '', descricao: '', mensagem: '',
+    vagas: '10', validade: 'hoje',
+    duracaoHoras: '24',
+  });
+  const [criando, setCriando]       = React.useState(false);
+  const [encerrando, setEncerrando] = React.useState(false);
+  const [msg, setMsg]               = React.useState('');
+  const contador = useContadorRegressivo(promoAtual?.expiracaoTimestamp);
 
-  const [clientes, setClientes]     = React.useState([]);
-  const [loading, setLoading]       = React.useState(true);
-  const [modelo, setModelo]         = React.useState(MODELOS[0]);
-  const [mensagem, setMensagem]     = React.useState(MODELOS[0].texto);
-  const [titulo, setTitulo]         = React.useState('Promoção especial hoje!');
-  const [prazo, setPrazo]           = React.useState('hoje'); // ✅ Fase 3
-  const [vagas, setVagas]           = React.useState('');     // ✅ Fase 3: vazio = sem limite
-  const [ehRelampago, setEhRelampago] = React.useState(false); // ✅ Fase 3
-  const [enviando, setEnviando]     = React.useState(false);
-  const [progresso, setProgresso]   = React.useState(0);
-  const [concluido, setConcluido]   = React.useState(false);
-  const [promoAtiva, setPromoAtiva] = React.useState(null);
-  const [salvandoPromo, setSalvando]= React.useState(false);
-
-  const cardBg  = dark ? '#231410' : '#fff';
-  const border  = dark ? '#3A2018' : '#e5d5cc';
-  const textMain= dark ? '#F5EFE6' : '#1A0F0D';
-  const textSub = dark ? '#9A8880' : '#7A6860';
-
+  // Listener tempo real da promoção
   React.useEffect(() => {
-    (async () => {
-      const { collection, getDocs, doc, getDoc } = await import('firebase/firestore');
-      const snap = await getDocs(collection(db, 'clientes'));
-      setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.telefone && c.nome));
-      const snapPromo = await getDoc(doc(db, 'config', 'promocao_ativa'));
-      if (snapPromo.exists()) setPromoAtiva(snapPromo.data());
-      setLoading(false);
-    })();
+    const unsub = onSnapshot(doc(db,'config','promocao_ativa'), snap => {
+      setPromoAtual(snap.exists() ? snap.data() : null);
+    });
+    return unsub;
   }, []);
 
-  // ✅ Fase 3: verifica automaticamente se a promoção expirou ao abrir
+  // Listener resgates em tempo real
   React.useEffect(() => {
-    if (!promoAtiva?.ativo || !promoAtiva?.expiracao) return;
-    if (new Date(promoAtiva.expiracao) < new Date()) {
-      // Expirou — desativa automaticamente
-      import('firebase/firestore').then(({ doc, setDoc, serverTimestamp }) => {
-        setDoc(doc(db, 'config', 'promocao_ativa'), { ativo: false, atualizadoEm: serverTimestamp() });
-        setPromoAtiva(p => ({ ...p, ativo: false }));
+    if (!promoAtual) { setResgates([]); return; }
+    const unsub = onSnapshot(collection(db,'resgates_promo'), snap => {
+      setResgates(snap.docs.map(d=>({id:d.id,...d.data()})));
+    });
+    return unsub;
+  }, [promoAtual?.titulo]);
+
+  async function handleCriar() {
+    if (!form.titulo.trim()) { setMsg('⚠️ Informe o título'); return; }
+    if (!form.vagas || Number(form.vagas) < 1) { setMsg('⚠️ Informe o número de vagas'); return; }
+    setCriando(true); setMsg('');
+    try {
+      await criarPromocao({
+        titulo:       form.titulo.trim(),
+        descricao:    form.descricao.trim(),
+        mensagem:     form.mensagem.trim() || form.titulo.trim(),
+        vagas:        Number(form.vagas),
+        validade:     form.validade,
+        duracaoHoras: Number(form.duracaoHoras),
+        ehRelampago:  true,
       });
+      setMsg('✅ Promoção criada e ativa!');
+      setAba('status');
+    } catch(e) {
+      setMsg('❌ Erro ao criar: ' + e.message);
     }
-  }, [promoAtiva]);
-
-  function selecionarModelo(m) {
-    setModelo(m);
-    if (m.id !== 'custom') setMensagem(m.texto);
-    else setMensagem('');
+    setCriando(false);
   }
 
-  async function ativarPromo() {
-    if (!mensagem.trim()) return;
-    setSalvando(true);
+  async function handleEncerrar() {
+    if (!window.confirm('Encerrar a promoção agora?')) return;
+    setEncerrando(true);
     try {
-      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
-      const expiracao = calcularExpiracao(prazo);
-      const dados = {
-        ativo:       true,
-        titulo,
-        mensagem,
-        modelo:      modelo.id,
-        prazo,
-        expiracao,
-        ehRelampago,
-        vagas:       ehRelampago && vagas ? parseInt(vagas) : null,
-        resgatados:  0,
-        atualizadoEm: serverTimestamp(),
-      };
-      await setDoc(doc(db, 'config', 'promocao_ativa'), dados);
-      setPromoAtiva(dados);
-      showToast('✅ Banner ativado! Aparece na tela inicial do app.', 'ok');
-    } catch(e) { showToast('❌ Erro ao ativar: ' + e.message, 'erro'); }
-    setSalvando(false);
+      await encerrarPromocao();
+      setMsg('✅ Promoção encerrada');
+    } catch(e) { setMsg('❌ Erro: ' + e.message); }
+    setEncerrando(false);
   }
 
-  async function desativarPromo() {
-    setSalvando(true);
-    try {
-      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
-      await setDoc(doc(db, 'config', 'promocao_ativa'), { ativo: false, atualizadoEm: serverTimestamp() });
-      setPromoAtiva({ ativo: false });
-      showToast('⏹ Banner desativado.', 'ok');
-    } catch(e) { showToast('❌ Erro: ' + e.message, 'erro'); }
-    setSalvando(false);
-  }
+  const inp = {
+    width:'100%', background:'#2E1A14', border:'1px solid #3A2018',
+    borderRadius:'10px', padding:'10px 12px', color:'#F5EFE6',
+    fontSize:'14px', outline:'none', boxSizing:'border-box',
+    fontFamily:"'DM Sans',sans-serif",
+  };
 
-  // ✅ Fase 3: dispara sem mostrar quantidade no botão
-  async function disparar() {
-    if (!mensagem.trim()) return;
-    setEnviando(true); setProgresso(0); setConcluido(false);
-    const comTel = clientes.filter(c => c.telefone);
-    for (let i = 0; i < comTel.length; i++) {
-      const c = comTel[i];
-      const tel = c.telefone.replace(/\D/g, '');
-      const msg = encodeURIComponent(
-        `Olá, ${c.nome.split(' ')[0]}! 👋\n\n` +
-        mensagem + '\n\n' +
-        `📍 Shopping Cidade das Artes — Piso 2, Nº 22\n` +
-        `📲 Agende pelo app: https://flyguer-barbershop.vercel.app`
-      );
-      window.open(`https://wa.me/55${tel}?text=${msg}`, '_blank');
-      setProgresso(Math.round(((i + 1) / comTel.length) * 100));
-      await new Promise(r => setTimeout(r, 1500));
-    }
-    setEnviando(false); setConcluido(true);
-    setTimeout(() => setConcluido(false), 5000);
-  }
-
-  // ✅ Fase 3: limpar resgates expirados (promoção não usada no prazo some)
-  async function limparResgatesExpirados() {
-    try {
-      const { collection, getDocs, doc, updateDoc } = await import('firebase/firestore');
-      const snap = await getDocs(collection(db, 'resgates_promo'));
-      const agora = new Date();
-      let count = 0;
-      for (const d of snap.docs) {
-        const r = d.data();
-        if (!r.utilizado && r.expiracao && new Date(r.expiracao) < agora) {
-          await updateDoc(doc(db, 'resgates_promo', d.id), { expirado: true, arquivado: true });
-          count++;
-        }
-      }
-      if (count > 0) showToast(`🗑 ${count} resgate${count!==1?'s':''} expirado${count!==1?'s':''} removido${count!==1?'s':''}.`, 'ok');
-    } catch(e) { console.error(e); }
-  }
-
-  React.useEffect(() => {
-    limparResgatesExpirados();
-  }, []);
-
-  const promoEstaAtiva = promoAtiva?.ativo;
-  const expiracao = promoAtiva?.expiracao ? new Date(promoAtiva.expiracao) : null;
-  const expirou = expiracao && expiracao < new Date();
+  const ativa = promoAtual && promoEstaAtiva(promoAtual);
+  const vagasRestantes = promoAtual ? (promoAtual.vagas||0) - (promoAtual.resgatados||0) : 0;
+  const pct = promoAtual ? Math.max(0, vagasRestantes/promoAtual.vagas*100) : 0;
 
   return (
-    <div style={{ ...s.app, paddingBottom:'60px' }}>
-      <div style={{ background:'linear-gradient(135deg,#8B0000,#F44336)', padding:'20px 20px 16px', display:'flex', alignItems:'center', gap:'12px' }}>
-        <button onClick={onBack} style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:'8px', padding:'6px 12px', color:'#fff', cursor:'pointer', fontSize:'14px' }}>←</button>
-        <div style={{ flex:1 }}>
-          <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#fff', fontWeight:'700' }}>🔴 Promoção / Comunicado</div>
-          <div style={{ fontSize:'11px', color:'rgba(255,255,255,0.7)' }}>Dispara para clientes · Controla banner na splash</div>
+    <div style={{ ...s.app, paddingBottom:'40px' }}>
+      {/* Header */}
+      <div style={{ background:'linear-gradient(135deg,#8B0000,#C62828)', padding:'16px 20px', display:'flex', alignItems:'center', gap:'12px' }}>
+        <button onClick={onBack} style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:'8px', padding:'6px 10px', color:'#fff', cursor:'pointer', fontSize:'14px' }}>←</button>
+        <div>
+          <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'17px', fontWeight:'700', color:'#fff' }}>🔥 Promoções</div>
+          <div style={{ fontSize:'11px', color:'rgba(255,255,255,0.7)' }}>Controle de promoções relâmpago</div>
         </div>
-        <div style={{ background:'rgba(255,255,255,0.2)', borderRadius:'10px', padding:'6px 12px', fontSize:'13px', fontWeight:'700', color:'#fff' }}>
-          👥 {loading ? '...' : clientes.length}
-        </div>
+      </div>
+
+      {/* Abas */}
+      <div style={{ display:'flex', borderBottom:'1px solid #3A2018' }}>
+        {[{id:'status',label:'📊 Status'},{id:'criar',label:'➕ Nova Promoção'}].map(a => (
+          <button key={a.id} onClick={()=>setAba(a.id)}
+            style={{ flex:1, padding:'13px', border:'none', background:'transparent', borderBottom:aba===a.id?'2px solid #F44336':'2px solid transparent', color:aba===a.id?'#F5EFE6':'#9A8880', fontSize:'13px', fontWeight:aba===a.id?'700':'400', cursor:'pointer' }}>
+            {a.label}
+          </button>
+        ))}
       </div>
 
       <div style={{ padding:'16px' }}>
+        {msg && (
+          <div style={{ background: msg.startsWith('✅')?'rgba(76,175,80,0.15)':'rgba(244,67,54,0.15)', border:`1px solid ${msg.startsWith('✅')?'#4CAF50':'#F44336'}`, borderRadius:'10px', padding:'10px 14px', marginBottom:'16px', fontSize:'13px', color: msg.startsWith('✅')?'#4CAF50':'#F44336' }}>
+            {msg}
+          </div>
+        )}
 
-        {/* STATUS BANNER */}
-        <div style={{ background:promoEstaAtiva?'rgba(244,67,54,0.15)':'rgba(46,125,122,0.08)', border:`1px solid ${promoEstaAtiva?'rgba(244,67,54,0.4)':'rgba(46,125,122,0.2)'}`, borderRadius:'14px', padding:'14px', marginBottom:'16px' }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:promoEstaAtiva?'10px':'0' }}>
-            <div>
-              <div style={{ fontSize:'13px', fontWeight:'700', color:promoEstaAtiva?'#F44336':'#2E7D7A' }}>
-                {promoEstaAtiva ? '🔴 Banner ATIVO na splash' : expirou ? '⏱ Banner expirado' : '⚫ Banner desativado'}
+        {/* ABA STATUS */}
+        {aba === 'status' && (
+          <>
+            {!promoAtual ? (
+              <div style={{ textAlign:'center', padding:'40px' }}>
+                <div style={{ fontSize:'48px', marginBottom:'12px' }}>🔕</div>
+                <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#E8C96A', marginBottom:'8px' }}>Nenhuma promoção ativa</div>
+                <button onClick={()=>setAba('criar')} style={{ padding:'12px 24px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#8B0000,#F44336)', color:'#fff', fontSize:'14px', fontWeight:'700', cursor:'pointer' }}>
+                  🔥 Criar promoção agora
+                </button>
               </div>
-              <div style={{ fontSize:'11px', color:textSub, marginTop:'2px' }}>
-                {promoEstaAtiva && expiracao ? `Expira: ${expiracao.toLocaleDateString('pt-BR')} às ${expiracao.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}` : promoEstaAtiva ? 'Clientes veem o banner antes de fazer login' : 'Nenhum comunicado na tela inicial'}
-              </div>
-            </div>
-            {promoEstaAtiva && (
-              <button onClick={desativarPromo} disabled={salvandoPromo}
-                style={{ background:'rgba(244,67,54,0.2)', border:'1px solid #F44336', borderRadius:'10px', padding:'8px 12px', color:'#F44336', fontSize:'12px', fontWeight:'700', cursor:'pointer' }}>
-                {salvandoPromo ? '...' : '⏹ Desativar'}
-              </button>
+            ) : (
+              <>
+                {/* Card da promoção */}
+                <div style={{ background:'linear-gradient(135deg,#8B0000,#C62828)', borderRadius:'16px', padding:'20px', marginBottom:'16px', position:'relative', overflow:'hidden' }}>
+                  <div style={{ position:'absolute', top:'-20px', right:'-20px', fontSize:'100px', opacity:0.08 }}>🔥</div>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'12px' }}>
+                    <div>
+                      <div style={{ fontSize:'11px', color:'rgba(255,255,255,0.7)', fontWeight:'700', textTransform:'uppercase', marginBottom:'4px' }}>
+                        {ativa ? '🟢 ATIVA' : '🔴 ENCERRADA'}
+                      </div>
+                      <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'20px', color:'#fff', fontWeight:'900' }}>{promoAtual.titulo}</div>
+                    </div>
+                    {contador && ativa && (
+                      <div style={{ background:'rgba(0,0,0,0.3)', borderRadius:'10px', padding:'6px 12px', textAlign:'center' }}>
+                        <div style={{ fontSize:'9px', color:'rgba(255,255,255,0.6)', marginBottom:'2px' }}>EXPIRA</div>
+                        <div style={{ fontSize:'16px', fontWeight:'900', color:'#fff', fontFamily:'monospace' }}>{contador}</div>
+                      </div>
+                    )}
+                  </div>
+                  {promoAtual.descricao && (
+                    <div style={{ fontSize:'14px', color:'rgba(255,255,255,0.85)', marginBottom:'12px' }}>🎁 {promoAtual.descricao}</div>
+                  )}
+                  {/* Barra de vagas */}
+                  <div style={{ marginBottom:'8px' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'4px' }}>
+                      <div style={{ fontSize:'13px', color:'rgba(255,255,255,0.9)', fontWeight:'700' }}>
+                        {vagasRestantes} / {promoAtual.vagas} vagas restantes
+                      </div>
+                      <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.6)' }}>{promoAtual.resgatados||0} resgatadas</div>
+                    </div>
+                    <div style={{ height:'8px', background:'rgba(0,0,0,0.3)', borderRadius:'4px', overflow:'hidden' }}>
+                      <div style={{ height:'100%', width:`${100-pct}%`, background: pct>50?'#4CAF50':pct>20?'#FFC107':'#FF5252', borderRadius:'4px', transition:'width 0.5s' }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ações */}
+                {ativa && (
+                  <button onClick={handleEncerrar} disabled={encerrando}
+                    style={{ width:'100%', padding:'13px', borderRadius:'12px', border:'1.5px solid rgba(244,67,54,0.5)', background:'rgba(244,67,54,0.1)', color:'#F44336', fontSize:'14px', fontWeight:'700', cursor:'pointer', marginBottom:'16px' }}>
+                    {encerrando ? '...' : '⛔ Encerrar promoção agora'}
+                  </button>
+                )}
+
+                {/* Lista de resgates */}
+                <div style={{ fontSize:'12px', color:'#E8C96A', fontWeight:'700', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'10px' }}>
+                  👥 Quem resgatou ({resgates.length})
+                </div>
+                {resgates.length === 0 ? (
+                  <div style={{ textAlign:'center', padding:'20px', color:'#9A8880', fontSize:'13px' }}>Ninguém resgatou ainda</div>
+                ) : resgates.map(r => (
+                  <div key={r.id} style={{ background:'#231410', borderRadius:'12px', padding:'10px 14px', border:'1px solid #3A2018', marginBottom:'8px', display:'flex', alignItems:'center', gap:'12px' }}>
+                    <div style={{ width:'36px', height:'36px', borderRadius:'50%', background:r.utilizado?'rgba(46,125,122,0.2)':'rgba(244,67,54,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', fontWeight:'700', color:r.utilizado?'#2E7D7A':'#F44336', flexShrink:0 }}>
+                      {r.clienteNome?.charAt(0)||'?'}
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:'700', fontSize:'13px', color:'#F5EFE6' }}>{r.clienteNome}</div>
+                      <div style={{ fontSize:'11px', color:'#9A8880' }}>{r.clienteTel} · {r.utilizado?'✅ Agendado':'⏳ Pendente'}</div>
+                    </div>
+                    {r.clienteTel && (
+                      <button onClick={()=>window.open(`https://wa.me/55${r.clienteTel.replace(/\D/g,'')}`, '_blank')}
+                        style={{ padding:'6px 10px', borderRadius:'8px', border:'none', background:'rgba(37,211,102,0.15)', color:'#25D366', fontSize:'11px', cursor:'pointer' }}>📲</button>
+                    )}
+                  </div>
+                ))}
+              </>
             )}
-          </div>
-          {promoEstaAtiva && promoAtiva.mensagem && (
-            <div style={{ background:'rgba(0,0,0,0.2)', borderRadius:'8px', padding:'8px 10px', fontSize:'11px', color:'#F5EFE6', fontStyle:'italic' }}>
-              "{promoAtiva.mensagem.substring(0,80)}{promoAtiva.mensagem.length>80?'...':''}"
-            </div>
-          )}
-          {promoEstaAtiva && promoAtiva.ehRelampago && (
-            <div style={{ marginTop:'8px', fontSize:'12px', color:'#FFC107', fontWeight:'700' }}>
-              ⚡ {(promoAtiva.vagas||0) - (promoAtiva.resgatados||0)} vagas restantes de {promoAtiva.vagas}
-            </div>
-          )}
-        </div>
-
-        {/* Concluído */}
-        {concluido && (
-          <div style={{ background:'rgba(76,175,80,0.15)', border:'1px solid #4CAF50', borderRadius:'14px', padding:'16px', marginBottom:'16px', textAlign:'center' }}>
-            <div style={{ fontSize:'32px', marginBottom:'8px' }}>✅</div>
-            <div style={{ fontWeight:'700', color:'#4CAF50' }}>Comunicado enviado!</div>
-            <div style={{ fontSize:'12px', color:textSub, marginTop:'4px' }}>Disparado para os clientes cadastrados</div>
-          </div>
+          </>
         )}
 
-        {/* Modelos */}
-        <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'600', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'10px' }}>Tipo de comunicado</div>
-        <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'16px' }}>
-          {MODELOS.map(m => (
-            <button key={m.id} onClick={() => selecionarModelo(m)}
-              style={{ padding:'8px 12px', borderRadius:'10px', border:`1px solid ${modelo.id===m.id?'#F44336':border}`, background:modelo.id===m.id?'rgba(244,67,54,0.15)':cardBg, color:modelo.id===m.id?'#F44336':textSub, fontSize:'12px', fontWeight:modelo.id===m.id?'700':'400', cursor:'pointer' }}>
-              {m.emoji} {m.label}
-            </button>
-          ))}
-        </div>
+        {/* ABA CRIAR */}
+        {aba === 'criar' && (
+          <div>
+            {[
+              { label:'Título da promoção *', key:'titulo', placeholder:'Ex: Corte Grátis para os 5 primeiros!' },
+              { label:'O que o cliente ganha *', key:'descricao', placeholder:'Ex: 1 corte grátis à sua escolha' },
+              { label:'Mensagem no banner', key:'mensagem', placeholder:'Deixe em branco para usar o título' },
+            ].map(f => (
+              <div key={f.key} style={{ marginBottom:'14px' }}>
+                <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'5px' }}>{f.label}</label>
+                <input type="text" style={inp} placeholder={f.placeholder} value={form[f.key]} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} />
+              </div>
+            ))}
 
-        {/* Título */}
-        <div style={{ fontSize:'11px', color:textSub, fontWeight:'600', marginBottom:'6px', textTransform:'uppercase' }}>Título do banner</div>
-        <input value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Título curto..."
-          style={{ width:'100%', background:dark?'#2E1A14':'#f5efe6', border:`1px solid ${border}`, borderRadius:'10px', padding:'10px 12px', color:textMain, fontSize:'13px', outline:'none', boxSizing:'border-box', marginBottom:'12px' }} />
-
-        {/* Mensagem */}
-        <div style={{ fontSize:'11px', color:textSub, fontWeight:'600', marginBottom:'8px', textTransform:'uppercase' }}>Mensagem</div>
-        <textarea value={mensagem} onChange={e=>setMensagem(e.target.value)} placeholder="Digite o comunicado..." rows={4}
-          style={{ width:'100%', background:dark?'#2E1A14':'#f5efe6', border:`1px solid ${border}`, borderRadius:'12px', padding:'12px', color:textMain, fontSize:'14px', outline:'none', boxSizing:'border-box', fontFamily:"'DM Sans',sans-serif", resize:'none', marginBottom:'12px' }} />
-
-        {/* ✅ Fase 3: Prazo exato */}
-        <div style={{ fontSize:'11px', color:textSub, fontWeight:'600', marginBottom:'8px', textTransform:'uppercase' }}>Prazo de validade</div>
-        <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'16px' }}>
-          {PRAZOS.map(p => (
-            <button key={p.id} onClick={() => setPrazo(p.id)}
-              style={{ padding:'8px 12px', borderRadius:'10px', border:`1px solid ${prazo===p.id?'#E8C96A':border}`, background:prazo===p.id?'rgba(232,201,106,0.15)':cardBg, color:prazo===p.id?'#E8C96A':textSub, fontSize:'12px', fontWeight:prazo===p.id?'700':'400', cursor:'pointer' }}>
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        {/* ✅ Fase 3: Promoção relâmpago com vagas */}
-        <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:'12px', padding:'14px', marginBottom:'16px' }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: ehRelampago?'12px':'0' }}>
-            <div>
-              <div style={{ fontSize:'13px', fontWeight:'700', color:textMain }}>⚡ Promoção Relâmpago</div>
-              <div style={{ fontSize:'11px', color:textSub, marginTop:'2px' }}>Limita vagas — bloqueia automaticamente ao esgotar</div>
+            <div style={{ marginBottom:'14px' }}>
+              <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'5px' }}>Número de vagas *</label>
+              <input type="number" min="1" max="1000" style={inp} value={form.vagas} onChange={e=>setForm(p=>({...p,vagas:e.target.value}))} />
             </div>
-            <div onClick={() => setEhRelampago(e => !e)}
-              style={{ width:'44px', height:'24px', borderRadius:'12px', background:ehRelampago?'#F44336':'#3A2018', position:'relative', cursor:'pointer', transition:'background 0.2s', flexShrink:0 }}>
-              <div style={{ position:'absolute', top:'3px', left:ehRelampago?'23px':'3px', width:'18px', height:'18px', borderRadius:'50%', background:'#fff', transition:'left 0.2s' }} />
-            </div>
-          </div>
-          {ehRelampago && (
-            <div>
-              <div style={{ fontSize:'11px', color:textSub, marginBottom:'6px' }}>Número de vagas</div>
-              <input type="number" min="1" value={vagas} onChange={e=>setVagas(e.target.value)} placeholder="Ex: 10"
-                style={{ width:'100%', background:dark?'#2E1A14':'#f5efe6', border:`1px solid ${border}`, borderRadius:'10px', padding:'10px 12px', color:textMain, fontSize:'14px', outline:'none', boxSizing:'border-box' }} />
-              <div style={{ fontSize:'11px', color:'#FFC107', marginTop:'6px' }}>⚡ Quando todas as vagas forem resgatadas, o banner some automaticamente.</div>
-            </div>
-          )}
-        </div>
 
-        {/* Preview */}
-        {mensagem.trim() && (
-          <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:'14px', padding:'14px', marginBottom:'16px' }}>
-            <div style={{ fontSize:'11px', color:textSub, fontWeight:'600', marginBottom:'8px', textTransform:'uppercase' }}>Preview</div>
-            <div style={{ background:'#dcf8c6', borderRadius:'12px 12px 2px 12px', padding:'10px 14px', maxWidth:'85%', marginLeft:'auto' }}>
-              <div style={{ fontSize:'12px', color:'#1A0F0D', lineHeight:'1.6', whiteSpace:'pre-line' }}>
-                {`Olá, [Nome]! 👋\n\n${mensagem}\n\n📍 Shopping Cidade das Artes — Piso 2, Nº 22\n📲 Agende pelo app`}
+            <div style={{ marginBottom:'14px' }}>
+              <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'8px' }}>Validade</label>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px' }}>
+                {[
+                  { v:'hoje',         l:'Hoje' },
+                  { v:'24h',          l:'24h'  },
+                  { v:'48h',          l:'48h'  },
+                  { v:'personalizado',l:'Outro' },
+                ].map(op => (
+                  <div key={op.v} onClick={()=>setForm(p=>({...p,validade:op.v}))}
+                    style={{ padding:'10px', borderRadius:'10px', textAlign:'center', cursor:'pointer', background:form.validade===op.v?'rgba(244,67,54,0.2)':'#231410', border:form.validade===op.v?'1.5px solid #F44336':'1px solid #3A2018', color:form.validade===op.v?'#F44336':'#9A8880', fontSize:'13px', fontWeight:form.validade===op.v?'700':'400' }}>
+                    {op.l}
+                  </div>
+                ))}
               </div>
             </div>
+
+            {form.validade === 'personalizado' && (
+              <div style={{ marginBottom:'14px' }}>
+                <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'5px' }}>Duração em horas</label>
+                <input type="number" min="1" style={inp} value={form.duracaoHoras} onChange={e=>setForm(p=>({...p,duracaoHoras:e.target.value}))} />
+              </div>
+            )}
+
+            {/* Preview */}
+            {form.titulo && (
+              <div style={{ background:'linear-gradient(135deg,#8B0000,#F44336)', borderRadius:'14px', padding:'16px', marginBottom:'16px', opacity:0.85 }}>
+                <div style={{ fontSize:'10px', color:'rgba(255,255,255,0.7)', fontWeight:'700', textTransform:'uppercase', marginBottom:'6px' }}>⚡ Preview do banner</div>
+                <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#fff', fontWeight:'900', marginBottom:'4px' }}>{form.titulo}</div>
+                {form.descricao && <div style={{ fontSize:'13px', color:'rgba(255,255,255,0.85)' }}>🎁 {form.descricao}</div>}
+                <div style={{ marginTop:'8px', fontSize:'12px', color:'rgba(255,255,255,0.7)' }}>⚡ {form.vagas||'?'} vagas · {form.validade==='personalizado'?`${form.duracaoHoras}h`:form.validade}</div>
+              </div>
+            )}
+
+            <button onClick={handleCriar} disabled={criando}
+              style={{ width:'100%', padding:'15px', borderRadius:'14px', border:'none', background:criando?'#2E1A14':'linear-gradient(135deg,#8B0000,#F44336)', color:criando?'#555':'#fff', fontSize:'15px', fontWeight:'700', cursor:criando?'wait':'pointer' }}>
+              {criando ? '⏳ Criando...' : '🔥 Ativar Promoção Agora'}
+            </button>
           </div>
         )}
-
-        {/* Progresso */}
-        {enviando && (
-          <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:'14px', padding:'16px', marginBottom:'16px' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'8px' }}>
-              <span style={{ fontSize:'13px', color:textMain, fontWeight:'600' }}>📲 Enviando...</span>
-              <span style={{ fontSize:'13px', color:'#F44336', fontWeight:'700' }}>{progresso}%</span>
-            </div>
-            <div style={{ height:'6px', background:dark?'#2E1A14':'#f5efe6', borderRadius:'3px', overflow:'hidden' }}>
-              <div style={{ height:'100%', width:`${progresso}%`, background:'linear-gradient(90deg,#8B0000,#F44336)', borderRadius:'3px', transition:'width 0.3s' }} />
-            </div>
-          </div>
-        )}
-
-        {/* Botão ativar banner */}
-        <button onClick={ativarPromo} disabled={salvandoPromo||!mensagem.trim()}
-          style={{ width:'100%', padding:'14px', borderRadius:'14px', border:'none', background:!mensagem.trim()?'#2E1A14':'linear-gradient(135deg,#A07830,#C9A84C)', color:!mensagem.trim()?'#555':'#1A0F0D', fontWeight:'800', fontSize:'14px', cursor:!mensagem.trim()?'not-allowed':'pointer', marginBottom:'10px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
-          {salvandoPromo ? '⏳...' : promoEstaAtiva ? '🔄 Atualizar banner na splash' : '📌 Ativar banner na tela inicial'}
-        </button>
-
-        {/* ✅ Fase 3: botão dispara sem quantidade */}
-        <button onClick={disparar} disabled={enviando||!mensagem.trim()||clientes.filter(c=>c.telefone).length===0}
-          style={{ width:'100%', padding:'16px', borderRadius:'14px', border:'none', background:enviando||!mensagem.trim()?'#2E1A14':'linear-gradient(135deg,#8B0000,#F44336)', color:enviando||!mensagem.trim()?'#555':'#fff', fontWeight:'800', fontSize:'15px', cursor:enviando||!mensagem.trim()?'not-allowed':'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
-          {enviando ? `⏳ Enviando... ${progresso}%` : `🔴 Disparar WhatsApp para clientes`}
-        </button>
-
-        <div style={{ fontSize:'11px', color:textSub, textAlign:'center', marginTop:'10px' }}>
-          ⚠️ Cada mensagem abre o WhatsApp individualmente. Confirme o envio em cada uma.
-        </div>
       </div>
-
-      {toastMsg && (
-        <div style={{ position:'fixed', top:'16px', left:'50%', transform:'translateX(-50%)', background:toastTipo==='ok'?'linear-gradient(135deg,#2E7D7A,#3A9E9A)':'linear-gradient(135deg,#8B0000,#F44336)', color:'#fff', padding:'12px 24px', borderRadius:'14px', fontSize:'13px', fontWeight:'700', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,0.5)', whiteSpace:'nowrap' }}>
-          {toastMsg}
-        </div>
-      )}
     </div>
   );
 }
