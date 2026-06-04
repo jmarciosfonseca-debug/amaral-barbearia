@@ -1,24 +1,27 @@
 /* responsive.css — Flyguer BarberShop */
-/* ✅ OPÇÃO A: Desktop idêntico ao mobile — coluna única 430px centralizada */
-/* Elimina qualquer diferença visual entre PC e smartphone */
+/* ✅ 430px centralizado em mobile e painéis internos           */
+/* ✅ Splash tela cheia no desktop                              */
+/* ✅ overflow-y: auto para scroll vertical no PC               */
+/* ✅ min-height: 100vh no fundo para ocupar tela inteira       */
 
-/* ─── BASE MOBILE-FIRST ─────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;
 }
 
-body {
-  background: #0A0A0A;
+/* ─── FUNDO GERAL ────────────────────────────────────────────── */
+html, body {
   margin: 0;
   padding: 0;
+  min-height: 100vh;
+  background: #0A0A0A;
+  overflow-x: hidden;
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
-  /* Impede zoom indesejado em inputs no iOS */
   -webkit-text-size-adjust: 100%;
 }
 
 /* ─── CONTAINER PRINCIPAL ────────────────────────────────────── */
-/* ✅ 430px em TODOS os dispositivos — PC, tablet e mobile */
+/* Todas as telas internas: 430px centralizado                   */
 .app-container {
   max-width: 430px;
   width: 100%;
@@ -26,67 +29,67 @@ body {
   min-height: 100vh;
   position: relative;
   background: #1A0F0D;
-  /* Sombra lateral no desktop para destacar o app */
-  box-shadow: 0 0 60px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 0 60px rgba(0,0,0,0.8);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-/* ─── DESKTOP E TABLET ───────────────────────────────────────── */
-/* Mantém 430px centralizado — NÃO expande para tela cheia */
+/* ─── DESKTOP E TABLET — container interno fixo em 430px ─────── */
 @media (min-width: 430px) {
   .app-container {
     max-width: 430px !important;
     margin: 0 auto !important;
   }
+}
 
-  /* Fundo escuro nas laterais para enquadrar o app */
-  body {
-    background: #0D0D0D;
+/* ─── SPLASH TELA CHEIA NO DESKTOP ──────────────────────────── */
+/* Classe .splash-mode aplicada só quando tela === 'splash'       */
+/* Não afeta nenhuma outra tela do app                            */
+@media (min-width: 430px) {
+  .app-container.splash-mode {
+    max-width: 100vw !important;
+    width: 100% !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    background: #1A0F0D;
   }
 
-  /* Remove border-radius do header que fica estranho no desktop */
-  .app-container > div > div:first-child {
-    border-radius: 0;
+  /* Conteúdo da splash centralizado com largura máxima confortável */
+  .splash-inner {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* Hero da splash (banner de topo) ocupa 100% da tela no desktop */
+  .splash-hero {
+    width: 100%;
+    max-width: 100%;
   }
 }
 
-/* ─── POSIÇÃO FIXA (bottom bars, modais, alertas) ────────────── */
-/* Garante que elementos fixed ficam dentro do container de 430px */
-.fixed-bottom-bar {
-  max-width: 430px;
-  left: 50%;
-  transform: translateX(-50%);
+/* Mobile: splash-inner e splash-hero sem efeito adicional */
+@media (max-width: 429px) {
+  .splash-inner {
+    padding: 0;
+  }
 }
 
-/* ─── INPUTS ─────────────────────────────────────────────────── */
-/* Impede zoom automático no iOS ao focar em input */
+/* ─── INPUTS — sem zoom no iOS ───────────────────────────────── */
 input, select, textarea {
   font-size: 16px;
 }
 
-/* ─── SCROLLBAR ──────────────────────────────────────────────── */
-/* Scrollbar discreta no desktop */
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-::-webkit-scrollbar-track {
-  background: #1A0F0D;
-}
-::-webkit-scrollbar-thumb {
-  background: #3A2018;
-  border-radius: 2px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #5C2218;
-}
+/* ─── SCROLLBAR DISCRETA ─────────────────────────────────────── */
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #1A0F0D; }
+::-webkit-scrollbar-thumb { background: #3A2018; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #5C2218; }
 
 /* ─── SELEÇÃO DE TEXTO ───────────────────────────────────────── */
-::selection {
-  background: rgba(139, 58, 42, 0.4);
-  color: #F5EFE6;
-}
+::selection { background: rgba(139,58,42,0.4); color: #F5EFE6; }
 
-/* ─── TRANSIÇÕES GLOBAIS ─────────────────────────────────────── */
+/* ─── BOTÕES ─────────────────────────────────────────────────── */
 button {
   transition: opacity 0.15s ease, transform 0.1s ease;
 }
@@ -99,38 +102,25 @@ button:disabled {
   opacity: 0.5;
 }
 
-/* ─── OVERFLOW ───────────────────────────────────────────────── */
-/* Impede scroll horizontal indesejado */
-html, body {
-  overflow-x: hidden;
-}
-
-/* ─── SAFE AREA (iPhone com notch/Dynamic Island) ────────────── */
+/* ─── SAFE AREA iPhone ───────────────────────────────────────── */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
-  .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-}
-
-/* ─── FILA DE RECEPÇÃO (grid interno quando necessário) ──────── */
-/* Mantido para uso interno, mas dentro do container de 430px */
-.recepcao-fila-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 }
 
 /* ─── ANIMAÇÕES GLOBAIS ──────────────────────────────────────── */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity:0; transform:translateY(8px); }
+  to   { opacity:1; transform:translateY(0); }
 }
-
 @keyframes slideUp {
-  from { transform: translateY(100%); }
-  to   { transform: translateY(0); }
+  from { transform:translateY(100%); }
+  to   { transform:translateY(0); }
 }
+.fade-in { animation: fadeIn 0.25s ease forwards; }
 
-.fade-in {
-  animation: fadeIn 0.25s ease forwards;
+/* ─── RECEPÇÃO (layout interno) ─────────────────────────────── */
+.recepcao-fila-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
