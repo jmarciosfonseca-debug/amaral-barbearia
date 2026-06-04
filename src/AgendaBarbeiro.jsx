@@ -13,6 +13,7 @@ import {
   serverTimestamp, addDoc,
 } from 'firebase/firestore';
 import { getStyles } from './getStyles';
+import CaptarClientes from './CaptarClientes';
 
 const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const DIAS_KEYS   = ['dom','seg','ter','qua','qui','sex','sab'];
@@ -861,6 +862,7 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
     { id:'clientes',   label:'👥'    },
     { id:'perfil',     label:'👤'    },
     { id:'avaliacoes', label:'⭐'    },
+    { id:'captar',     label:'📣'    },
   ];
 
   return (
@@ -928,7 +930,9 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
         )}
         {aba==='clientes'  && <AbaClientes usuario={usuario}/>}
         {aba==='perfil'    && <AbaPerfil usuario={usuario}/>}
-        {aba==='avaliacoes'&& <AbaAvaliacoes usuario={usuario}/>}
+        {aba==='avaliacoes'&& <AbaAvaliacoes usuario={usuario}/>
+        }
+        {aba==='captar'    && <CaptarClientes nomeRemetente={usuario?.nome}/>}
       </div>
     </div>
   );
