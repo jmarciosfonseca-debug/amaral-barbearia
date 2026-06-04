@@ -23,7 +23,7 @@ function mkData(a,m,d) {
 }
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
-// ─── ABA AGENDA ───────────────────────────────────────────────
+// ─── ABA AGENDA ----------------------------------------───────
 function AbaAgenda() {
   const [barbeiros, setBarbeiros]       = React.useState([]);
   const [barbeiroSel, setBarbeiroSel]   = React.useState(null);
@@ -244,7 +244,7 @@ function AbaServicos() {
   );
 }
 
-// ─── ABA CLIENTES ─────────────────────────────────────────────
+// ─── ABA CLIENTES ----------------------------------------─────
 function AbaClientes() {
   const [busca, setBusca]           = React.useState('');
   const [todos, setTodos]           = React.useState([]);
@@ -303,16 +303,68 @@ function AbaClientes() {
 
   function formatarData(s) { if(!s)return''; const[a,m,d]=s.split('-'); return`${d}/${m}/${a}`; }
 
+  // ─── Gerar PDF do histórico ───
+  function gerarPDF() {
+    const nome = clienteSel.nome || 'Cliente';
+    const tel  = clienteSel.telefone || '—';
+    const cpf  = clienteSel.cpf || '—';
+    const linhas = historico.map(ag => {
+      const status = ag.status?.includes('cancelado')?'Cancelado':ag.status==='concluido'?'Concluído':'Confirmado';
+      return `${formatarData(ag.data)} ${ag.hora} | ${ag.servico} | ${ag.barbeiroNome} | R$ ${(ag.valor||0).toFixed(2).replace('.',',')} | ${status}`;
+    }).join('\n');
+    const total = historico.filter(a=>!a.status?.includes('cancelado')).reduce((s,a)=>s+(a.valor||0),0);
+    const conteudo = [
+      '========================================',
+      '        FLYGUER BARBERSHOP',
+      '   Shopping Cidade das Artes — Piso 2, Nº 22',
+      '========================================',
+      '',
+      `Cliente : ${nome}`,
+      `Telefone: ${tel}`,
+      `CPF     : ${cpf}`,
+      `Gerado  : ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`,
+      '',
+      '----------------------------------------',
+      'DATA       HORA  SERVIÇO                    BARBEIRO     VALOR      STATUS',
+      '----------------------------------------',
+      linhas,
+      '----------------------------------------',
+      `TOTAL GASTO (excl. cancelamentos): R$ ${total.toFixed(2).replace('.',',')}`,
+      `TOTAL ATENDIMENTOS: ${historico.filter(a=>a.status==='concluido').length} concluídos`,
+      '========================================',
+      '  flyguer-barbershop.vercel.app',
+      '========================================',
+    ].join('\n');
+    const blob = new Blob([conteudo], { type:'text/plain;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `historico_${nome.replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ─── Excluir agendamento da visão da recepção ───
+  async function excluirDaVista(ag) {
+    try {
+      await updateDoc(doc(db,'agendamentos',ag.id), { ocultadoRecepcao:true });
+      setHistorico(prev => prev.filter(a => a.id !== ag.id));
+    } catch(e) { console.error(e); }
+  }
+
   // ─── Tela de histórico do cliente ───
   if (clienteSel) {
+    const totalGasto = historico.filter(a=>!a.status?.includes('cancelado')).reduce((s,a)=>s+(a.valor||0),0);
+    const concluidos = historico.filter(a=>a.status==='concluido').length;
     return (
       <div>
         <button onClick={()=>{setClienteSel(null);setHistorico([]);}}
           style={{ background:'none', border:'none', color:'#E8C96A', fontSize:'14px', cursor:'pointer', marginBottom:'16px', display:'flex', alignItems:'center', gap:'6px' }}>
           ← Voltar à lista
         </button>
+
         {/* Card do cliente */}
-        <div style={{ background:'linear-gradient(135deg,#2E1A14,#231410)', borderRadius:'14px', padding:'16px', border:'1px solid #8B3A2A', marginBottom:'16px', display:'flex', alignItems:'center', gap:'14px' }}>
+        <div style={{ background:'linear-gradient(135deg,#2E1A14,#231410)', borderRadius:'14px', padding:'16px', border:'1px solid #8B3A2A', marginBottom:'12px', display:'flex', alignItems:'center', gap:'14px' }}>
           <div style={{ width:'52px', height:'52px', borderRadius:'50%', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', fontWeight:'700', color:'#F5EFE6', flexShrink:0 }}>
             {clienteSel.nome?.charAt(0)||'?'}
           </div>
@@ -321,14 +373,62 @@ function AbaClientes() {
             <div style={{ fontSize:'12px', color:'#9A8880', marginTop:'2px' }}>📞 {clienteSel.telefone||'—'}</div>
             <div style={{ fontSize:'11px', color:'#9A8880' }}>CPF: {clienteSel.cpf||'—'}</div>
           </div>
+          {/* ✅ WhatsApp com mensagem pré-definida */}
           {clienteSel.telefone && (
-            <button onClick={()=>window.open(`https://wa.me/55${clienteSel.telefone.replace(/\D/g,'')}`, '_blank')}
-              style={{ padding:'8px 12px', borderRadius:'10px', border:'none', background:'rgba(37,211,102,0.15)', color:'#25D366', fontSize:'12px', cursor:'pointer' }}>📲</button>
+            <button onClick={()=>{
+              const primeiro = clienteSel.nome?.split(' ')[0]||'';
+              const msg = encodeURIComponent(
+                `Olá, ${primeiro}! 👋
+
+` +
+                `Aqui é a equipe da *Flyguer BarberShop* ✂️
+
+` +
+                `
+
+` +
+                `📅 Agende seu próximo horário pelo app:
+` +
+                `https://flyguer-barbershop.vercel.app
+
+` +
+                `📍 Shopping Cidade das Artes — Piso 2, Nº 22
+` +
+                `📞 (11) 97764-3509
+
+` +
+                `_Flyguer BarberShop — Nossa Arte, Seu Estilo._`
+              );
+              window.open(`https://wa.me/55${clienteSel.telefone.replace(/\D/g,'')}?text=${msg}`, '_blank');
+            }}
+              style={{ padding:'8px 12px', borderRadius:'10px', border:'none', background:'rgba(37,211,102,0.15)', color:'#25D366', fontSize:'12px', cursor:'pointer', fontWeight:'700' }}>
+              📲
+            </button>
           )}
         </div>
+
+        {/* Stats do cliente */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'16px' }}>
+          {[
+            { label:'Concluídos', value:concluidos, color:'#2E7D7A' },
+            { label:'Total gasto', value:`R$ ${totalGasto.toFixed(2).replace('.',',')}`, color:'#E8C96A' },
+          ].map(item=>(
+            <div key={item.label} style={{ background:'#231410', borderRadius:'12px', padding:'12px', textAlign:'center', border:'1px solid #3A2018' }}>
+              <div style={{ fontSize:'16px', fontWeight:'700', color:item.color }}>{item.value}</div>
+              <div style={{ fontSize:'10px', color:'#9A8880', marginTop:'2px' }}>{item.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ✅ Botão exportar PDF */}
+        <button onClick={gerarPDF}
+          style={{ width:'100%', padding:'10px', borderRadius:'10px', border:'1px solid rgba(232,201,106,0.3)', background:'rgba(232,201,106,0.08)', color:'#E8C96A', fontSize:'13px', fontWeight:'600', cursor:'pointer', marginBottom:'16px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
+          📄 Exportar histórico (.txt)
+        </button>
+
         {/* Histórico */}
         <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'700', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'10px' }}>
-          Histórico de agendamentos
+          Histórico de agendamentos ({historico.length})
         </div>
         {loadingHist ? (
           <div style={{ textAlign:'center', padding:'30px', color:'#9A8880' }}>⏳ Carregando...</div>
@@ -339,18 +439,24 @@ function AbaClientes() {
           const ehConc = ag.status === 'concluido';
           return (
             <div key={ag.id} style={{ background:'#231410', borderRadius:'12px', padding:'12px 14px', border:`1px solid ${ehCanc?'rgba(244,67,54,0.25)':ehConc?'rgba(46,125,122,0.25)':'#3A2018'}`, marginBottom:'8px' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                <div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'8px' }}>
+                <div style={{ flex:1 }}>
                   <div style={{ fontWeight:'700', fontSize:'13px', color:'#F5EFE6' }}>{ag.servico}</div>
                   <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>✂️ {ag.barbeiroNome} · {formatarData(ag.data)} às {ag.hora}</div>
                 </div>
-                <div style={{ textAlign:'right' }}>
+                <div style={{ textAlign:'right', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'4px' }}>
                   <div style={{ fontSize:'13px', fontWeight:'700', color:'#E8C96A' }}>R$ {(ag.valor||0).toFixed(2).replace('.',',')}</div>
-                  <div style={{ fontSize:'10px', marginTop:'3px', padding:'2px 7px', borderRadius:'8px', fontWeight:'600',
+                  <div style={{ fontSize:'10px', padding:'2px 7px', borderRadius:'8px', fontWeight:'600',
                     background:ehCanc?'rgba(244,67,54,0.15)':ehConc?'rgba(46,125,122,0.15)':'rgba(76,175,80,0.15)',
                     color:ehCanc?'#F44336':ehConc?'#2E7D7A':'#4CAF50' }}>
                     {ehCanc?'✗ Cancelado':ehConc?'✓ Concluído':'● Confirmado'}
                   </div>
+                  {/* ✅ Excluir da vista da recepção */}
+                  <button onClick={()=>excluirDaVista(ag)}
+                    title="Ocultar da recepção — preservado no banco"
+                    style={{ fontSize:'10px', padding:'2px 6px', borderRadius:'6px', border:'1px solid #2A1208', background:'transparent', color:'#444', cursor:'pointer' }}>
+                    🗑 Ocultar
+                  </button>
                 </div>
               </div>
             </div>
