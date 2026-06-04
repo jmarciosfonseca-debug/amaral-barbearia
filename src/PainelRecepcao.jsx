@@ -12,6 +12,7 @@ import {
   doc, getDoc, getDocs, updateDoc, addDoc, serverTimestamp,
 } from 'firebase/firestore';
 import { getStyles } from './getStyles';
+import CaptarClientes from './CaptarClientes';
 
 // ─── HELPERS ─────────────────────────────────────────────────
 function hoje() {
@@ -927,12 +928,13 @@ export default function PainelRecepcao({ onBack, dark }) {
       </div>
 
       {/* ABAS */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'6px',padding:'10px 16px',borderBottom:'1px solid #3A2018'}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:'6px',padding:'10px 16px',borderBottom:'1px solid #3A2018'}}>
         {[
           {id:'agenda',   label:'📅 Agenda'},
           {id:'encaixe',  label:'➕ Encaixe'},
           {id:'clientes', label:'👥 Clientes'},
           {id:'servicos', label:'💈 Serviços'},
+          {id:'captar',   label:'📣 Captar'},
         ].map(a=>(
           <button key={a.id} onClick={()=>setAba(a.id)}
             style={{padding:'8px 4px',borderRadius:'10px',border:aba===a.id?'1.5px solid #E8C96A':'1px solid #3A2018',background:aba===a.id?'#2E1A14':'#231410',color:aba===a.id?'#E8C96A':'#9A8880',fontSize:'11px',fontWeight:aba===a.id?'700':'400',cursor:'pointer'}}>
@@ -946,6 +948,7 @@ export default function PainelRecepcao({ onBack, dark }) {
         {aba==='encaixe'  && <AbaEncaixe barbeiroInicial={encaixeParams?.b} dataInicial={encaixeParams?.d} onConcluir={()=>{setEncaixe(null);setAba('agenda');}}/>}
         {aba==='clientes' && <AbaClientes/>}
         {aba==='servicos' && <AbaServicos/>}
+        {aba==='captar'   && <CaptarClientes/>}
       </div>
     </div>
   );
