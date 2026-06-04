@@ -1,5 +1,5 @@
 // PainelRecepcao.jsx — Flyguer BarberShop
-// ✅ v3: Agenda por barbeiro, botões de ação, tabela de serviços/planos
+// ✅ v4: Arquivar cancelados (arquivado:true) — some da agenda, preservado no banco
 
 import React from 'react';
 import { db } from './firebase';
@@ -21,7 +21,6 @@ function formatarData(dataStr) {
 function mkData(a,m,d) {
   return `${a}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 }
-const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 // ─── ABA AGENDA ───────────────────────────────────────────────
@@ -34,10 +33,7 @@ function AbaAgenda() {
   const [ano, setAno]                   = React.useState(new Date().getFullYear());
 
   const agoraDt = new Date();
-  const anoHoje = agoraDt.getFullYear();
-  const mesHoje = agoraDt.getMonth();
-  const diaHoje = agoraDt.getDate();
-  const hojeStr = mkData(anoHoje, mesHoje, diaHoje);
+  const hojeStr = mkData(agoraDt.getFullYear(), agoraDt.getMonth(), agoraDt.getDate());
 
   React.useEffect(() => {
     getDocs(query(collection(db,'barbeiros'), where('ativo','==',true))).then(snap => {
@@ -72,13 +68,20 @@ function AbaAgenda() {
   for (let i=0; i<primeiroDia; i++) cells.push(null);
   for (let d=1; d<=diasNoMes; d++) cells.push(d);
 
-  const agsDia = agendamentos.filter(ag=>ag.data===dataSel).sort((a,b)=>a.hora?.localeCompare(b.hora));
+  // ✅ PONTO 1: filtra arquivados da lista do dia
+  const agsDia = agendamentos
+    .filter(ag => ag.data===dataSel && !ag.arquivado)
+    .sort((a,b) => a.hora?.localeCompare(b.hora));
 
   async function concluir(ag) {
     await updateDoc(doc(db,'agendamentos',ag.firestoreId), { status:'concluido', concluidoEm:serverTimestamp() });
   }
   async function cancelar(ag) {
     await updateDoc(doc(db,'agendamentos',ag.firestoreId), { status:'cancelado_barbeiro', canceladoEm:serverTimestamp() });
+  }
+  // ✅ PONTO 2: função arquivar
+  async function arquivar(ag) {
+    await updateDoc(doc(db,'agendamentos',ag.firestoreId), { arquivado:true, arquivadoEm:serverTimestamp() });
   }
 
   return (
@@ -113,7 +116,7 @@ function AbaAgenda() {
         <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'3px' }}>
           {cells.map((dia,idx) => {
             if (!dia) return <div key={idx}/>;
-            const ds = mkData(ano, mes, dia);
+            const ds   = mkData(ano, mes, dia);
             const info = mapaDia[ds];
             const ehHoje = ds===hojeStr;
             const ehSel  = ds===dataSel;
@@ -142,6 +145,7 @@ function AbaAgenda() {
       ) : agsDia.map(ag => {
         const ehCanc = ag.status?.includes('cancelado');
         const ehConc = ag.status === 'concluido';
+        const ehConf = ag.status === 'confirmado';
         return (
           <div key={ag.firestoreId} style={{ background:ehCanc?'rgba(244,67,54,0.05)':'#231410', borderRadius:'12px', padding:'12px 14px', border:ehCanc?'1px solid rgba(244,67,54,0.3)':ehConc?'1px solid rgba(46,125,122,0.3)':'1px solid #3A2018', marginBottom:'8px' }}>
             <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
@@ -150,18 +154,32 @@ function AbaAgenda() {
                 <div style={{ fontWeight:'700', fontSize:'13px', color:ehCanc?'#F44336':ehConc?'#2E7D7A':'#F5EFE6' }}>
                   {ag.clienteNome}{ehCanc?' — CANCELADO':''}
                 </div>
-                <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>💈 {ag.servico} · R$ {(ag.valor||0).toFixed(2).replace('.',',')}</div>
+                <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>
+                  💈 {ag.servico} · R$ {(ag.valor||0).toFixed(2).replace('.',',')}
+                </div>
               </div>
+              {/* ✅ PONTO 3: botões condicionais por status */}
               <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
-                {ag.status==='confirmado' && (
+                {ehConf && (
                   <>
-                    <button onClick={()=>concluir(ag)} style={{ padding:'5px 8px', borderRadius:'6px', border:'none', background:'rgba(46,125,122,0.2)', color:'#2E7D7A', fontSize:'11px', fontWeight:'700', cursor:'pointer' }}>✓</button>
-                    <button onClick={()=>cancelar(ag)} style={{ padding:'5px 8px', borderRadius:'6px', border:'none', background:'rgba(244,67,54,0.15)', color:'#F44336', fontSize:'11px', cursor:'pointer' }}>✗</button>
+                    <button onClick={()=>concluir(ag)}
+                      style={{ padding:'5px 8px', borderRadius:'6px', border:'none', background:'rgba(46,125,122,0.2)', color:'#2E7D7A', fontSize:'11px', fontWeight:'700', cursor:'pointer' }}>✓</button>
+                    <button onClick={()=>cancelar(ag)}
+                      style={{ padding:'5px 8px', borderRadius:'6px', border:'none', background:'rgba(244,67,54,0.15)', color:'#F44336', fontSize:'11px', cursor:'pointer' }}>✗</button>
                   </>
                 )}
-                {ag.clienteTel && (
+                {/* WhatsApp só para não cancelados */}
+                {!ehCanc && ag.clienteTel && (
                   <button onClick={()=>window.open(`https://wa.me/55${ag.clienteTel.replace(/\D/g,'')}?text=${encodeURIComponent(`Olá ${ag.clienteNome?.split(' ')[0]}! Confirmamos seu agendamento dia ${formatarData(ag.data)} às ${ag.hora} com ${barbeiroSel?.nome}. Te esperamos! ✂️`)}`, '_blank')}
                     style={{ padding:'5px 8px', borderRadius:'6px', border:'none', background:'rgba(37,211,102,0.15)', color:'#25D366', fontSize:'11px', cursor:'pointer' }}>📲</button>
+                )}
+                {/* ✅ Arquivar só para cancelados */}
+                {ehCanc && (
+                  <button onClick={()=>arquivar(ag)}
+                    title="Arquivar — some da agenda, permanece no histórico"
+                    style={{ padding:'5px 8px', borderRadius:'6px', border:'1px solid rgba(155,155,155,0.25)', background:'rgba(155,155,155,0.08)', color:'#777', fontSize:'11px', cursor:'pointer' }}>
+                    📦
+                  </button>
                 )}
               </div>
             </div>
@@ -228,9 +246,9 @@ function AbaServicos() {
 
 // ─── ABA CLIENTES ─────────────────────────────────────────────
 function AbaClientes() {
-  const [busca, setBusca]     = React.useState('');
+  const [busca, setBusca]       = React.useState('');
   const [clientes, setClientes] = React.useState([]);
-  const [carregando, setCarr] = React.useState(false);
+  const [carregando, setCarr]   = React.useState(false);
 
   const timer = React.useRef(null);
   function handleBusca(v) {
@@ -278,14 +296,13 @@ export default function PainelRecepcao({ onBack, dark }) {
   const [aba, setAba] = React.useState('agenda');
 
   const ABAS = [
-    { id:'agenda',   label:'📅 Agenda',   emoji:'📅' },
-    { id:'clientes', label:'👥 Clientes',  emoji:'👥' },
-    { id:'servicos', label:'💈 Serviços',  emoji:'💈' },
+    { id:'agenda',   label:'📅 Agenda'  },
+    { id:'clientes', label:'👥 Clientes' },
+    { id:'servicos', label:'💈 Serviços' },
   ];
 
   return (
     <div style={{ ...s.app, paddingBottom:'30px' }}>
-      {/* Header */}
       <div style={{ background:'linear-gradient(135deg,#5C2218,#8B3A2A)', padding:'16px 20px', display:'flex', alignItems:'center', gap:'12px' }}>
         <button onClick={onBack} style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:'8px', padding:'6px 10px', color:'#F5EFE6', cursor:'pointer', fontSize:'14px' }}>←</button>
         <div>
@@ -293,8 +310,6 @@ export default function PainelRecepcao({ onBack, dark }) {
           <div style={{ fontSize:'11px', color:'rgba(245,239,230,0.6)' }}>Flyguer BarberShop</div>
         </div>
       </div>
-
-      {/* Botões de navegação */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px', padding:'12px 16px', borderBottom:'1px solid #3A2018' }}>
         {ABAS.map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
@@ -303,7 +318,6 @@ export default function PainelRecepcao({ onBack, dark }) {
           </button>
         ))}
       </div>
-
       <div style={{ padding:'16px' }}>
         {aba === 'agenda'   && <AbaAgenda />}
         {aba === 'clientes' && <AbaClientes />}
