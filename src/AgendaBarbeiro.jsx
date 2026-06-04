@@ -123,7 +123,7 @@ function CalendarioBarbeiro({ agendamentos, dataSel, onDiaSel }) {
 }
 
 // ─── LISTA DO DIA + DIVULGAR HORÁRIO VAGO ─────────────────────
-function ListaClientesDia({ agendamentos, dataSel, config, usuario, onConcluir, onCancelar }) {
+function ListaClientesDia({ agendamentos, dataSel, config, usuario, onConcluir, onCancelar, onArquivar }) {
   const [divulgando, setDivulgando] = React.useState(null); // hora do slot sendo divulgado
   const [linkCopiado, setLinkCopiado] = React.useState(false);
 
@@ -134,7 +134,8 @@ function ListaClientesDia({ agendamentos, dataSel, config, usuario, onConcluir, 
     </div>
   );
 
-  const agsDia = agendamentos.filter(ag=>ag.data===dataSel).sort((a,b)=>a.hora?.localeCompare(b.hora));
+  // ✅ Filtro local: exclui arquivados da agenda diária (doc preservado no Firestore)
+  const agsDia = agendamentos.filter(ag=>ag.data===dataSel && !ag.arquivado).sort((a,b)=>a.hora?.localeCompare(b.hora));
 
   // Gerar todos os slots do dia para mostrar vagos também
   const diaSem = DIAS_KEYS[new Date(dataSel+'T12:00:00').getDay()];
@@ -209,7 +210,16 @@ function ListaClientesDia({ agendamentos, dataSel, config, usuario, onConcluir, 
                 <div style={{ display:'flex', flexDirection:'column', gap:'4px', flexShrink:0 }}>
                   {ehConf && <button onClick={()=>onConcluir(ag)} style={{ padding:'5px 8px', borderRadius:'8px', border:'none', background:'rgba(46,125,122,0.2)', color:'#2E7D7A', fontSize:'11px', fontWeight:'700', cursor:'pointer' }}>✓</button>}
                   {ehConf && <button onClick={()=>onCancelar(ag)} style={{ padding:'5px 8px', borderRadius:'8px', border:'none', background:'rgba(244,67,54,0.15)', color:'#F44336', fontSize:'11px', cursor:'pointer' }}>✗</button>}
-                  {ag.clienteTel && <button onClick={()=>window.open(`https://wa.me/55${ag.clienteTel.replace(/\D/g,'')}`,  '_blank')} style={{ padding:'5px 8px', borderRadius:'8px', border:'1px solid rgba(37,211,102,0.3)', background:'transparent', color:'#25D366', fontSize:'11px', cursor:'pointer' }}>📲</button>}
+                  {/* ✅ Cancelado: botão Arquivar em vez de WhatsApp */}
+                  {ehCanc && (
+                    <button onClick={()=>onArquivar(ag)}
+                      title="Arquivar — some da agenda, permanece no histórico"
+                      style={{ padding:'5px 8px', borderRadius:'8px', border:'1px solid rgba(155,155,155,0.25)', background:'rgba(155,155,155,0.08)', color:'#777', fontSize:'11px', cursor:'pointer' }}>
+                      📦
+                    </button>
+                  )}
+                  {/* ✅ WhatsApp só para confirmados/concluídos */}
+                  {!ehCanc && ag.clienteTel && <button onClick={()=>window.open(`https://wa.me/55${ag.clienteTel.replace(/\D/g,'')}`,  '_blank')} style={{ padding:'5px 8px', borderRadius:'8px', border:'1px solid rgba(37,211,102,0.3)', background:'transparent', color:'#25D366', fontSize:'11px', cursor:'pointer' }}>📲</button>}
                 </div>
               </div>
             </div>
@@ -678,6 +688,10 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
   async function handleCancelar(ag) {
     try{await updateDoc(doc(db,'agendamentos',ag.firestoreId),{status:'cancelado_barbeiro',canceladoEm:serverTimestamp()});}catch(e){console.error(e);}
   }
+  // ✅ Arquivar: some da agenda diária, doc preservado no Firestore para histórico
+  async function handleArquivar(ag) {
+    try{await updateDoc(doc(db,'agendamentos',ag.firestoreId),{arquivado:true,arquivadoEm:serverTimestamp()});}catch(e){console.error(e);}
+  }
 
   const disponivel = usuario?.disponivel!==false;
 
@@ -733,7 +747,7 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
         {aba==='agenda' && (
           <>
             <CalendarioBarbeiro agendamentos={agendamentos} dataSel={dataSel} onDiaSel={setDataSel}/>
-            <ListaClientesDia agendamentos={agendamentos} dataSel={dataSel} config={config} usuario={usuario} onConcluir={handleConcluir} onCancelar={handleCancelar}/>
+            <ListaClientesDia agendamentos={agendamentos} dataSel={dataSel} config={config} usuario={usuario} onConcluir={handleConcluir} onCancelar={handleCancelar} onArquivar={handleArquivar}/>
           </>
         )}
         {aba==='horarios' && (
