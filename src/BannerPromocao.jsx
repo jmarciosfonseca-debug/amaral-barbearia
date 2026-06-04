@@ -1,51 +1,83 @@
 // BannerPromocao.jsx — Flyguer BarberShop
 // ✅ Banner em tempo real com countdown, urgência visual e race condition protection
+// ✅ FIX: Banner some instantaneamente quando countdown chega a 00:00:00
+//         O setInterval local toma a iniciativa — não depende do onSnapshot acordar
 
 import React from 'react';
-import { escutarPromocao, resgatarPromocao, clienteJaResgatou } from './promocaoEngine';
+import { escutarPromocao, resgatarPromocao, clienteJaResgatou, encerrarPromocao } from './promocaoEngine';
 
-function useContador(expiracaoTimestamp) {
+// ─── HOOK DE COUNTDOWN ────────────────────────────────────────
+// Retorna { texto, expirou } em vez de só o texto
+// Quando chega a zero: expirou = true, dispara onExpirou() uma vez
+function useContador(expiracaoTimestamp, onExpirou) {
   const [segundos, setSegundos] = React.useState(null);
+  const expiradoRef = React.useRef(false); // evita múltiplas chamadas ao onExpirou
 
   React.useEffect(() => {
     if (!expiracaoTimestamp) return;
+    expiradoRef.current = false; // reset ao trocar timestamp
+
     function calcular() {
       const expira = expiracaoTimestamp.toMillis
         ? expiracaoTimestamp.toMillis()
         : new Date(expiracaoTimestamp).getTime();
       const diff = Math.max(0, Math.floor((expira - Date.now()) / 1000));
       setSegundos(diff);
+
+      // ✅ CORREÇÃO PRINCIPAL: quando chega a zero, toma iniciativa no front-end
+      if (diff <= 0 && !expiradoRef.current) {
+        expiradoRef.current = true;
+        // Desativa no Firestore em background (não bloqueia a UI)
+        encerrarPromocao().catch(console.error);
+        // Notifica o componente pai para sumir instantaneamente
+        if (onExpirou) onExpirou();
+      }
+
       return diff;
     }
+
     calcular();
     const interval = setInterval(() => {
       const restante = calcular();
       if (restante <= 0) clearInterval(interval);
     }, 1000);
+
     return () => clearInterval(interval);
   }, [expiracaoTimestamp]);
 
-  if (segundos === null) return null;
-  if (segundos <= 0) return '00:00:00';
-  const h = String(Math.floor(segundos / 3600)).padStart(2,'0');
-  const m = String(Math.floor((segundos % 3600) / 60)).padStart(2,'0');
-  const s = String(segundos % 60).padStart(2,'0');
-  return `${h}:${m}:${s}`;
+  if (segundos === null) return { texto: null, expirou: false };
+  if (segundos <= 0)     return { texto: '00:00:00', expirou: true };
+
+  const h = String(Math.floor(segundos / 3600)).padStart(2, '0');
+  const m = String(Math.floor((segundos % 3600) / 60)).padStart(2, '0');
+  const s = String(segundos % 60).padStart(2, '0');
+  return { texto: `${h}:${m}:${s}`, expirou: false };
 }
 
+// ─── COMPONENTE PRINCIPAL ─────────────────────────────────────
 export default function BannerPromocao({ cliente, onResgatado }) {
   const [promo, setPromo]           = React.useState(null);
   const [ativa, setAtiva]           = React.useState(false);
   const [jaResgatou, setJaResgatou] = React.useState(false);
   const [estado, setEstado]         = React.useState('idle'); // idle | resgatando | sucesso | esgotado | erro
   const [pulsar, setPulsar]         = React.useState(false);
-  const contador = useContador(promo?.expiracaoTimestamp);
+  // ✅ Estado local de expiração — independente do onSnapshot
+  const [expiradoLocalmente, setExpiradoLocalmente] = React.useState(false);
 
-  // ✅ Listener em tempo real
+  const { texto: contador, expirou: contadorExpirou } = useContador(
+    promo?.expiracaoTimestamp,
+    () => setExpiradoLocalmente(true) // dispara instantaneamente no segundo zero
+  );
+
+  // ✅ Listener tempo real do Firestore
   React.useEffect(() => {
     const unsub = escutarPromocao(({ promo: p, ativa: a }) => {
       setPromo(p);
       setAtiva(a);
+      // Se o Firestore reportar inativo (chegou depois), respeita também
+      if (!a) setExpiradoLocalmente(true);
+      // Reset do estado de expiração local se uma nova promo for ativada
+      if (a && p) setExpiradoLocalmente(false);
     });
     return unsub;
   }, []);
@@ -63,8 +95,9 @@ export default function BannerPromocao({ cliente, onResgatado }) {
     setPulsar(restantes <= 3);
   }, [promo?.resgatados, promo?.vagas]);
 
-  // Não mostra se não há promoção ativa, ou se cliente logado já resgatou
-  if (!ativa || !promo) return null;
+  // ✅ Não mostra se: sem promo, já resgatou (logado), ou expirou localmente
+  if (!ativa || !promo)          return null;
+  if (expiradoLocalmente)        return null;
   if (cliente?.cpf && jaResgatou) return null;
 
   const vagasRestantes = (promo.vagas || 0) - (promo.resgatados || 0);
@@ -73,7 +106,7 @@ export default function BannerPromocao({ cliente, onResgatado }) {
   async function handleResgatar() {
     if (estado === 'resgatando') return;
 
-    // ✅ Sem login: salva promo e redireciona para login
+    // Sem login → salva promo e redireciona para login
     if (!cliente?.cpf) {
       if (onResgatado) onResgatado(promo, 'login_required');
       return;
@@ -125,7 +158,7 @@ export default function BannerPromocao({ cliente, onResgatado }) {
     );
   }
 
-  // Tela de esgotado
+  // Tela de esgotado (race condition perdida)
   if (estado === 'esgotado') {
     return (
       <div style={{ ...styles.container, background:'linear-gradient(135deg,#2A2A2A,#1A1A1A)' }}>
@@ -138,7 +171,6 @@ export default function BannerPromocao({ cliente, onResgatado }) {
     );
   }
 
-  // ✅ Texto do botão adaptado ao contexto
   function textoBotao() {
     if (estado === 'resgatando') return '⏳ Garantindo sua vaga...';
     if (estado === 'erro')       return '⚠️ Tente novamente';
@@ -175,7 +207,12 @@ export default function BannerPromocao({ cliente, onResgatado }) {
         {contador && (
           <div style={{ background:'rgba(0,0,0,0.3)', borderRadius:'10px', padding:'6px 10px', textAlign:'center', flexShrink:0 }}>
             <div style={{ fontSize:'9px', color:'rgba(255,255,255,0.6)', marginBottom:'2px' }}>EXPIRA EM</div>
-            <div style={{ fontSize:'15px', fontWeight:'900', color: contador < '01:00:00' ? '#FF5252' : '#fff', fontFamily:'monospace' }}>
+            <div style={{
+              fontSize:'15px', fontWeight:'900', fontFamily:'monospace',
+              // ✅ Vermelho piscante nos últimos 60 segundos
+              color: contadorExpirou || contador <= '00:01:00' ? '#FF5252' : '#fff',
+              animation: contador <= '00:01:00' ? 'pulsar 1s ease-in-out infinite' : 'none',
+            }}>
               {contador}
             </div>
           </div>
@@ -211,7 +248,7 @@ export default function BannerPromocao({ cliente, onResgatado }) {
         </div>
       </div>
 
-      {/* ✅ Aviso de login necessário para não-logados */}
+      {/* Aviso para não logados */}
       {!cliente?.cpf && (
         <div style={{ fontSize:'11px', color:'rgba(255,255,255,0.7)', textAlign:'center', marginBottom:'10px' }}>
           Faça login ou cadastre-se para garantir sua vaga
