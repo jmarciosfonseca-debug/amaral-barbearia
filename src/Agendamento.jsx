@@ -582,7 +582,7 @@ function Pagamento({cliente,barbeiro,servico,dataHora,onConfirmar,onBack,dark}) 
   const valorTotal=servico.valor||0;
   const valorSinal=(valorTotal*0.5).toFixed(2).replace('.',',');
   const valorPix=travado?valorTotal*0.5:valorTotal;
-  const pixPayload=pixConfig.chave?gerarPixPayload({chave:pixConfig.chave,nome:pixConfig.nome,cidade:pixConfig.cidade,valor:valorPix,descricao:`Flyguer ${barbeiro.nome}`):'';
+  const pixPayload=pixConfig.chave?gerarPixPayload({chave:pixConfig.chave,nome:pixConfig.nome,cidade:pixConfig.cidade,valor:valorPix,descricao:`Flyguer ${barbeiro.nome}`}):'';
 
   function abrirWhatsAppPix(){
     const msg=encodeURIComponent(`Olá! Sou ${cliente.nome}, agendamento ${formatarData(dataHora.data)} às ${dataHora.hora} com ${barbeiro.nome}.\nServiço: ${servico.nome}\nValor: R$ ${valorTotal.toFixed(2).replace('.',',')}\n\nSegue comprovante do Pix 👇`);
