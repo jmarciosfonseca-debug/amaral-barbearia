@@ -124,7 +124,7 @@ function AlertaAgendamento({agendamento,onFechar}){
   },[agendamento.hora]);
   const tempo=min<=0?'AGORA!':min<60?`em ${min} min`:`em ${Math.floor(min/60)}h`;
   return(
-    <div style={{position:'fixed',top:0,left:'50%',transform:'translateX(-50%)',width:'100%',maxWidth:'430px',zIndex:9999,background:pisca?'linear-gradient(135deg,#8B3A2A,#C9A84C)':'linear-gradient(135deg,#C9A84C,#8B3A2A)',transition:'background 0.4s',padding:'16px 20px',borderRadius:'0 0 20px 20px',boxShadow:'0 8px 32px rgba(0,0,0,0.6)'}}>
+    <div style={{position:'fixed',bottom:0,left:'50%',transform:'translateX(-50%)',width:'100%',maxWidth:'900px',zIndex:9999,background:pisca?'linear-gradient(135deg,#8B3A2A,#C9A84C)':'linear-gradient(135deg,#C9A84C,#8B3A2A)',transition:'background 0.4s',padding:'16px 20px',borderRadius:'0 0 20px 20px',boxShadow:'0 8px 32px rgba(0,0,0,0.6)'}}>
       <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
         <div style={{fontSize:'32px'}}>⏰</div>
         <div style={{flex:1}}>
@@ -277,7 +277,7 @@ function SplashScreen({onClienteNovo,onClienteCadastrado,onStaff,dark,onVerPromo
 
   return(
     <div style={{...s.app,paddingBottom:'80px'}}>
-      <div style={{background:'linear-gradient(160deg,#5C2218 0%,#8B3A2A 50%,#A84832 100%)',padding:'40px 24px 32px',textAlign:'center',position:'relative',overflow:'hidden'}} className="splash-hero">
+      <div style={{background:'linear-gradient(160deg,#5C2218 0%,#8B3A2A 50%,#A84832 100%)',padding:'40px 24px 32px',textAlign:'center',position:'relative',overflow:'hidden'}}>
         <div style={{display:'flex',justifyContent:'center',marginBottom:'16px'}}><LogoMark size={80}/></div>
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:'26px',fontWeight:'900',color:'#F5EFE6',letterSpacing:'1px'}}>
           Flyguer <span style={{fontWeight:'300',color:'#E8C96A'}}>BarberShop</span>
@@ -285,7 +285,7 @@ function SplashScreen({onClienteNovo,onClienteCadastrado,onStaff,dark,onVerPromo
         <div style={{fontSize:'13px',color:'rgba(245,239,230,0.7)',marginTop:'6px',fontStyle:'italic'}}>Nossa Arte, Seu Estilo.</div>
         <div style={{fontSize:'11px',color:'rgba(245,239,230,0.5)',marginTop:'4px'}}>Shopping Cidade das Artes — Piso 2, Nº 22</div>
       </div>
-      <div style={{padding:'20px 20px 0'}} className="splash-inner">
+      <div style={{padding:'20px 20px 0'}}>
         <BannerPromocao cliente={null} onResgatado={(promo,motivo)=>{if(motivo==='login_required') onVerPromo&&onVerPromo(promo);}}/>
         <div style={{fontSize:'11px',color:'#E8C96A',fontWeight:'600',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'10px'}}>Nossos barbeiros</div>
         {barbeiros.map(b=>(
@@ -665,7 +665,7 @@ export default function App(){
     <GlobalErrorBoundary>
       <BannerOffline/>
       <InstalarApp dark={dark}/>
-      <div style={{minHeight:'100vh',position:'relative'}} className={`app-container${tela==='splash' ? ' splash-mode' : ''}`}>
+      <div style={{minHeight:'100vh',position:'relative'}} className="app-container">
         {toggleTema}
         <ErrorBoundary modulo="App">
 
