@@ -840,6 +840,21 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
 
   const disponivel = usuario?.disponivel!==false;
 
+  // ✅ Stats do dia para o barbeiro (contagem rápida)
+  const hojeStr = React.useMemo(()=>{
+    const d=new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  },[]);
+
+  const statsHoje = React.useMemo(()=>{
+    const agsHoje = agendamentos.filter(ag=>ag.data===hojeStr);
+    return {
+      confirmados: agsHoje.filter(ag=>['confirmado','pendente'].includes(ag.status)).length,
+      concluidos:  agsHoje.filter(ag=>ag.status==='concluido').length,
+      receita:     agsHoje.filter(ag=>ag.status==='concluido').reduce((s,ag)=>s+(ag.valor||0),0),
+    };
+  },[agendamentos, hojeStr]);
+
   const ABAS = [
     { id:'agenda',     label:'📅'    },
     { id:'horarios',   label:'✏️'    },
@@ -891,6 +906,19 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
       <div style={{ padding:'16px' }}>
         {aba==='agenda' && (
           <>
+            {/* ✅ Mini dashboard do dia */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', marginBottom:'12px' }}>
+              {[
+                { label:'Confirmados', value:statsHoje.confirmados, cor:'#4CAF50' },
+                { label:'Concluídos',  value:statsHoje.concluidos,  cor:'#2E7D7A' },
+                { label:'Receita hoje',value:`R$${statsHoje.receita.toFixed(0)}`, cor:'#E8C96A' },
+              ].map(s=>(
+                <div key={s.label} style={{ background:'#1A0F0D', borderRadius:'10px', padding:'10px', textAlign:'center', border:'1px solid #3A2018' }}>
+                  <div style={{ fontSize:'16px', fontWeight:'700', color:s.cor }}>{s.value}</div>
+                  <div style={{ fontSize:'9px', color:'#9A8880', marginTop:'2px' }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
             <CalendarioBarbeiro agendamentos={agendamentos} dataSel={dataSel} onDiaSel={setDataSel}/>
             <ListaClientesDia agendamentos={agendamentos} dataSel={dataSel} config={config} usuario={usuario} onConcluir={handleConcluir} onCancelar={handleCancelar} onArquivar={handleArquivar}/>
           </>
