@@ -246,46 +246,150 @@ function AbaServicos() {
 
 // ─── ABA CLIENTES ─────────────────────────────────────────────
 function AbaClientes() {
-  const [busca, setBusca]       = React.useState('');
-  const [clientes, setClientes] = React.useState([]);
-  const [carregando, setCarr]   = React.useState(false);
+  const [busca, setBusca]           = React.useState('');
+  const [todos, setTodos]           = React.useState([]);
+  const [carregando, setCarr]       = React.useState(true);
+  const [clienteSel, setClienteSel] = React.useState(null);
+  const [historico, setHistorico]   = React.useState([]);
+  const [loadingHist, setLoadHist]  = React.useState(false);
 
+  // ✅ Carrega todos os clientes ao abrir — ordem alfabética
+  React.useEffect(() => {
+    getDocs(collection(db,'clientes')).then(snap => {
+      const lista = snap.docs
+        .map(d=>({id:d.id,...d.data()}))
+        .filter(c=>c.nome)
+        .sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+      setTodos(lista);
+      setCarr(false);
+    }).catch(()=>setCarr(false));
+  }, []);
+
+  // ✅ Busca ativa por nome ou telefone com debounce 300ms
   const timer = React.useRef(null);
   function handleBusca(v) {
     setBusca(v);
     clearTimeout(timer.current);
-    if (v.length < 2) { setClientes([]); return; }
-    timer.current = setTimeout(async () => {
-      setCarr(true);
-      const snap = await getDocs(query(collection(db,'clientes'), where('nome','>=',v), where('nome','<=',v+'\uf8ff')));
-      setClientes(snap.docs.map(d=>({id:d.id,...d.data()})));
-      setCarr(false);
-    }, 400);
   }
 
+  // Filtra localmente — nome ou telefone
+  const filtrados = React.useMemo(() => {
+    if (!busca.trim()) return todos;
+    const b = busca.toLowerCase().replace(/\D/g,'') || busca.toLowerCase();
+    return todos.filter(c => {
+      const nome = c.nome?.toLowerCase()||'';
+      const tel  = (c.telefone||'').replace(/\D/g,'');
+      return nome.includes(busca.toLowerCase()) || tel.includes(b);
+    });
+  }, [busca, todos]);
+
+  // ✅ Ao clicar no cliente — carrega histórico de agendamentos
+  async function abrirHistorico(c) {
+    setClienteSel(c);
+    setLoadHist(true);
+    try {
+      const snap = await getDocs(
+        query(collection(db,'agendamentos'),
+          where('clienteCpf','==',c.cpf||c.id),
+          // orderBy removido para evitar índice composto
+        )
+      );
+      const ags = snap.docs.map(d=>({id:d.id,...d.data()}))
+        .sort((a,b)=>b.data?.localeCompare(a.data)||b.hora?.localeCompare(a.hora));
+      setHistorico(ags);
+    } catch(e) { console.error(e); setHistorico([]); }
+    setLoadHist(false);
+  }
+
+  function formatarData(s) { if(!s)return''; const[a,m,d]=s.split('-'); return`${d}/${m}/${a}`; }
+
+  // ─── Tela de histórico do cliente ───
+  if (clienteSel) {
+    return (
+      <div>
+        <button onClick={()=>{setClienteSel(null);setHistorico([]);}}
+          style={{ background:'none', border:'none', color:'#E8C96A', fontSize:'14px', cursor:'pointer', marginBottom:'16px', display:'flex', alignItems:'center', gap:'6px' }}>
+          ← Voltar à lista
+        </button>
+        {/* Card do cliente */}
+        <div style={{ background:'linear-gradient(135deg,#2E1A14,#231410)', borderRadius:'14px', padding:'16px', border:'1px solid #8B3A2A', marginBottom:'16px', display:'flex', alignItems:'center', gap:'14px' }}>
+          <div style={{ width:'52px', height:'52px', borderRadius:'50%', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', fontWeight:'700', color:'#F5EFE6', flexShrink:0 }}>
+            {clienteSel.nome?.charAt(0)||'?'}
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'16px', color:'#F5EFE6', fontWeight:'700' }}>{clienteSel.nome}</div>
+            <div style={{ fontSize:'12px', color:'#9A8880', marginTop:'2px' }}>📞 {clienteSel.telefone||'—'}</div>
+            <div style={{ fontSize:'11px', color:'#9A8880' }}>CPF: {clienteSel.cpf||'—'}</div>
+          </div>
+          {clienteSel.telefone && (
+            <button onClick={()=>window.open(`https://wa.me/55${clienteSel.telefone.replace(/\D/g,'')}`, '_blank')}
+              style={{ padding:'8px 12px', borderRadius:'10px', border:'none', background:'rgba(37,211,102,0.15)', color:'#25D366', fontSize:'12px', cursor:'pointer' }}>📲</button>
+          )}
+        </div>
+        {/* Histórico */}
+        <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'700', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'10px' }}>
+          Histórico de agendamentos
+        </div>
+        {loadingHist ? (
+          <div style={{ textAlign:'center', padding:'30px', color:'#9A8880' }}>⏳ Carregando...</div>
+        ) : historico.length === 0 ? (
+          <div style={{ textAlign:'center', padding:'30px', color:'#9A8880', fontSize:'13px' }}>Nenhum agendamento encontrado</div>
+        ) : historico.map(ag => {
+          const ehCanc = ag.status?.includes('cancelado');
+          const ehConc = ag.status === 'concluido';
+          return (
+            <div key={ag.id} style={{ background:'#231410', borderRadius:'12px', padding:'12px 14px', border:`1px solid ${ehCanc?'rgba(244,67,54,0.25)':ehConc?'rgba(46,125,122,0.25)':'#3A2018'}`, marginBottom:'8px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                <div>
+                  <div style={{ fontWeight:'700', fontSize:'13px', color:'#F5EFE6' }}>{ag.servico}</div>
+                  <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>✂️ {ag.barbeiroNome} · {formatarData(ag.data)} às {ag.hora}</div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontSize:'13px', fontWeight:'700', color:'#E8C96A' }}>R$ {(ag.valor||0).toFixed(2).replace('.',',')}</div>
+                  <div style={{ fontSize:'10px', marginTop:'3px', padding:'2px 7px', borderRadius:'8px', fontWeight:'600',
+                    background:ehCanc?'rgba(244,67,54,0.15)':ehConc?'rgba(46,125,122,0.15)':'rgba(76,175,80,0.15)',
+                    color:ehCanc?'#F44336':ehConc?'#2E7D7A':'#4CAF50' }}>
+                    {ehCanc?'✗ Cancelado':ehConc?'✓ Concluído':'● Confirmado'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // ─── Lista de clientes ───
   return (
     <div>
-      <input type="text" placeholder="🔍 Buscar cliente por nome..." value={busca} onChange={e=>handleBusca(e.target.value)}
-        style={{ width:'100%', background:'#231410', border:'1px solid #3A2018', borderRadius:'12px', padding:'10px 14px', color:'#F5EFE6', fontSize:'14px', outline:'none', boxSizing:'border-box', marginBottom:'14px' }} />
-      {carregando && <div style={{ textAlign:'center', color:'#9A8880', padding:'10px' }}>⏳ Buscando...</div>}
-      {clientes.map(c => (
-        <div key={c.id} style={{ background:'#231410', borderRadius:'12px', padding:'12px 14px', border:'1px solid #3A2018', marginBottom:'8px', display:'flex', alignItems:'center', gap:'12px' }}>
+      {/* Busca */}
+      <input type="text" placeholder="🔍 Buscar por nome ou telefone..." value={busca}
+        onChange={e=>handleBusca(e.target.value)}
+        style={{ width:'100%', background:'#231410', border:'1px solid #3A2018', borderRadius:'12px', padding:'10px 14px', color:'#F5EFE6', fontSize:'14px', outline:'none', boxSizing:'border-box', marginBottom:'10px' }} />
+      <div style={{ fontSize:'11px', color:'#9A8880', marginBottom:'12px' }}>
+        👥 {filtrados.length} cliente{filtrados.length!==1?'s':''} cadastrado{filtrados.length!==1?'s':''}
+        {busca && ` · filtrando por "${busca}"`}
+      </div>
+      {carregando ? (
+        <div style={{ textAlign:'center', padding:'40px', color:'#9A8880' }}>⏳ Carregando...</div>
+      ) : filtrados.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'30px', color:'#9A8880', fontSize:'13px' }}>Nenhum cliente encontrado</div>
+      ) : filtrados.map(c => (
+        <div key={c.id} onClick={()=>abrirHistorico(c)}
+          style={{ background:'#231410', borderRadius:'12px', padding:'12px 14px', border:'1px solid #3A2018', marginBottom:'8px', display:'flex', alignItems:'center', gap:'12px', cursor:'pointer', transition:'background 0.15s' }}
+          onMouseEnter={e=>e.currentTarget.style.background='#2A1810'}
+          onMouseLeave={e=>e.currentTarget.style.background='#231410'}>
           <div style={{ width:'40px', height:'40px', borderRadius:'50%', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'16px', fontWeight:'700', color:'#F5EFE6', flexShrink:0 }}>
             {c.nome?.charAt(0)||'?'}
           </div>
           <div style={{ flex:1 }}>
             <div style={{ fontWeight:'700', fontSize:'14px', color:'#F5EFE6' }}>{c.nome}</div>
-            <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>📞 {c.telefone} · CPF: {c.cpf}</div>
+            <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>📞 {c.telefone||'—'} · CPF: {c.cpf||'—'}</div>
           </div>
-          {c.telefone && (
-            <button onClick={() => window.open(`https://wa.me/55${c.telefone.replace(/\D/g,'')}`, '_blank')}
-              style={{ padding:'8px 12px', borderRadius:'10px', border:'none', background:'rgba(37,211,102,0.15)', color:'#25D366', fontSize:'12px', cursor:'pointer' }}>📲</button>
-          )}
+          <div style={{ fontSize:'11px', color:'#555' }}>Ver histórico →</div>
         </div>
       ))}
-      {busca.length >= 2 && !carregando && clientes.length === 0 && (
-        <div style={{ textAlign:'center', color:'#9A8880', padding:'20px', fontSize:'13px' }}>Nenhum cliente encontrado</div>
-      )}
     </div>
   );
 }
