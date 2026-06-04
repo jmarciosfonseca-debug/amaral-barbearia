@@ -38,7 +38,7 @@ class ErrorBoundary extends React.Component {
     if (this.state.hasError) {
       return (
         <div style={{ minHeight:'100vh', background:'#1A0F0D', color:'#F5EFE6', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'24px', textAlign:'center' }}>
-          <div style={{ fontSize:'48px', marginBottom:'16px' }}>\u26a0\ufe0f</div>
+          <div style={{ fontSize:'48px', marginBottom:'16px' }}>⚠️</div>
           <div style={{ fontSize:'20px', fontWeight:'700', color:'#C9A84C', marginBottom:'8px' }}>Algo deu errado</div>
           <div style={{ fontSize:'13px', color:'#9A8880', marginBottom:'8px' }}>Módulo: {this.props.modulo || 'App'}</div>
           <div style={{ fontSize:'12px', color:'#666', marginBottom:'24px', maxWidth:'300px' }}>{this.state.error?.message}</div>
@@ -58,7 +58,7 @@ function LogoMark({ size = 48 }) {
 function WarnBanner({ children }) {
   return (
     <div style={{ background:'rgba(255,193,7,0.1)', border:'1px solid rgba(255,193,7,0.3)', borderRadius:'10px', padding:'10px 14px', display:'flex', alignItems:'flex-start', gap:'8px', fontSize:'12px', color:'#FFC107', marginBottom:'12px' }}>
-      <span>\u26a0\ufe0f</span><span>{children}</span>
+      <span>⚠️</span><span>{children}</span>
     </div>
   );
 }
@@ -119,19 +119,19 @@ function AlertaAgendamento({ agendamento, onFechar }) {
   return (
     <div style={{ position:'fixed', top:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:'430px', zIndex:9999, background:pisca?'linear-gradient(135deg,#8B3A2A,#C9A84C)':'linear-gradient(135deg,#C9A84C,#8B3A2A)', transition:'background 0.4s', padding:'16px 20px', borderRadius:'0 0 20px 20px', boxShadow:'0 8px 32px rgba(0,0,0,0.6)' }}>
       <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-        <div style={{ fontSize:'32px' }}>\u23f0</div>
+        <div style={{ fontSize:'32px' }}>⏰</div>
         <div style={{ flex:1 }}>
           <div style={{ fontWeight:'800', fontSize:'14px', color:'#1A0F0D' }}>SEU HORÁRIO {tempo.toUpperCase()}</div>
-          <div style={{ fontSize:'12px', color:'rgba(26,15,13,0.8)', marginTop:'2px' }}>\u2702\ufe0f {agendamento.barbeiroNome} · {agendamento.hora}</div>
+          <div style={{ fontSize:'12px', color:'rgba(26,15,13,0.8)', marginTop:'2px' }}>✂️ {agendamento.barbeiroNome} · {agendamento.hora}</div>
         </div>
-        <button onClick={onFechar} style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:'50%', width:'28px', height:'28px', color:'#1A0F0D', fontSize:'14px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>\u2715</button>
+        <button onClick={onFechar} style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:'50%', width:'28px', height:'28px', color:'#1A0F0D', fontSize:'14px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
       </div>
       <div style={{ marginTop:'10px', display:'flex', gap:'8px' }}>
         <button onClick={() => {
-          const msg = encodeURIComponent(`Confirmando presença:\n\u2702\ufe0f ${agendamento.barbeiroNome}\n\u{1F550} ${agendamento.hora}\nEstou a caminho! \ud83d\udc4b`);
+          const msg = encodeURIComponent(`Confirmando presença:\n✂️ ${agendamento.barbeiroNome}\n🕐 ${agendamento.hora}\nEstou a caminho! 👋`);
           window.open(`https://wa.me/5511977643509?text=${msg}`, '_blank');
         }} style={{ flex:1, padding:'8px', borderRadius:'10px', border:'none', background:'#25D366', color:'#fff', fontSize:'12px', fontWeight:'700', cursor:'pointer' }}>
-          \ud83d\udcf2 Confirmar presença
+          📲 Confirmar presença
         </button>
         <button onClick={onFechar} style={{ flex:1, padding:'8px', borderRadius:'10px', border:'none', background:'rgba(0,0,0,0.2)', color:'#1A0F0D', fontSize:'12px', fontWeight:'700', cursor:'pointer' }}>OK, ciente</button>
       </div>
@@ -141,9 +141,9 @@ function AlertaAgendamento({ agendamento, onFechar }) {
 
 function StaffLoginScreen({ onBack, onSuccess, dark }) {
   const s = getStyles(dark);
-  const [email, setEmail]   = React.useState(() => localStorage.getItem('flyguer_staff_email') || '');
-  const [senha, setSenha]   = React.useState('');
-  const [erro, setErro]     = React.useState('');
+  const [email, setEmail]     = React.useState(() => localStorage.getItem('flyguer_staff_email') || '');
+  const [senha, setSenha]     = React.useState('');
+  const [erro, setErro]       = React.useState('');
   const [loading, setLoading] = React.useState(false);
 
   async function handleLogin() {
@@ -169,7 +169,7 @@ function StaffLoginScreen({ onBack, onSuccess, dark }) {
 
   return (
     <div style={{ ...s.app, padding:'40px 20px 24px' }}>
-      <button onClick={onBack} style={{ background:'none', border:'none', color:'#E8C96A', fontSize:'14px', cursor:'pointer', marginBottom:'24px' }}>\u2190 Voltar</button>
+      <button onClick={onBack} style={{ background:'none', border:'none', color:'#E8C96A', fontSize:'14px', cursor:'pointer', marginBottom:'24px' }}>← Voltar</button>
       <div style={{ textAlign:'center', marginBottom:'32px' }}>
         <div style={{ display:'flex', justifyContent:'center' }}><LogoMark size={60} /></div>
         <div style={{ marginTop:'12px', fontFamily:"'Playfair Display',serif", fontSize:'20px', color:'#E8C96A' }}>Acesso da equipe</div>
@@ -181,11 +181,11 @@ function StaffLoginScreen({ onBack, onSuccess, dark }) {
       </div>
       <div style={{ marginBottom:'14px' }}>
         <label style={s.label}>Senha</label>
-        <input style={s.input} type="password" placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" value={senha} onChange={e=>{setSenha(e.target.value);setErro('');}} onKeyDown={e=>e.key==='Enter'&&handleLogin()} />
+        <input style={s.input} type="password" placeholder="••••••••" value={senha} onChange={e=>{setSenha(e.target.value);setErro('');}} onKeyDown={e=>e.key==='Enter'&&handleLogin()} />
       </div>
       {erro && <div style={{ fontSize:'12px', color:'#F44336', marginBottom:'12px', textAlign:'center', background:'rgba(244,67,54,0.1)', borderRadius:'8px', padding:'10px' }}>{erro}</div>}
       <button style={{ ...s.btnGold, opacity:loading?0.7:1 }} onClick={handleLogin} disabled={loading}>
-        {loading ? '\u23f3 Entrando...' : 'Entrar \u2192'}
+        {loading ? '⏳ Entrando...' : 'Entrar →'}
       </button>
       <Divider />
       <WarnBanner>Primeiro acesso? Use a senha temporária enviada pelo gerente.</WarnBanner>
@@ -226,7 +226,7 @@ function TelaRedefinirSenha({ usuario, onConcluido, dark }) {
   if (ok) return (
     <div style={{ ...s.app, display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh' }}>
       <div style={{ textAlign:'center' }}>
-        <div style={{ fontSize:'64px', marginBottom:'16px' }}>\u2705</div>
+        <div style={{ fontSize:'64px', marginBottom:'16px' }}>✅</div>
         <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'20px', color:'#E8C96A' }}>Senha redefinida!</div>
       </div>
     </div>
@@ -235,7 +235,7 @@ function TelaRedefinirSenha({ usuario, onConcluido, dark }) {
   return (
     <div style={{ ...s.app, padding:'40px 20px 24px' }}>
       <div style={{ textAlign:'center', marginBottom:'32px' }}>
-        <div style={{ fontSize:'48px', marginBottom:'12px' }}>\ud83d\udd10</div>
+        <div style={{ fontSize:'48px', marginBottom:'12px' }}>🔐</div>
         <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'20px', color:'#E8C96A' }}>Defina sua senha</div>
         <div style={{ fontSize:'13px', color:'#9A8880', marginTop:'6px' }}>Olá, {usuario.nome}! Redefina sua senha antes de continuar.</div>
       </div>
@@ -251,7 +251,7 @@ function TelaRedefinirSenha({ usuario, onConcluido, dark }) {
       ))}
       {erro && <div style={{ fontSize:'12px', color:'#F44336', marginBottom:'12px', textAlign:'center', background:'rgba(244,67,54,0.1)', borderRadius:'8px', padding:'10px' }}>{erro}</div>}
       <button style={{ ...s.btnGold, opacity:loading?0.7:1 }} onClick={handleRedefinir} disabled={loading}>
-        {loading ? '\u23f3 Salvando...' : '\u2705 Salvar nova senha'}
+        {loading ? '⏳ Salvando...' : '✅ Salvar nova senha'}
       </button>
     </div>
   );
@@ -262,16 +262,16 @@ function ModalTour360({ onFechar }) {
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.95)', zIndex:9999, display:'flex', flexDirection:'column' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', background:'#1A0F0D', borderBottom:'1px solid #3A2018' }}>
         <div>
-          <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'16px', color:'#E8C96A', fontWeight:'700' }}>\ud83c\udfe0 Flyguer BarberShop</div>
+          <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'16px', color:'#E8C96A', fontWeight:'700' }}>🏠 Flyguer BarberShop</div>
           <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>Tour virtual 360° — Shopping Cidade das Artes</div>
         </div>
-        <button onClick={onFechar} style={{ background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'50%', width:'36px', height:'36px', color:'#F5EFE6', fontSize:'18px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>\u2715</button>
+        <button onClick={onFechar} style={{ background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'50%', width:'36px', height:'36px', color:'#F5EFE6', fontSize:'18px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
       </div>
       <div style={{ flex:1, position:'relative' }}>
         <iframe src="https://tour.panoee.net/6a1e212ca475c8a5fdbdd167" style={{ width:'100%', height:'100%', border:'none' }} allow="fullscreen; gyroscope; accelerometer" allowFullScreen title="Tour 360°" />
       </div>
       <div style={{ padding:'12px 16px', background:'#1A0F0D', borderTop:'1px solid #3A2018', textAlign:'center' }}>
-        <div style={{ fontSize:'11px', color:'#9A8880' }}>\ud83d\udccd Piso 2, N\u00ba 22 · Arraste para explorar</div>
+        <div style={{ fontSize:'11px', color:'#9A8880' }}>📍 Piso 2, Nº 22 · Arraste para explorar</div>
       </div>
     </div>
   );
@@ -291,7 +291,7 @@ function BannerPreAgendamento({ cliente }) {
           if (!ag.data || !ag.hora) return false;
           const dataAg = new Date(`${ag.data}T${ag.hora}:00`);
           const diffH  = (dataAg - agora) / 1000 / 3600;
-          return diffH > 0 && diffH <= 48; // 48h antes
+          return diffH > 0 && diffH <= 48;
         }).sort((a,b) => a.data?.localeCompare(b.data));
         setPreProximo(lista[0] || null);
       }
@@ -307,15 +307,15 @@ function BannerPreAgendamento({ cliente }) {
 
   return (
     <div style={{ margin:'12px 16px 0', background: urgente?'rgba(244,67,54,0.12)':'rgba(255,193,7,0.1)', border:`1.5px solid ${urgente?'rgba(244,67,54,0.4)':'rgba(255,193,7,0.4)'}`, borderRadius:'14px', padding:'12px 14px', display:'flex', alignItems:'center', gap:'10px' }}>
-      <span style={{ fontSize:'22px' }}>{urgente?'\u26a0\ufe0f':'\ud83d\udccc'}</span>
+      <span style={{ fontSize:'22px' }}>{urgente ? '⚠️' : '📌'}</span>
       <div style={{ flex:1 }}>
         <div style={{ fontSize:'12px', fontWeight:'700', color:urgente?'#F44336':'#FFC107' }}>
           {urgente ? 'Confirme hoje!' : `Confirme em até ${diffH}h`} — Pré-agendamento pendente
         </div>
         <div style={{ fontSize:'11px', color:'#9A8880', marginTop:'2px' }}>
-          \u2702\ufe0f {preProximo.barbeiroNome} · {preProximo.data?.split('-').reverse().join('/')} às {preProximo.hora}
+          ✂️ {preProximo.barbeiroNome} · {preProximo.data?.split('-').reverse().join('/')} às {preProximo.hora}
         </div>
-        <div style={{ fontSize:'10px', color:'#9A8880', marginTop:'2px' }}>\u26a0\ufe0f O horário pode sofrer alteração até a confirmação.</div>
+        <div style={{ fontSize:'10px', color:'#9A8880', marginTop:'2px' }}>⚠️ O horário pode sofrer alteração até a confirmação.</div>
       </div>
     </div>
   );
@@ -326,9 +326,9 @@ function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark, onVer
   const [tour360, setTour360] = React.useState(false);
 
   const barbeiros = [
-    { id:'b1', nome:'Amaral', cargo:'\ud83d\udc51 Gerente · Barbeiro', disponivel:true  },
-    { id:'b2', nome:'Jotace', cargo:'\u2702\ufe0f Barbeiro',           disponivel:true  },
-    { id:'b3', nome:'Júnior', cargo:'\u2702\ufe0f Barbeiro',           disponivel:false },
+    { id:'b1', nome:'Amaral', cargo:'👑 Gerente · Barbeiro', disponivel:true  },
+    { id:'b2', nome:'Jotace', cargo:'✂️ Barbeiro',           disponivel:true  },
+    { id:'b3', nome:'Júnior', cargo:'✂️ Barbeiro',           disponivel:false },
   ];
 
   return (
@@ -339,11 +339,18 @@ function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark, onVer
           Flyguer <span style={{ fontWeight:'300', color:'#E8C96A' }}>BarberShop</span>
         </div>
         <div style={{ fontSize:'13px', color:'rgba(245,239,230,0.7)', marginTop:'6px', fontStyle:'italic' }}>Nossa Arte, Seu Estilo.</div>
-        <div style={{ fontSize:'11px', color:'rgba(245,239,230,0.5)', marginTop:'4px' }}>Shopping Cidade das Artes — Piso 2, N\u00ba 22</div>
+        <div style={{ fontSize:'11px', color:'rgba(245,239,230,0.5)', marginTop:'4px' }}>Shopping Cidade das Artes — Piso 2, Nº 22</div>
       </div>
       <div style={{ padding:'20px 20px 0' }}>
-        {/* ✅ Banner promoção em tempo real na splash */}
-        <BannerPromocao cliente={null} onResgatado={(promo) => { onVerPromo && onVerPromo(promo); }} />
+        {/* ✅ Banner promoção — cliente null, redireciona para login ao clicar */}
+        <BannerPromocao
+          cliente={null}
+          onResgatado={(promo, motivo) => {
+            if (motivo === 'login_required') {
+              onVerPromo && onVerPromo(promo);
+            }
+          }}
+        />
         <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'600', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'10px' }}>Nossos barbeiros</div>
         {barbeiros.map(b => (
           <div key={b.id} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'14px', background:'#231410', borderRadius:'14px', border:'1px solid #3A2018', marginBottom:'8px' }}>
@@ -360,10 +367,10 @@ function SplashScreen({ onClienteNovo, onClienteCadastrado, onStaff, dark, onVer
         ))}
         <Divider />
         <p style={{ fontSize:'13px', color:'#9A8880', textAlign:'center', marginBottom:'20px' }}>Estamos prontos para cuidar do seu estilo.</p>
-        <button style={{ ...s.btnGold, marginBottom:'10px' }} onClick={onClienteNovo}>\ud83d\udc64 Criar Conta de Cliente</button>
-        <button style={{ ...s.btnDark, marginBottom:'10px' }} onClick={onClienteCadastrado}>\ud83d\udd12 Acessar Cadastro Existente</button>
+        <button style={{ ...s.btnGold, marginBottom:'10px' }} onClick={onClienteNovo}>👤 Criar Conta de Cliente</button>
+        <button style={{ ...s.btnDark, marginBottom:'10px' }} onClick={onClienteCadastrado}>🔑 Acessar Cadastro Existente</button>
         <button onClick={() => setTour360(true)} style={{ width:'100%', padding:'13px', borderRadius:'14px', border:'1px solid rgba(232,201,106,0.3)', background:'rgba(232,201,106,0.06)', color:'#E8C96A', fontSize:'14px', fontWeight:'600', cursor:'pointer', marginBottom:'16px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
-          \ud83c\udfe0 Conheça a barbearia — Tour 360°
+          🏠 Conheça a barbearia — Tour 360°
         </button>
         <WarnBanner>Use um número de WhatsApp válido para receber confirmações.</WarnBanner>
         <div onClick={onStaff} style={{ textAlign:'center', fontSize:'11px', color:'#444', cursor:'pointer', paddingBottom:'8px' }}>Acesso da equipe</div>
@@ -377,9 +384,9 @@ function EmBreve({ titulo, onBack, dark }) {
   const s = getStyles(dark);
   return (
     <div style={{ ...s.app, padding:'24px 20px' }}>
-      <button onClick={onBack} style={{ background:'none', border:'none', color:'#E8C96A', fontSize:'14px', cursor:'pointer', marginBottom:'24px' }}>\u2190 Voltar</button>
+      <button onClick={onBack} style={{ background:'none', border:'none', color:'#E8C96A', fontSize:'14px', cursor:'pointer', marginBottom:'24px' }}>← Voltar</button>
       <div style={{ textAlign:'center', paddingTop:'60px' }}>
-        <div style={{ fontSize:'48px', marginBottom:'16px' }}>\ud83d\udd28</div>
+        <div style={{ fontSize:'48px', marginBottom:'16px' }}>🔨</div>
         <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'20px', color:'#E8C96A', marginBottom:'8px' }}>{titulo}</div>
         <div style={{ fontSize:'13px', color:'#9A8880' }}>Em desenvolvimento</div>
       </div>
@@ -392,7 +399,6 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
   const [tour360Cliente, setTour360Cliente] = React.useState(false);
   const [lembrete, setLembrete]             = React.useState(null);
   const [alertaVisivel, setAlertaVisivel]   = React.useState(false);
-  const [promoResgatada, setPromoResgatada] = React.useState(null);
 
   // Lembrete de agendamento hoje
   React.useEffect(() => {
@@ -429,19 +435,18 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
             {cliente.foto ? <img src={cliente.foto} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : cliente.nome[0].toUpperCase()}
           </div>
           <div>
-            <div style={{ fontSize:'13px', fontWeight:'600', color:'#F5EFE6' }}>Olá, {cliente.nome.split(' ')[0]}! \ud83d\udc4b</div>
+            <div style={{ fontSize:'13px', fontWeight:'600', color:'#F5EFE6' }}>Olá, {cliente.nome.split(' ')[0]}! 👋</div>
             <div style={{ fontSize:'11px', color:'#9A8880' }}>Flyguer BarberShop</div>
           </div>
         </div>
         <button onClick={onLogout} style={{ background:'#2E1A14', border:'none', borderRadius:'8px', padding:'6px 12px', fontSize:'12px', color:'#9A8880', cursor:'pointer' }}>Sair</button>
       </div>
 
-      {/* ✅ Banner promoção em tempo real para cliente logado */}
+      {/* ✅ Banner promoção para cliente logado — executa resgate direto */}
       <div style={{ paddingTop:'4px' }}>
         <BannerPromocao
           cliente={cliente}
           onResgatado={(promo) => {
-            setPromoResgatada(promo);
             onNavegar('agendamento_promo');
           }}
         />
@@ -453,10 +458,10 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
       <div style={{ padding:'16px 20px' }}>
         {lembrete && !alertaVisivel && (
           <div style={{ background:'linear-gradient(135deg,#A07830,#C9A84C)', borderRadius:'14px', padding:'14px', marginBottom:'14px', display:'flex', alignItems:'center', gap:'12px' }}>
-            <span style={{ fontSize:'28px' }}>\ud83d\udd14</span>
+            <span style={{ fontSize:'28px' }}>🔔</span>
             <div style={{ flex:1 }}>
               <div style={{ fontWeight:'700', fontSize:'13px', color:'#1A0F0D' }}>Seu agendamento é hoje às {lembrete.hora}!</div>
-              <div style={{ fontSize:'11px', color:'rgba(26,15,13,0.7)', marginTop:'2px' }}>\u2702\ufe0f {lembrete.barbeiroNome} · {lembrete.servico}</div>
+              <div style={{ fontSize:'11px', color:'rgba(26,15,13,0.7)', marginTop:'2px' }}>✂️ {lembrete.barbeiroNome} · {lembrete.servico}</div>
             </div>
           </div>
         )}
@@ -464,15 +469,15 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
         <div style={{ background:'linear-gradient(135deg,#5C2218,#8B3A2A)', borderRadius:'18px', padding:'20px', marginBottom:'20px' }}>
           <div style={{ fontSize:'12px', color:'rgba(245,239,230,0.6)', marginBottom:'4px', fontWeight:'600' }}>BEM-VINDO DE VOLTA!</div>
           <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'20px', color:'#F5EFE6', fontWeight:'700' }}>{cliente.nome.split(' ')[0]}</div>
-          <div style={{ fontSize:'12px', color:'rgba(245,239,230,0.6)', marginTop:'4px' }}>Cadastro ativo \u2705</div>
+          <div style={{ fontSize:'12px', color:'rgba(245,239,230,0.6)', marginTop:'4px' }}>Cadastro ativo ✅</div>
         </div>
 
         <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'600', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'12px' }}>O que deseja fazer?</div>
         {[
-          { icon:'\ud83d\udcc5', label:'Fazer Agendamento', sub:'Escolha barbeiro, dia e horário', acao:()=>onNavegar('agendamento') },
-          { icon:'\ud83d\udccb', label:'Minhas Reservas',   sub:'Ver, cancelar ou reagendar',      acao:()=>onNavegar('minhas_reservas') },
-          { icon:'\ud83d\udcb3', label:'Planos Mensais',    sub:'Assine e economize nos cortes',   acao:()=>onNavegar('assinatura_plano') },
-          { icon:'\ud83d\udc64', label:'Meu Perfil',        sub:'Dados, histórico e avaliações',   acao:()=>onNavegar('perfil_cliente') },
+          { icon:'📅', label:'Fazer Agendamento', sub:'Escolha barbeiro, dia e horário', acao:()=>onNavegar('agendamento') },
+          { icon:'📋', label:'Minhas Reservas',   sub:'Ver, cancelar ou reagendar',      acao:()=>onNavegar('minhas_reservas') },
+          { icon:'💳', label:'Planos Mensais',    sub:'Assine e economize nos cortes',   acao:()=>onNavegar('assinatura_plano') },
+          { icon:'👤', label:'Meu Perfil',        sub:'Dados, histórico e avaliações',   acao:()=>onNavegar('perfil_cliente') },
         ].map(item => (
           <div key={item.label} onClick={item.acao} style={{ display:'flex', alignItems:'center', gap:'14px', padding:'14px', background:s.cardBg, borderRadius:'14px', border:`1px solid ${s.border}`, marginBottom:'10px', cursor:'pointer' }}>
             <div style={{ fontSize:'24px' }}>{item.icon}</div>
@@ -483,12 +488,12 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
           </div>
         ))}
         <div onClick={() => setTour360Cliente(true)} style={{ display:'flex', alignItems:'center', gap:'14px', padding:'14px', background:'rgba(232,201,106,0.06)', borderRadius:'14px', border:'1px solid rgba(232,201,106,0.2)', marginBottom:'10px', cursor:'pointer' }}>
-          <div style={{ fontSize:'24px' }}>\ud83c\udfe0</div>
+          <div style={{ fontSize:'24px' }}>🏠</div>
           <div style={{ flex:1 }}>
             <div style={{ fontWeight:'600', fontSize:'14px', color:'#E8C96A' }}>Conheça a Barbearia</div>
             <div style={{ fontSize:'11px', color:s.textSub }}>Tour virtual 360° da Flyguer</div>
           </div>
-          <div style={{ fontSize:'16px', color:'#E8C96A' }}>\u25b6</div>
+          <div style={{ fontSize:'16px', color:'#E8C96A' }}>▶</div>
         </div>
       </div>
       {tour360Cliente && <ModalTour360 onFechar={() => setTour360Cliente(false)} />}
@@ -499,24 +504,24 @@ function HomeCliente({ cliente, onLogout, onNavegar, dark }) {
 function HomeGerente({ usuario, onLogout, onNavegar, dark }) {
   const s = getStyles(dark);
   const acoes = [
-    { id:'config',            icon:'\u2699\ufe0f', label:'Configurações',       sub:'Horários, Pix, dados' },
-    { id:'servicos',          icon:'\ud83d\udc88', label:'Serviços & Preços',    sub:'Tabela de serviços'   },
-    { id:'equipe',            icon:'\ud83d\udc65', label:'Equipe',               sub:'Barbeiros e recepção'  },
-    { id:'agenda',            icon:'\ud83d\udcc5', label:'Agenda Geral',         sub:'Todos os barbeiros'   },
-    { id:'financeiro',        icon:'\ud83d\udcb0', label:'Financeiro',           sub:'Receitas e relatórios' },
-    { id:'comparativo',       icon:'\ud83d\udcca', label:'Comparativo',          sub:'Ranking de barbeiros' },
-    { id:'planos_mensais',    icon:'\ud83d\udcb3', label:'Planos Mensais',       sub:'Criar e gerir planos'  },
-    { id:'promocao',          icon:'\ud83d\udd34', label:'Promoção Relâmpago',   sub:'Disparar para clientes'},
-    { id:'clientes',          icon:'\ud83d\udc65', label:'Clientes',             sub:'Lista e assinaturas'   },
-    { id:'comunicado',        icon:'\ud83d\udce2', label:'Comunicado',           sub:'Mensagem para a equipe'},
-    { id:'whatsapp_business', icon:'\ud83d\udcf2', label:'WhatsApp Business',    sub:'Mensagens automáticas' },
-    { id:'permissoes',        icon:'\ud83d\udd11', label:'Permissões',           sub:'Acesso da recepção'    },
+    { id:'config',            icon:'⚙️',  label:'Configurações',       sub:'Horários, Pix, dados' },
+    { id:'servicos',          icon:'💈',  label:'Serviços & Preços',    sub:'Tabela de serviços'   },
+    { id:'equipe',            icon:'👥',  label:'Equipe',               sub:'Barbeiros e recepção'  },
+    { id:'agenda',            icon:'📅',  label:'Agenda Geral',         sub:'Todos os barbeiros'   },
+    { id:'financeiro',        icon:'💰',  label:'Financeiro',           sub:'Receitas e relatórios' },
+    { id:'comparativo',       icon:'📊',  label:'Comparativo',          sub:'Ranking de barbeiros' },
+    { id:'planos_mensais',    icon:'💳',  label:'Planos Mensais',       sub:'Criar e gerir planos'  },
+    { id:'promocao',          icon:'🔴',  label:'Promoção Relâmpago',   sub:'Disparar para clientes'},
+    { id:'clientes',          icon:'👥',  label:'Clientes',             sub:'Lista e assinaturas'   },
+    { id:'comunicado',        icon:'📢',  label:'Comunicado',           sub:'Mensagem para a equipe'},
+    { id:'whatsapp_business', icon:'📱',  label:'WhatsApp Business',    sub:'Mensagens automáticas' },
+    { id:'permissoes',        icon:'🔑',  label:'Permissões',           sub:'Acesso da recepção'    },
   ];
   return (
     <div style={{ ...s.app, paddingBottom:'24px' }}>
       <div style={{ ...s.headerGold, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <div>
-          <div style={{ fontSize:'11px', color:'rgba(245,239,230,0.7)', fontWeight:'600' }}>\ud83d\udc51 ADMINISTRAÇÃO</div>
+          <div style={{ fontSize:'11px', color:'rgba(245,239,230,0.7)', fontWeight:'600' }}>👑 ADMINISTRAÇÃO</div>
           <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', fontWeight:'900', color:'#F5EFE6' }}>Flyguer BarberShop</div>
         </div>
         <button onClick={onLogout} style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:'8px', padding:'6px 12px', fontSize:'12px', color:'#F5EFE6', cursor:'pointer', fontWeight:'600' }}>Sair</button>
@@ -526,7 +531,7 @@ function HomeGerente({ usuario, onLogout, onNavegar, dark }) {
           <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
             <div style={{ ...s.avatar, width:'52px', height:'52px', fontSize:'22px', border:'2px solid #E8C96A' }}>{usuario.nome[0]}</div>
             <div>
-              <div style={{ fontWeight:'700', fontSize:'16px' }}>Olá, {usuario.nome}! \ud83d\udc51</div>
+              <div style={{ fontWeight:'700', fontSize:'16px' }}>Olá, {usuario.nome}! 👑</div>
               <div style={{ fontSize:'12px', color:'#E8C96A', marginTop:'2px' }}>Gerente — Acesso total</div>
             </div>
           </div>
@@ -551,14 +556,14 @@ function HomeBarbeiro({ usuario, onLogout, onNavegar, dark }) {
     <div style={{ ...s.app, paddingBottom:'24px' }}>
       <div style={{ ...s.header }}>
         <div>
-          <div style={{ ...s.headerTitle }}>\u2702\ufe0f Minha Agenda</div>
+          <div style={{ ...s.headerTitle }}>✂️ Minha Agenda</div>
           <div style={{ ...s.headerSubtitle }}>{usuario.nome}</div>
         </div>
         <button onClick={onLogout} style={{ background:'#2E1A14', border:'none', borderRadius:'8px', padding:'6px 12px', fontSize:'12px', color:'#9A8880', cursor:'pointer' }}>Sair</button>
       </div>
       <div style={{ padding:'20px' }}>
-        <button style={{ ...s.btnGold }} onClick={() => onNavegar('agenda_barbeiro')}>\ud83d\udcc5 Minha Agenda</button>
-        <button style={{ ...s.btnDark, marginTop:'10px' }} onClick={() => onNavegar('equipe')}>\ud83d\udc64 Meu Perfil & Disponibilidade</button>
+        <button style={{ ...s.btnGold }} onClick={() => onNavegar('agenda_barbeiro')}>📅 Minha Agenda</button>
+        <button style={{ ...s.btnDark, marginTop:'10px' }} onClick={() => onNavegar('equipe')}>👤 Meu Perfil & Disponibilidade</button>
       </div>
     </div>
   );
@@ -599,6 +604,7 @@ export default function App() {
     return () => unsub();
   }, []);
 
+  // ✅ Após login do cliente: se veio de promo, vai direto para agendamento_promo
   function handleLoginClienteSucesso(clienteLogado) {
     setCliente(clienteLogado);
     setTela(promoParaResgatar ? 'agendamento_promo' : 'home_cliente');
@@ -650,7 +656,7 @@ export default function App() {
     return (
       <div style={{ minHeight:'100vh', background:'#1A0F0D', display:'flex', alignItems:'center', justifyContent:'center' }}>
         <div style={{ textAlign:'center', color:'#E8C96A' }}>
-          <div style={{ fontSize:'48px', marginBottom:'12px' }}>\u2702\ufe0f</div>
+          <div style={{ fontSize:'48px', marginBottom:'12px' }}>✂️</div>
           <div style={{ fontSize:'14px', fontFamily:"'Playfair Display',serif" }}>Flyguer BarberShop</div>
         </div>
       </div>
@@ -659,7 +665,7 @@ export default function App() {
 
   const toggleTema = (
     <button onClick={() => setDark(d=>!d)} style={{ position:'fixed', top:'12px', right:'12px', zIndex:'100', background:'rgba(0,0,0,0.4)', border:'1px solid #3A2018', borderRadius:'50%', width:'32px', height:'32px', fontSize:'14px', cursor:'pointer', color:'#fff', backdropFilter:'blur(4px)' }}>
-      {dark?'\u2600\ufe0f':'\ud83c\udf19'}
+      {dark ? '☀️' : '🌙'}
     </button>
   );
 
@@ -670,9 +676,21 @@ export default function App() {
       <div style={{ maxWidth:'430px', margin:'0 auto', minHeight:'100vh', position:'relative' }} className="app-container">
         {toggleTema}
         <ErrorBoundary modulo="App">
-          {tela==='splash' && <SplashScreen onClienteNovo={()=>setTela('login_cliente')} onClienteCadastrado={()=>setTela('login_cliente')} onStaff={()=>setTela('staff_login')} dark={dark} onVerPromo={(promo)=>{ setPromoParaResgatar(promo); setTela('login_cliente'); }} />}
+          {tela==='splash' && (
+            <SplashScreen
+              onClienteNovo={()=>setTela('login_cliente')}
+              onClienteCadastrado={()=>setTela('login_cliente')}
+              onStaff={()=>setTela('staff_login')}
+              dark={dark}
+              onVerPromo={(promo) => {
+                // ✅ Salva promo e leva para login — após login vai para agendamento_promo
+                setPromoParaResgatar(promo);
+                setTela('login_cliente');
+              }}
+            />
+          )}
           {tela==='login_cliente' && <ErrorBoundary modulo="LoginCliente"><LoginFlow onSucesso={handleLoginClienteSucesso} onBack={()=>setTela('splash')} dark={dark} /></ErrorBoundary>}
-          {tela==='home_cliente' && cliente && <ErrorBoundary modulo="HomeCliente"><HomeCliente cliente={cliente} onLogout={()=>{setCliente(null);setTela('splash');}} onNavegar={setTela} dark={dark} /></ErrorBoundary>}
+          {tela==='home_cliente' && cliente && <ErrorBoundary modulo="HomeCliente"><HomeCliente cliente={cliente} onLogout={()=>{setCliente(null);setTela('splash');}} onNavegar={(t)=>{ if(t==='agendamento_promo') setTela('agendamento_promo'); else setTela(t); }} dark={dark} /></ErrorBoundary>}
           {tela==='staff_login' && <StaffLoginScreen onBack={()=>setTela('splash')} onSuccess={handleStaffLogin} dark={dark} />}
           {tela==='redefinir_senha' && usuario && <TelaRedefinirSenha usuario={usuario} onConcluido={() => { const u={...usuario,primeiroAcesso:false}; setUsuario(u); handleStaffLogin(u); }} dark={dark} />}
           {tela==='home_gerente' && usuario && <ErrorBoundary modulo="HomeGerente"><HomeGerente usuario={usuario} onLogout={handleLogout} onNavegar={handleNavegarGerente} dark={dark} /></ErrorBoundary>}
