@@ -303,45 +303,152 @@ function AbaClientes() {
 
   function formatarData(s) { if(!s)return''; const[a,m,d]=s.split('-'); return`${d}/${m}/${a}`; }
 
-  // ─── Gerar PDF do histórico ───
-  function gerarPDF() {
-    const nome = clienteSel.nome || 'Cliente';
-    const tel  = clienteSel.telefone || '—';
-    const cpf  = clienteSel.cpf || '—';
-    const linhas = historico.map(ag => {
-      const status = ag.status?.includes('cancelado')?'Cancelado':ag.status==='concluido'?'Concluído':'Confirmado';
-      return `${formatarData(ag.data)} ${ag.hora} | ${ag.servico} | ${ag.barbeiroNome} | R$ ${(ag.valor||0).toFixed(2).replace('.',',')} | ${status}`;
-    }).join('\n');
+  // ─── Gerar PDF real com jsPDF ───
+  async function gerarPDF() {
+    // Carrega jsPDF dinamicamente
+    if (!window.jspdf) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    const { jsPDF } = window.jspdf;
+    const pdf   = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+    const W     = 210; // largura A4
+    const nome  = clienteSel.nome  || 'Cliente';
+    const tel   = clienteSel.telefone || '—';
+    const cpf   = clienteSel.cpf   || '—';
     const total = historico.filter(a=>!a.status?.includes('cancelado')).reduce((s,a)=>s+(a.valor||0),0);
-    const conteudo = [
-      '========================================',
-      '        FLYGUER BARBERSHOP',
-      '   Shopping Cidade das Artes — Piso 2, Nº 22',
-      '========================================',
-      '',
-      `Cliente : ${nome}`,
-      `Telefone: ${tel}`,
-      `CPF     : ${cpf}`,
-      `Gerado  : ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`,
-      '',
-      '----------------------------------------',
-      'DATA       HORA  SERVIÇO                    BARBEIRO     VALOR      STATUS',
-      '----------------------------------------',
-      linhas,
-      '----------------------------------------',
-      `TOTAL GASTO (excl. cancelamentos): R$ ${total.toFixed(2).replace('.',',')}`,
-      `TOTAL ATENDIMENTOS: ${historico.filter(a=>a.status==='concluido').length} concluídos`,
-      '========================================',
-      '  flyguer-barbershop.vercel.app',
-      '========================================',
-    ].join('\n');
-    const blob = new Blob([conteudo], { type:'text/plain;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url;
-    a.download = `historico_${nome.replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const conc  = historico.filter(a=>a.status==='concluido').length;
+    const geradoEm = new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+
+    // ── Fundo header ──
+    pdf.setFillColor(92, 34, 24); // #5C2218
+    pdf.rect(0, 0, W, 42, 'F');
+
+    // ── Logo (texto estilizado — substitua por imagem se tiver base64) ──
+    pdf.setTextColor(232, 201, 106); // #E8C96A dourado
+    pdf.setFontSize(22);
+    pdf.setFont('helvetica','bold');
+    pdf.text('Flyguer BarberShop', W/2, 16, { align:'center' });
+    pdf.setFontSize(9);
+    pdf.setTextColor(245, 239, 230);
+    pdf.setFont('helvetica','normal');
+    pdf.text('Nossa Arte, Seu Estilo.', W/2, 23, { align:'center' });
+    pdf.text('Shopping Cidade das Artes — Piso 2, No 22 — Sao Paulo, SP', W/2, 29, { align:'center' });
+    pdf.text('(11) 97764-3509  |  flyguer-barbershop.vercel.app', W/2, 35, { align:'center' });
+
+    // ── Título do documento ──
+    pdf.setFillColor(245, 239, 230);
+    pdf.rect(0, 42, W, 12, 'F');
+    pdf.setTextColor(92, 34, 24);
+    pdf.setFontSize(11);
+    pdf.setFont('helvetica','bold');
+    pdf.text('HISTORICO DE AGENDAMENTOS', W/2, 50, { align:'center' });
+
+    // ── Dados do cliente ──
+    let y = 62;
+    pdf.setFillColor(35, 20, 16); // #231410
+    pdf.roundedRect(10, y-6, W-20, 26, 3, 3, 'F');
+    pdf.setTextColor(232, 201, 106);
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica','bold');
+    pdf.text('DADOS DO CLIENTE', 15, y);
+    y += 6;
+    pdf.setTextColor(245, 239, 230);
+    pdf.setFont('helvetica','normal');
+    pdf.setFontSize(9);
+    pdf.text(`Nome    : ${nome}`, 15, y);
+    y += 5;
+    pdf.text(`Telefone: ${tel}`, 15, y);
+    pdf.text(`CPF: ${cpf}`, 110, y);
+    y += 5;
+    pdf.text(`Gerado em: ${geradoEm}`, 15, y);
+
+    // ── Stats ──
+    y += 12;
+    const stats = [
+      { label:'Total de registros', value: String(historico.length) },
+      { label:'Concluidos', value: String(conc) },
+      { label:'Total gasto', value: `R$ ${total.toFixed(2).replace('.',',')}` },
+    ];
+    const bw = (W-20)/3;
+    stats.forEach((st, i) => {
+      const bx = 10 + i*bw;
+      pdf.setFillColor(46, 26, 20);
+      pdf.roundedRect(bx, y, bw-3, 16, 2, 2, 'F');
+      pdf.setTextColor(232, 201, 106);
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica','bold');
+      pdf.text(st.value, bx + bw/2 - 1.5, y+8, { align:'center' });
+      pdf.setTextColor(154, 136, 128);
+      pdf.setFontSize(7);
+      pdf.setFont('helvetica','normal');
+      pdf.text(st.label, bx + bw/2 - 1.5, y+13, { align:'center' });
+    });
+
+    // ── Cabeçalho da tabela ──
+    y += 22;
+    pdf.setFillColor(139, 58, 42); // #8B3A2A
+    pdf.rect(10, y, W-20, 8, 'F');
+    pdf.setTextColor(245, 239, 230);
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica','bold');
+    pdf.text('DATA',      14, y+5.5);
+    pdf.text('HORA',      38, y+5.5);
+    pdf.text('SERVICO',   54, y+5.5);
+    pdf.text('BARBEIRO',  110, y+5.5);
+    pdf.text('VALOR',     148, y+5.5);
+    pdf.text('STATUS',    170, y+5.5);
+
+    // ── Linhas da tabela ──
+    y += 8;
+    historico.forEach((ag, idx) => {
+      if (y > 270) { pdf.addPage(); y = 20; }
+      const ehCanc = ag.status?.includes('cancelado');
+      const ehConc = ag.status === 'concluido';
+      const statusTxt = ehCanc?'Cancelado':ehConc?'Concluido':'Confirmado';
+      // Fundo alternado
+      if (idx % 2 === 0) {
+        pdf.setFillColor(30, 15, 12);
+        pdf.rect(10, y, W-20, 8, 'F');
+      }
+      // Cor do status
+      if (ehCanc) pdf.setTextColor(244, 67, 54);
+      else if (ehConc) pdf.setTextColor(46, 125, 122);
+      else pdf.setTextColor(76, 175, 80);
+      pdf.setFontSize(7.5);
+      pdf.setFont('helvetica','normal');
+      // Colunas
+      pdf.setTextColor(245, 239, 230);
+      pdf.text(formatarData(ag.data)||'—', 14, y+5.5);
+      pdf.text(ag.hora||'—', 38, y+5.5);
+      const sv = (ag.servico||'').substring(0,24);
+      pdf.text(sv, 54, y+5.5);
+      const bn = (ag.barbeiroNome||'').substring(0,14);
+      pdf.text(bn, 110, y+5.5);
+      pdf.text(`R$ ${(ag.valor||0).toFixed(2).replace('.',',')}`, 148, y+5.5);
+      // Status colorido
+      if (ehCanc) pdf.setTextColor(244, 67, 54);
+      else if (ehConc) pdf.setTextColor(46, 125, 122);
+      else pdf.setTextColor(76, 175, 80);
+      pdf.text(statusTxt, 170, y+5.5);
+      y += 8;
+    });
+
+    // ── Rodapé ──
+    const yFoot = 285;
+    pdf.setFillColor(92, 34, 24);
+    pdf.rect(0, yFoot, W, 12, 'F');
+    pdf.setTextColor(154, 136, 128);
+    pdf.setFontSize(7);
+    pdf.setFont('helvetica','normal');
+    pdf.text('Flyguer BarberShop — documento gerado automaticamente pelo sistema', W/2, yFoot+7, { align:'center' });
+
+    // ── Download ──
+    pdf.save(`historico_${nome.replace(/[^a-zA-Z0-9]/g,'_')}_${new Date().toISOString().split('T')[0]}.pdf`);
   }
 
   // ─── Excluir agendamento da visão da recepção ───
@@ -423,7 +530,7 @@ function AbaClientes() {
         {/* ✅ Botão exportar PDF */}
         <button onClick={gerarPDF}
           style={{ width:'100%', padding:'10px', borderRadius:'10px', border:'1px solid rgba(232,201,106,0.3)', background:'rgba(232,201,106,0.08)', color:'#E8C96A', fontSize:'13px', fontWeight:'600', cursor:'pointer', marginBottom:'16px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
-          📄 Exportar histórico (.txt)
+          📄 Exportar PDF do histórico
         </button>
 
         {/* Histórico */}
