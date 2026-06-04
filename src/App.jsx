@@ -665,7 +665,7 @@ export default function App(){
     <GlobalErrorBoundary>
       <BannerOffline/>
       <InstalarApp dark={dark}/>
-      <div style={{maxWidth:'430px',margin:'0 auto',minHeight:'100vh',position:'relative'}} className={`app-container${tela==='splash' ? ' splash-mode' : ''}`}>
+      <div style={{minHeight:'100vh',position:'relative'}} className={`app-container${tela==='splash' ? ' splash-mode' : ''}`}>
         {toggleTema}
         <ErrorBoundary modulo="App">
 
