@@ -450,20 +450,47 @@ const TIPOS_BLOCO = [
 ];
 
 function AbaPerfil({ usuario }) {
-  const [dados, setDados]       = React.useState({ bio:'', blocos:[] });
-  const [fotoAmpliada, setFoto] = React.useState(false);
-  const [salvando, setSalv]     = React.useState(false);
-  const [salvo, setSalvo]       = React.useState(false);
+  const [dados, setDados]         = React.useState({ bio:'', blocos:[], links:[], foto:null });
+  const [fotoAmpliada, setFoto]   = React.useState(false);
+  const [salvando, setSalv]       = React.useState(false);
+  const [salvo, setSalvo]         = React.useState(false);
   const [novoBloco, setNovoBloco] = React.useState({ tipo:'especialidade', titulo:'', descricao:'' });
-  const [adicionandoBloco, setAdd] = React.useState(false);
+  const [adicionandoBloco, setAdd]= React.useState(false);
+  const [adicionandoLink, setAddLink] = React.useState(false);
+  const [novoLink, setNovoLink]   = React.useState({ rede:'instagram', handle:'', url:'' });
+  const [stats, setStats]         = React.useState({ total:0, nota:0, faturado:0 });
 
+  const REDES = [
+    { id:'instagram', label:'Instagram', icon:'📸', prefix:'https://instagram.com/' },
+    { id:'tiktok',    label:'TikTok',    icon:'▶️', prefix:'https://tiktok.com/@' },
+    { id:'facebook',  label:'Facebook',  icon:'👤', prefix:'https://facebook.com/' },
+    { id:'youtube',   label:'YouTube',   icon:'🎬', prefix:'https://youtube.com/@' },
+    { id:'whatsapp',  label:'WhatsApp',  icon:'📲', prefix:'https://wa.me/55' },
+    { id:'site',      label:'Site',      icon:'🌐', prefix:'' },
+  ];
+
+  // Carrega perfil do barbeiro
   React.useEffect(()=>{
     if(!usuario?.id) return;
     getDoc(doc(db,'barbeiros',usuario.id)).then(snap=>{
-      if(snap.exists()) {
+      if(snap.exists()){
         const d=snap.data();
-        setDados({ bio:d.bio||'', blocos:d.blocos||[], foto:d.foto||null });
+        setDados({ bio:d.bio||'', blocos:d.blocos||[], links:d.links||[], foto:d.foto||null });
       }
+    });
+    // Stats privados — só o barbeiro vê
+    getDocs(query(collection(db,'agendamentos'),where('barbeiroId','==',usuario.id))).then(snap=>{
+      const ags=snap.docs.map(d=>d.data());
+      const conc=ags.filter(a=>a.status==='concluido');
+      const avSnap=getDocs(query(collection(db,'avaliacoes'),where('barbeiroId','==',usuario.id))).then(av=>{
+        const avs=av.docs.map(d=>d.data());
+        const nota=avs.length?avs.reduce((s,a)=>s+(a.nota||0),0)/avs.length:0;
+        setStats({
+          total:conc.length,
+          nota:nota.toFixed(1),
+          faturado:conc.reduce((s,a)=>s+(a.valor||0),0),
+        });
+      });
     });
   },[usuario?.id]);
 
@@ -471,104 +498,220 @@ function AbaPerfil({ usuario }) {
     if(!usuario?.id) return;
     setSalv(true);
     try {
-      await updateDoc(doc(db,'barbeiros',usuario.id),{ bio:dados.bio, blocos:dados.blocos, atualizadoEm:serverTimestamp() });
-      setSalvo(true); setTimeout(()=>setSalvo(false),2000);
+      await updateDoc(doc(db,'barbeiros',usuario.id),{
+        bio:dados.bio, blocos:dados.blocos, links:dados.links,
+        atualizadoEm:serverTimestamp()
+      });
+      setSalvo(true); setTimeout(()=>setSalvo(false),2500);
     } catch(e){console.error(e);}
     setSalv(false);
   }
 
-  function toggleVisivel(idx) {
-    setDados(d=>({ ...d, blocos:d.blocos.map((b,i)=>i===idx?{...b,visivel:!b.visivel}:b) }));
-  }
-  function removerBloco(idx) {
-    setDados(d=>({ ...d, blocos:d.blocos.filter((_,i)=>i!==idx) }));
-  }
-  function adicionarBloco() {
-    if(!novoBloco.titulo.trim()) return;
-    setDados(d=>({ ...d, blocos:[...d.blocos,{...novoBloco,visivel:true,id:Date.now()}] }));
-    setNovoBloco({ tipo:'especialidade', titulo:'', descricao:'' });
-    setAdd(false);
+  // Foto upload
+  function handleFotoUpload(e) {
+    const file=e.target.files[0]; if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const img=new Image();
+      img.onload=()=>{
+        const canvas=document.createElement('canvas');
+        const max=400; let w=img.width,h=img.height;
+        if(w>h){if(w>max){h=h*max/w;w=max;}}else{if(h>max){w=w*max/h;h=max;}}
+        canvas.width=w;canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        const b64=canvas.toDataURL('image/jpeg',0.7);
+        setDados(d=>({...d,foto:b64}));
+        if(usuario?.id) updateDoc(doc(db,'barbeiros',usuario.id),{foto:b64}).catch(console.error);
+      };
+      img.src=ev.target.result;
+    };
+    reader.readAsDataURL(file);
   }
 
-  const inp = { width:'100%', background:'#2E1A14', border:'1px solid #3A2018', borderRadius:'10px', padding:'10px 12px', color:'#F5EFE6', fontSize:'14px', outline:'none', boxSizing:'border-box' };
+  // Blocos
+  function toggleVisivel(idx){setDados(d=>({...d,blocos:d.blocos.map((b,i)=>i===idx?{...b,visivel:!b.visivel}:b)}));}
+  function removerBloco(idx){setDados(d=>({...d,blocos:d.blocos.filter((_,i)=>i!==idx)}));}
+  function adicionarBloco(){
+    if(!novoBloco.titulo.trim())return;
+    setDados(d=>({...d,blocos:[...d.blocos,{...novoBloco,visivel:true,id:Date.now()}]}));
+    setNovoBloco({tipo:'especialidade',titulo:'',descricao:''});setAdd(false);
+  }
+
+  // Links
+  function adicionarLink(){
+    if(!novoLink.handle.trim())return;
+    const rede=REDES.find(r=>r.id===novoLink.rede);
+    const url=novoLink.rede==='site'?novoLink.handle:(rede.prefix+novoLink.handle.replace('@',''));
+    setDados(d=>({...d,links:[...d.links,{...novoLink,url,id:Date.now()}]}));
+    setNovoLink({rede:'instagram',handle:'',url:''});setAddLink(false);
+  }
+  function removerLink(idx){setDados(d=>({...d,links:d.links.filter((_,i)=>i!==idx)}));}
+
+  const inp={width:'100%',background:'#2E1A14',border:'1px solid #3A2018',borderRadius:'10px',padding:'10px 12px',color:'#F5EFE6',fontSize:'14px',outline:'none',boxSizing:'border-box'};
 
   return (
-    <div>
-      {/* Foto de perfil */}
-      <div style={{ textAlign:'center', marginBottom:'20px' }}>
-        <div onClick={()=>dados.foto&&setFoto(true)}
-          style={{ width:'88px', height:'88px', borderRadius:'50%', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', border:'3px solid #E8C96A', margin:'0 auto 10px', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'36px', fontWeight:'700', color:'#F5EFE6', cursor:dados.foto?'pointer':'default' }}>
-          {dados.foto ? <img src={dados.foto} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : usuario?.nome?.charAt(0)}
-        </div>
-        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'18px', color:'#F5EFE6' }}>{usuario?.nome}</div>
-        <div style={{ fontSize:'12px', color:'#9A8880' }}>{usuario?.cargo||'Barbeiro'}</div>
-      </div>
+    <div style={{paddingBottom:'20px'}}>
 
-      {/* Bio */}
-      <div style={{ marginBottom:'16px' }}>
-        <label style={{ fontSize:'11px', color:'#9A8880', display:'block', marginBottom:'6px', fontWeight:'600', textTransform:'uppercase', letterSpacing:'1px' }}>Sua bio (visível para clientes)</label>
-        <textarea value={dados.bio} onChange={e=>setDados(d=>({...d,bio:e.target.value}))}
-          placeholder="Conte um pouco sobre você, sua experiência e estilo..."
-          rows={4} style={{ ...inp, resize:'vertical', fontFamily:'inherit', lineHeight:'1.6' }} />
-      </div>
-
-      {/* Blocos dinâmicos */}
-      <div style={{ marginBottom:'16px' }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px' }}>
-          <div style={{ fontSize:'11px', color:'#E8C96A', fontWeight:'700', textTransform:'uppercase', letterSpacing:'1px' }}>
-            Blocos do perfil
+      {/* ── FOTO ── */}
+      <div style={{textAlign:'center',marginBottom:'20px'}}>
+        <div style={{position:'relative',display:'inline-block'}}>
+          <div onClick={()=>dados.foto&&setFoto(true)}
+            style={{width:'96px',height:'96px',borderRadius:'50%',background:'linear-gradient(135deg,#5C2218,#8B3A2A)',border:'3px solid #E8C96A',overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'38px',fontWeight:'700',color:'#F5EFE6',cursor:dados.foto?'pointer':'default',margin:'0 auto'}}>
+            {dados.foto?<img src={dados.foto} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:usuario?.nome?.charAt(0)}
           </div>
+          <label style={{position:'absolute',bottom:'2px',right:'2px',background:'#E8C96A',borderRadius:'50%',width:'26px',height:'26px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'13px',cursor:'pointer'}}>
+            📷<input type="file" accept="image/*" onChange={handleFotoUpload} style={{display:'none'}}/>
+          </label>
+        </div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:'18px',color:'#F5EFE6',marginTop:'10px'}}>{usuario?.nome}</div>
+        <div style={{fontSize:'12px',color:'#9A8880'}}>{usuario?.cargo||'Barbeiro'}</div>
+        {dados.foto&&<div style={{fontSize:'10px',color:'#555',marginTop:'4px'}}>Toque na foto para ampliar</div>}
+      </div>
+
+      {/* ── STATS PRIVADOS ── */}
+      <div style={{background:'linear-gradient(135deg,#1A0F0D,#2E1A14)',borderRadius:'14px',padding:'14px',border:'1px solid #3A2018',marginBottom:'16px'}}>
+        <div style={{fontSize:'10px',color:'#555',fontWeight:'600',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'10px'}}>
+          🔒 Meu desempenho (somente você vê)
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px'}}>
+          {[
+            {label:'Atendimentos',value:stats.total,cor:'#E8C96A'},
+            {label:'Nota média',  value:stats.nota>0?stats.nota:'—',cor:'#4CAF50'},
+            {label:'Faturado',    value:`R$${(stats.faturado/1000).toFixed(1)}k`,cor:'#2E7D7A'},
+          ].map(s=>(
+            <div key={s.label} style={{background:'#231410',borderRadius:'10px',padding:'10px',textAlign:'center',border:'1px solid #3A2018'}}>
+              <div style={{fontSize:'16px',fontWeight:'700',color:s.cor}}>{s.value}</div>
+              <div style={{fontSize:'9px',color:'#9A8880',marginTop:'2px'}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── BIO ── */}
+      <div style={{background:'#231410',borderRadius:'14px',padding:'14px',border:'1px solid #3A2018',marginBottom:'12px'}}>
+        <label style={{fontSize:'10px',color:'#E8C96A',display:'block',marginBottom:'8px',fontWeight:'700',textTransform:'uppercase',letterSpacing:'1px'}}>
+          Bio pública — visível para clientes
+        </label>
+        <textarea value={dados.bio} onChange={e=>setDados(d=>({...d,bio:e.target.value}))}
+          placeholder="Conte sobre você, sua experiência e estilo de trabalho..."
+          rows={4} style={{...inp,resize:'vertical',fontFamily:'inherit',lineHeight:'1.6'}}/>
+      </div>
+
+      {/* ── REDES SOCIAIS & LINKS ── */}
+      <div style={{background:'#231410',borderRadius:'14px',padding:'14px',border:'1px solid #3A2018',marginBottom:'12px'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}}>
+          <label style={{fontSize:'10px',color:'#E8C96A',fontWeight:'700',textTransform:'uppercase',letterSpacing:'1px'}}>
+            Redes sociais & links
+          </label>
+          <button onClick={()=>setAddLink(!adicionandoLink)}
+            style={{padding:'4px 10px',borderRadius:'8px',border:'1px solid rgba(232,201,106,0.3)',background:'rgba(232,201,106,0.1)',color:'#E8C96A',fontSize:'11px',fontWeight:'700',cursor:'pointer'}}>
+            {adicionandoLink?'✕ Cancelar':'+ Adicionar'}
+          </button>
+        </div>
+
+        {adicionandoLink&&(
+          <div style={{background:'#2E1A14',borderRadius:'12px',padding:'12px',border:'1px solid rgba(232,201,106,0.2)',marginBottom:'10px'}}>
+            <div style={{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'10px'}}>
+              {REDES.map(r=>(
+                <button key={r.id} onClick={()=>setNovoLink(l=>({...l,rede:r.id,handle:''}))}
+                  style={{padding:'5px 10px',borderRadius:'8px',border:`1px solid ${novoLink.rede===r.id?'#E8C96A':'#3A2018'}`,background:novoLink.rede===r.id?'rgba(232,201,106,0.15)':'transparent',color:novoLink.rede===r.id?'#E8C96A':'#9A8880',fontSize:'12px',cursor:'pointer'}}>
+                  {r.icon} {r.label}
+                </button>
+              ))}
+            </div>
+            <input type="text"
+              placeholder={novoLink.rede==='site'?'https://meusite.com.br':novoLink.rede==='whatsapp'?'11999999999':'@seu_usuario'}
+              value={novoLink.handle}
+              onChange={e=>setNovoLink(l=>({...l,handle:e.target.value}))}
+              style={{...inp,marginBottom:'8px'}}/>
+            <button onClick={adicionarLink}
+              style={{width:'100%',padding:'10px',borderRadius:'10px',border:'none',background:'linear-gradient(135deg,#5C2218,#8B3A2A)',color:'#F5EFE6',fontWeight:'700',fontSize:'13px',cursor:'pointer'}}>
+              ✅ Adicionar link
+            </button>
+          </div>
+        )}
+
+        {dados.links.length===0?(
+          <div style={{textAlign:'center',padding:'16px',color:'#555',fontSize:'12px',border:'1px dashed #3A2018',borderRadius:'10px'}}>
+            Adicione seus perfis para que clientes possam seguir você
+          </div>
+        ):dados.links.map((link,idx)=>{
+          const rede=REDES.find(r=>r.id===link.rede)||{icon:'🌐',label:'Link'};
+          return(
+            <div key={link.id||idx} style={{display:'flex',alignItems:'center',gap:'10px',background:'#2E1A14',borderRadius:'10px',padding:'10px 12px',border:'1px solid #3A2018',marginBottom:'6px'}}>
+              <div style={{fontSize:'20px',flexShrink:0}}>{rede.icon}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:'11px',color:'#E8C96A',fontWeight:'600'}}>{rede.label}</div>
+                <div style={{fontSize:'12px',color:'#F5EFE6',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'200px'}}>{link.handle}</div>
+              </div>
+              <button onClick={()=>window.open(link.url,'_blank')}
+                style={{padding:'4px 8px',borderRadius:'6px',border:'1px solid #3A2018',background:'transparent',color:'#2E7D7A',fontSize:'11px',cursor:'pointer'}}>
+                🔗
+              </button>
+              <button onClick={()=>removerLink(idx)}
+                style={{padding:'4px 8px',borderRadius:'6px',border:'none',background:'rgba(244,67,54,0.1)',color:'#F44336',fontSize:'11px',cursor:'pointer'}}>
+                🗑
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── ESPECIALIDADES & FORMAÇÃO ── */}
+      <div style={{background:'#231410',borderRadius:'14px',padding:'14px',border:'1px solid #3A2018',marginBottom:'12px'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
+          <label style={{fontSize:'10px',color:'#E8C96A',fontWeight:'700',textTransform:'uppercase',letterSpacing:'1px'}}>
+            Especialidades & Formação
+          </label>
           <button onClick={()=>setAdd(!adicionandoBloco)}
-            style={{ padding:'5px 12px', borderRadius:'8px', border:'1px solid rgba(232,201,106,0.3)', background:'rgba(232,201,106,0.1)', color:'#E8C96A', fontSize:'12px', fontWeight:'700', cursor:'pointer' }}>
+            style={{padding:'4px 10px',borderRadius:'8px',border:'1px solid rgba(232,201,106,0.3)',background:'rgba(232,201,106,0.1)',color:'#E8C96A',fontSize:'11px',fontWeight:'700',cursor:'pointer'}}>
             {adicionandoBloco?'✕ Cancelar':'+ Novo bloco'}
           </button>
         </div>
 
-        {/* Form novo bloco */}
-        {adicionandoBloco && (
-          <div style={{ background:'#2E1A14', borderRadius:'12px', padding:'14px', border:'1px solid rgba(232,201,106,0.2)', marginBottom:'12px' }}>
-            <div style={{ display:'flex', gap:'6px', marginBottom:'10px', flexWrap:'wrap' }}>
+        {adicionandoBloco&&(
+          <div style={{background:'#2E1A14',borderRadius:'12px',padding:'12px',border:'1px solid rgba(232,201,106,0.2)',marginBottom:'10px'}}>
+            <div style={{display:'flex',gap:'6px',marginBottom:'10px',flexWrap:'wrap'}}>
               {TIPOS_BLOCO.map(t=>(
                 <button key={t.id} onClick={()=>setNovoBloco(b=>({...b,tipo:t.id}))}
-                  style={{ padding:'5px 10px', borderRadius:'8px', border:`1px solid ${novoBloco.tipo===t.id?t.cor:'#3A2018'}`, background:novoBloco.tipo===t.id?`${t.cor}22`:'transparent', color:novoBloco.tipo===t.id?t.cor:'#9A8880', fontSize:'12px', cursor:'pointer' }}>
+                  style={{padding:'5px 10px',borderRadius:'8px',border:`1px solid ${novoBloco.tipo===t.id?t.cor:'#3A2018'}`,background:novoBloco.tipo===t.id?`${t.cor}22`:'transparent',color:novoBloco.tipo===t.id?t.cor:'#9A8880',fontSize:'12px',cursor:'pointer'}}>
                   {t.label}
                 </button>
               ))}
             </div>
             <input type="text" placeholder="Título *" value={novoBloco.titulo}
               onChange={e=>setNovoBloco(b=>({...b,titulo:e.target.value}))}
-              style={{ ...inp, marginBottom:'8px' }}/>
+              style={{...inp,marginBottom:'8px'}}/>
             <input type="text" placeholder="Descrição (opcional)" value={novoBloco.descricao}
               onChange={e=>setNovoBloco(b=>({...b,descricao:e.target.value}))}
-              style={{ ...inp, marginBottom:'10px' }}/>
+              style={{...inp,marginBottom:'10px'}}/>
             <button onClick={adicionarBloco}
-              style={{ width:'100%', padding:'10px', borderRadius:'10px', border:'none', background:'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontWeight:'700', cursor:'pointer' }}>
+              style={{width:'100%',padding:'10px',borderRadius:'10px',border:'none',background:'linear-gradient(135deg,#5C2218,#8B3A2A)',color:'#F5EFE6',fontWeight:'700',cursor:'pointer'}}>
               ✅ Adicionar bloco
             </button>
           </div>
         )}
 
-        {/* Lista de blocos */}
-        {dados.blocos.length===0 ? (
-          <div style={{ textAlign:'center', padding:'20px', color:'#9A8880', fontSize:'13px', background:'#231410', borderRadius:'12px', border:'1px solid #3A2018' }}>
-            Nenhum bloco ainda. Adicione especialidades, cursos e novidades!
+        {dados.blocos.length===0?(
+          <div style={{textAlign:'center',padding:'16px',color:'#555',fontSize:'12px',border:'1px dashed #3A2018',borderRadius:'10px'}}>
+            Adicione especialidades, cursos e novidades
           </div>
-        ) : dados.blocos.map((bloco,idx)=>{
+        ):dados.blocos.map((bloco,idx)=>{
           const tipo=TIPOS_BLOCO.find(t=>t.id===bloco.tipo)||TIPOS_BLOCO[0];
-          return (
-            <div key={bloco.id||idx} style={{ background:'#231410', borderRadius:'12px', padding:'12px 14px', border:`1px solid ${bloco.visivel?tipo.cor+'44':'#3A2018'}`, marginBottom:'8px', display:'flex', alignItems:'center', gap:'12px', opacity:bloco.visivel?1:0.6 }}>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:'11px', color:tipo.cor, fontWeight:'700', marginBottom:'2px' }}>{tipo.label}</div>
-                <div style={{ fontSize:'14px', color:'#F5EFE6', fontWeight:'600' }}>{bloco.titulo}</div>
-                {bloco.descricao && <div style={{ fontSize:'12px', color:'#9A8880', marginTop:'2px' }}>{bloco.descricao}</div>}
+          return(
+            <div key={bloco.id||idx} style={{background:'#2E1A14',borderRadius:'10px',padding:'10px 12px',border:`1px solid ${bloco.visivel?tipo.cor+'44':'#3A2018'}`,marginBottom:'6px',display:'flex',alignItems:'center',gap:'10px',opacity:bloco.visivel?1:0.6}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:'10px',color:tipo.cor,fontWeight:'700',marginBottom:'2px'}}>{tipo.label}</div>
+                <div style={{fontSize:'13px',color:'#F5EFE6',fontWeight:'600'}}>{bloco.titulo}</div>
+                {bloco.descricao&&<div style={{fontSize:'11px',color:'#9A8880',marginTop:'2px'}}>{bloco.descricao}</div>}
               </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:'4px', alignItems:'center', flexShrink:0 }}>
+              <div style={{display:'flex',flexDirection:'column',gap:'4px',flexShrink:0}}>
                 <button onClick={()=>toggleVisivel(idx)}
-                  style={{ padding:'4px 8px', borderRadius:'8px', border:'none', background:bloco.visivel?'rgba(76,175,80,0.15)':'rgba(244,67,54,0.1)', color:bloco.visivel?'#4CAF50':'#F44336', fontSize:'10px', cursor:'pointer', fontWeight:'700' }}>
-                  {bloco.visivel?'👁 Visível':'🚫 Oculto'}
+                  style={{padding:'3px 7px',borderRadius:'6px',border:'none',background:bloco.visivel?'rgba(76,175,80,0.15)':'rgba(244,67,54,0.1)',color:bloco.visivel?'#4CAF50':'#F44336',fontSize:'10px',cursor:'pointer',fontWeight:'700'}}>
+                  {bloco.visivel?'👁':'🚫'}
                 </button>
                 <button onClick={()=>removerBloco(idx)}
-                  style={{ padding:'4px 8px', borderRadius:'8px', border:'1px solid #3A2018', background:'transparent', color:'#555', fontSize:'10px', cursor:'pointer' }}>
+                  style={{padding:'3px 7px',borderRadius:'6px',border:'1px solid #3A2018',background:'transparent',color:'#555',fontSize:'10px',cursor:'pointer'}}>
                   🗑
                 </button>
               </div>
@@ -577,17 +720,17 @@ function AbaPerfil({ usuario }) {
         })}
       </div>
 
-      {/* Botão salvar */}
+      {/* ── SALVAR ── */}
       <button onClick={salvarPerfil} disabled={salvando}
-        style={{ width:'100%', padding:'14px', borderRadius:'14px', border:'none', background:salvo?'linear-gradient(135deg,#2E7D7A,#3A9E9A)':'linear-gradient(135deg,#5C2218,#8B3A2A)', color:'#F5EFE6', fontSize:'15px', fontWeight:'700', cursor:'pointer' }}>
+        style={{width:'100%',padding:'14px',borderRadius:'14px',border:'none',background:salvo?'linear-gradient(135deg,#2E7D7A,#3A9E9A)':'linear-gradient(135deg,#5C2218,#8B3A2A)',color:'#F5EFE6',fontSize:'15px',fontWeight:'700',cursor:'pointer'}}>
         {salvando?'⏳ Salvando...':salvo?'✅ Salvo!':'💾 Salvar perfil'}
       </button>
 
       {/* Modal foto ampliada */}
-      {fotoAmpliada && dados.foto && (
-        <div onClick={()=>setFoto(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.95)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, cursor:'pointer' }}>
-          <img src={dados.foto} alt="" style={{ maxWidth:'90%', maxHeight:'90%', borderRadius:'16px', objectFit:'contain' }}/>
-          <button style={{ position:'absolute', top:'20px', right:'20px', background:'rgba(255,255,255,0.2)', border:'none', borderRadius:'50%', width:'36px', height:'36px', color:'#fff', fontSize:'18px', cursor:'pointer' }}>✕</button>
+      {fotoAmpliada&&dados.foto&&(
+        <div onClick={()=>setFoto(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.95)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:9999,cursor:'pointer'}}>
+          <img src={dados.foto} alt="" style={{maxWidth:'90%',maxHeight:'90%',borderRadius:'16px',objectFit:'contain'}}/>
+          <button style={{position:'absolute',top:'20px',right:'20px',background:'rgba(255,255,255,0.2)',border:'none',borderRadius:'50%',width:'36px',height:'36px',color:'#fff',fontSize:'18px',cursor:'pointer'}}>✕</button>
         </div>
       )}
     </div>
