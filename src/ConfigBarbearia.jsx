@@ -154,7 +154,7 @@ function ModalNovoServico({ categoria, onSalvar, onFechar }) {
   );
 }
 
-export default function ConfigBarbearia({ onBack, dark, abaInicial = 'horarios' }) {
+export default function ConfigBarbearia({ onBack, onVoltarAgenda, dark, abaInicial = 'horarios' }) {
   const s = getStyles(dark);
   const [abaAtiva, setAbaAtiva]     = React.useState(abaInicial);
   const [carregando, setCarregando] = React.useState(true);
@@ -218,6 +218,7 @@ export default function ConfigBarbearia({ onBack, dark, abaInicial = 'horarios' 
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #5C2218, #8B3A2A)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* Botão Voltar — sempre disponível */}
           <button onClick={onBack} style={{ background: 'rgba(0,0,0,0.2)', border: 'none', borderRadius: '8px', padding: '6px 12px', color: '#F5EFE6', cursor: 'pointer', fontSize: '13px', fontWeight:'600', display:'flex', alignItems:'center', gap:'4px' }}>← Voltar</button>
           <div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '17px', fontWeight: '700', color: '#F5EFE6' }}>
@@ -226,9 +227,18 @@ export default function ConfigBarbearia({ onBack, dark, abaInicial = 'horarios' 
             <div style={{ fontSize: '11px', color: 'rgba(245,239,230,0.6)' }}>Flyguer BarberShop</div>
           </div>
         </div>
-        <button onClick={salvar} disabled={salvando} style={{ background: salvoOk ? '#2E7D7A' : 'rgba(245,239,230,0.15)', border: '1px solid rgba(245,239,230,0.3)', borderRadius: '10px', padding: '8px 14px', color: '#F5EFE6', fontSize: '13px', fontWeight: '600', cursor: salvando ? 'wait' : 'pointer', transition: 'all 0.3s' }}>
-          {salvando ? '...' : salvoOk ? '✅ Salvo!' : '💾 Salvar'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Atalho para agenda — só aparece para o gerente */}
+          {onVoltarAgenda && (
+            <button onClick={onVoltarAgenda}
+              style={{ background: 'rgba(232,201,106,0.15)', border: '1px solid rgba(232,201,106,0.4)', borderRadius: '10px', padding: '8px 12px', color: '#E8C96A', fontSize: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
+              📅 Minha Agenda
+            </button>
+          )}
+          <button onClick={salvar} disabled={salvando} style={{ background: salvoOk ? '#2E7D7A' : 'rgba(245,239,230,0.15)', border: '1px solid rgba(245,239,230,0.3)', borderRadius: '10px', padding: '8px 14px', color: '#F5EFE6', fontSize: '13px', fontWeight: '600', cursor: salvando ? 'wait' : 'pointer', transition: 'all 0.3s' }}>
+            {salvando ? '...' : salvoOk ? '✅ Salvo!' : '💾 Salvar'}
+          </button>
+        </div>
       </div>
 
       {erro && <div style={{ background: 'rgba(244,67,54,0.15)', border: '1px solid rgba(244,67,54,0.3)', borderRadius: '10px', padding: '10px 14px', margin: '12px 20px 0', fontSize: '12px', color: '#F44336' }}>⚠️ {erro}</div>}
