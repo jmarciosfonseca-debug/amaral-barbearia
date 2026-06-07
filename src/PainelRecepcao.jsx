@@ -508,6 +508,7 @@ function AbaClientes() {
   const [clienteSel, setClienteSel] = React.useState(null);
   const [historico, setHistorico]   = React.useState([]);
   const [loadingHist, setLoadHist]  = React.useState(false);
+  const [assinatura, setAssinatura] = React.useState(null); // ✅ Badge VIP
 
   React.useEffect(()=>{
     getDocs(collection(db,'clientes')).then(snap=>{
@@ -518,11 +519,9 @@ function AbaClientes() {
 
   const filtrados=React.useMemo(()=>{
     if(!busca.trim())return todos;
-    const b=busca.toLowerCase();
-    return todos.filter(c=>(c.nome||'').toLowerCase().includes(b)||(c.telefone||'').includes(busca));
+    const buscaLow=busca.toLowerCase();
+    return todos.filter(cl=>(cl.nome||'').toLowerCase().includes(buscaLow)||(cl.telefone||'').includes(busca));
   },[busca,todos]);
-
-  const [assinatura, setAssinatura] = React.useState(null); // ✅ Ponto 5: badge VIP
 
   async function abrirHistorico(c){
     setClienteSel(c);setLoadHist(true);setAssinatura(null);
