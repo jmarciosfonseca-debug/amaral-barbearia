@@ -566,7 +566,7 @@ export default function App(){
                 }catch(e2){console.warn('[Auth] Não achou doc barbeiros por email:',e2);}
               }
               setUsuario({...perfil, uid:user.uid, id:barbeiroDocId});
-              if(perfil.perfil===PERFIL.GERENTE)           setTela('home_gerente');
+              if(perfil.perfil===PERFIL.GERENTE)           setTela('agenda_barbeiro'); // ✅ Ponto 3: gerente abre agenda como barbeiro
               else if(perfil.perfil===PERFIL.BARBEIRO)     setTela('home_barbeiro');
               else if(perfil.perfil===PERFIL.RECEPCIONISTA)setTela('recepcao');
               solicitarPushPermissao(user.uid);
@@ -606,7 +606,7 @@ export default function App(){
     const usuarioCompleto={...u, id:barbeiroDocId};
     setUsuario(usuarioCompleto);
     if(u.primeiroAcesso){setTela('redefinir_senha');return;}
-    if(u.perfil===PERFIL.GERENTE)           setTela('home_gerente');
+    if(u.perfil===PERFIL.GERENTE)           setTela('agenda_barbeiro'); // ✅ Gerente abre agenda
     else if(u.perfil===PERFIL.BARBEIRO)     setTela('home_barbeiro');
     else if(u.perfil===PERFIL.RECEPCIONISTA)setTela('recepcao');
     if(auth.currentUser)solicitarPushPermissao(auth.currentUser.uid);
@@ -638,7 +638,7 @@ export default function App(){
 
   function voltar(){
     if(usuario){
-      if(usuario.perfil===PERFIL.GERENTE)      setTela('home_gerente');
+      if(usuario.perfil===PERFIL.GERENTE)      setTela('agenda_barbeiro');
       else if(usuario.perfil===PERFIL.BARBEIRO)setTela('home_barbeiro');
       else setTela('staff_login');
     }else setTela('splash');
@@ -741,7 +741,7 @@ export default function App(){
 
           {tela==='recepcao'&&<ErrorBoundary modulo="PainelRecepcao"><PainelRecepcao onBack={()=>usuario?.perfil===PERFIL.GERENTE?setTela('home_gerente'):setTela('splash')} dark={dark} onNavegarAssinaturas={()=>setTela('gerenciar_assinaturas')}/></ErrorBoundary>}
           {tela==='financeiro'&&usuario&&<ErrorBoundary modulo="Financeiro"><Financeiro onBack={()=>setTela('home_gerente')} dark={dark}/></ErrorBoundary>}
-          {tela==='agenda_barbeiro'&&usuario&&<ErrorBoundary modulo="AgendaBarbeiro"><AgendaBarbeiro usuario={usuario} onBack={()=>setTela(usuario.perfil===PERFIL.GERENTE?'home_gerente':'home_barbeiro')} dark={dark}/></ErrorBoundary>}
+          {tela==='agenda_barbeiro'&&usuario&&<ErrorBoundary modulo="AgendaBarbeiro"><AgendaBarbeiro usuario={usuario} onBack={()=>setTela(usuario.perfil===PERFIL.GERENTE?'home_gerente':'home_barbeiro')} onPainelControle={usuario.perfil===PERFIL.GERENTE?()=>setTela('home_gerente'):null} dark={dark}/></ErrorBoundary>}
           {tela==='agenda_geral'&&usuario&&<ErrorBoundary modulo="AgendaGeral"><AgendaGeral usuario={usuario} onBack={()=>setTela('home_gerente')} dark={dark}/></ErrorBoundary>}
           {tela==='gestao_equipe'&&usuario&&<ErrorBoundary modulo="GestaoEquipe"><GestaoEquipe usuario={usuario} onBack={()=>usuario.perfil===PERFIL.GERENTE?setTela('home_gerente'):setTela('home_barbeiro')} dark={dark}/></ErrorBoundary>}
           {tela==='config_barbearia'&&usuario&&<ErrorBoundary modulo="ConfigBarbearia"><ConfigBarbearia onBack={()=>setTela('home_gerente')} dark={dark} abaInicial={configAbaInicial}/></ErrorBoundary>}

@@ -16,10 +16,16 @@ function horasRestantes(hora) {
   return (alvo - agora) / 1000 / 60;
 }
 
-// ✅ Fix: monta URL WhatsApp sem %0A
+// ✅ Ponto 4: encoding correto + detecção desktop/mobile para evitar loop de abas
 function montarLinkWhatsApp(tel, linhas) {
   const texto = linhas.filter(l => l !== null && l !== undefined).join('\n');
-  return `https://wa.me/55${tel}?text=${encodeURIComponent(texto)}`;
+  const encoded = encodeURIComponent(texto);
+  // Desktop (tela >= 768px): usa WhatsApp Web — evita loop de abas no notebook
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+  if (isDesktop) {
+    return `https://web.whatsapp.com/send?phone=55${tel}&text=${encoded}`;
+  }
+  return `https://wa.me/55${tel}?text=${encoded}`;
 }
 
 export default function LembretesRecepcao({ onFechar, dark }) {

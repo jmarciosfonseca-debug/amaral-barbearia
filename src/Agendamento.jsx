@@ -14,26 +14,7 @@ import { notificarBarbeariaNovoAgendamento } from './notificacoes';
 import { resgatarPromocao } from './promocaoEngine';
 
 // ─── HELPERS ─────────────────────────────────────────────────
-function gerarPixPayload({ chave, nome, cidade, valor, descricao }) {
-  function campo(id, v) { return `${id}${String(v.length).padStart(2,'0')}${v}`; }
-  function crc16(str) {
-    let crc = 0xFFFF;
-    for (let i=0;i<str.length;i++) {
-      crc ^= str.charCodeAt(i)<<8;
-      for(let j=0;j<8;j++) crc=(crc&0x8000)?(crc<<1)^0x1021:crc<<1, crc&=0xFFFF;
-    }
-    return crc.toString(16).toUpperCase().padStart(4,'0');
-  }
-  const mai=campo('00','BR.GOV.BCB.PIX')+campo('01',chave);
-  const vStr=valor>0?Number(valor).toFixed(2):'';
-  const nomeFmt=(nome||'FLYGUER').substring(0,25).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
-  const cidFmt=(cidade||'SAO PAULO').substring(0,15).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
-  const descFmt=(descricao||'').substring(0,25).replace(/[^a-zA-Z0-9 ]/g,'');
-  let p=campo('00','01')+campo('26',mai)+campo('52','0000')+campo('53','986')+
-    (vStr?campo('54',vStr):'')+campo('58','BR')+campo('59',nomeFmt)+campo('60',cidFmt)+
-    (descFmt?campo('62',campo('05',descFmt)):'')+  '6304';
-  return p+crc16(p);
-}
+// ✅ Pix: chave limpa copiada diretamente via Clipboard API — sem geração EMV manual
 
 function hoje() { return new Date().toISOString().split('T')[0]; }
 function formatarData(s) { if(!s)return''; const[a,m,d]=s.split('-'); return`${d}/${m}/${a}`; }
@@ -582,7 +563,7 @@ function Pagamento({cliente,barbeiro,servico,dataHora,onConfirmar,onBack,dark}) 
   const valorTotal=servico.valor||0;
   const valorSinal=(valorTotal*0.5).toFixed(2).replace('.',',');
   const valorPix=travado?valorTotal*0.5:valorTotal;
-  const pixPayload=pixConfig.chave?gerarPixPayload({chave:pixConfig.chave,nome:pixConfig.nome,cidade:pixConfig.cidade,valor:valorPix,descricao:`Flyguer ${barbeiro.nome}`}):'';
+  // ✅ Sem payload EMV — chave Pix limpa usada diretamente
 
   function abrirWhatsAppPix(){
     const msg=encodeURIComponent(`Olá! Sou ${cliente.nome}, agendamento ${formatarData(dataHora.data)} às ${dataHora.hora} com ${barbeiro.nome}.\nServiço: ${servico.nome}\nValor: R$ ${valorTotal.toFixed(2).replace('.',',')}\n\nSegue comprovante do Pix 👇`);
@@ -689,7 +670,7 @@ function Pagamento({cliente,barbeiro,servico,dataHora,onConfirmar,onBack,dark}) 
             <div style={{background:'#1A0F0D',borderRadius:'10px',padding:'12px',marginBottom:'12px'}}>
               <div style={{fontSize:'10px',color:'#9A8880',marginBottom:'4px'}}>Chave Pix</div>
               <div style={{fontSize:'15px',fontWeight:'700',color:'#2E7D7A',letterSpacing:'1px',marginBottom:'8px',wordBreak:'break-all'}}>{pixConfig.chave}</div>
-              <button onClick={()=>{navigator.clipboard?.writeText(pixPayload||pixConfig.chave);setCop(true);setTimeout(()=>setCop(false),3000);}}
+              <button onClick={()=>{navigator.clipboard?.writeText(pixConfig.chave);setCop(true);setTimeout(()=>setCop(false),3000);}}
                 style={{padding:'10px 14px',borderRadius:'8px',border:'1px solid #2E7D7A',background:pixCopiado?'#2E7D7A':'transparent',color:pixCopiado?'#fff':'#2E7D7A',fontSize:'13px',cursor:'pointer',fontWeight:'700',width:'100%'}}>
                 {pixCopiado?'✅ Copiado!':'📋 Copiar código Pix'}
               </button>

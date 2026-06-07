@@ -14,6 +14,18 @@ import {
 import { getStyles } from './getStyles';
 import CaptarClientes from './CaptarClientes';
 
+// ✅ Ponto 4: helper WhatsApp — desktop usa web.whatsapp.com, mobile usa wa.me
+function abrirWhatsApp(tel, texto) {
+  const encoded = encodeURIComponent(texto);
+  const num = tel.replace(/\D/g, '');
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+  const url = isDesktop
+    ? `https://web.whatsapp.com/send?phone=55${num}&text=${encoded}`
+    : `https://wa.me/55${num}?text=${encoded}`;
+  window.open(url, '_blank');
+}
+
+
 // ─── HELPERS ─────────────────────────────────────────────────
 function hoje() {
   const d = new Date();
@@ -102,10 +114,10 @@ function ModalPagamento({ ag, onConfirmar, onFechar }) {
 }
 
 // ─── ABA AGENDA ───────────────────────────────────────────────
-function AbaAgenda({ onEncaixe }) {
+function AbaAgenda({ onEncaixe, agendamentosGlobais=[] }) {
   const [barbeiros, setBarbeiros]       = React.useState([]);
   const [barbeiroSel, setBarbeiroSel]   = React.useState(null);
-  const [agendamentos, setAgendamentos] = React.useState([]);
+  // ✅ agendamentos vêm do stream global (prop) — sem estado local nem listener por barbeiro
   const [dataSel, setDataSel]           = React.useState(hoje());
   const [mes, setMes]                   = React.useState(new Date().getMonth());
   const [ano, setAno]                   = React.useState(new Date().getFullYear());
@@ -121,20 +133,13 @@ function AbaAgenda({ onEncaixe }) {
     });
   },[]);
 
-  React.useEffect(()=>{
-    if(!barbeiroSel)return;
-    const unsub=onSnapshot(
-      query(collection(db,'agendamentos'),where('barbeiroId','==',barbeiroSel.id)),
-      snap=>setAgendamentos(snap.docs.map(d=>({firestoreId:d.id,...d.data()}))),
-      console.error
-    );
-    return unsub;
-  },[barbeiroSel]);
+  // ✅ Ponto 2: sem listener por barbeiro — agendamentos vêm do stream global do PainelRecepcao
+  // O filtro por barbeiroSel é feito localmente em memória abaixo
 
   const primeiroDia=new Date(ano,mes,1).getDay();
   const diasNoMes=new Date(ano,mes+1,0).getDate();
   const mapaDia={};
-  agendamentos.forEach(ag=>{
+  agsBarbeiro.forEach(ag=>{
     if(!ag.data)return;
     if(!mapaDia[ag.data])mapaDia[ag.data]={conf:0,canc:0};
     if(['confirmado','pendente'].includes(ag.status))mapaDia[ag.data].conf++;
@@ -145,7 +150,9 @@ function AbaAgenda({ onEncaixe }) {
   for(let d=1;d<=diasNoMes;d++)cells.push(d);
 
   // ✅ Filtro: sem arquivados
-  const agsDia=agendamentos.filter(ag=>ag.data===dataSel&&!ag.arquivado).sort((a,b)=>a.hora?.localeCompare(b.hora));
+  // ✅ Filtro local: barbeiro selecionado + data + sem arquivados
+  const agsBarbeiro = barbeiroSel ? agendamentosGlobais.filter(ag=>ag.barbeiroId===barbeiroSel.id) : [];
+  const agsDia=agsBarbeiro.filter(ag=>ag.data===dataSel&&!ag.arquivado).sort((a,b)=>a.hora?.localeCompare(b.hora));
 
   async function concluir(ag){await updateDoc(doc(db,'agendamentos',ag.firestoreId),{status:'concluido',concluidoEm:serverTimestamp()});}
   async function cancelar(ag){await updateDoc(doc(db,'agendamentos',ag.firestoreId),{status:'cancelado_barbeiro',canceladoEm:serverTimestamp()});}
@@ -515,13 +522,29 @@ function AbaClientes() {
     return todos.filter(c=>(c.nome||'').toLowerCase().includes(b)||(c.telefone||'').includes(busca));
   },[busca,todos]);
 
+  const [assinatura, setAssinatura] = React.useState(null); // ✅ Ponto 5: badge VIP
+
   async function abrirHistorico(c){
-    setClienteSel(c);setLoadHist(true);
+    setClienteSel(c);setLoadHist(true);setAssinatura(null);
     try{
       const snap=await getDocs(query(collection(db,'agendamentos'),where('clienteCpf','==',c.cpf||c.id)));
       setHistorico(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.data?.localeCompare(a.data)||b.hora?.localeCompare(a.hora)));
+      // ✅ Ponto 5: lê assinaturaResumo do documento do cliente para badge no balcão
+      if(c.assinaturaResumo?.assinaturaAtiva){
+        setAssinatura(c.assinaturaResumo);
+      }
     }catch(e){console.error(e);setHistorico([]);}
     setLoadHist(false);
+  }
+
+  async function darBaixaCorte(){
+    if(!clienteSel?.assinaturaResumo?.assinaturaAtiva)return;
+    const novoResumo={...clienteSel.assinaturaResumo, cortesRestantes:Math.max(0,(clienteSel.assinaturaResumo.cortesRestantes||0)-1)};
+    try{
+      await updateDoc(doc(db,'clientes',clienteSel.id),{assinaturaResumo:novoResumo});
+      setAssinatura(novoResumo);
+      setClienteSel(prev=>({...prev,assinaturaResumo:novoResumo}));
+    }catch(e){console.error(e);}
   }
 
   async function gerarPDF(){
@@ -608,6 +631,24 @@ function AbaClientes() {
             }} style={{padding:'8px 12px',borderRadius:'10px',border:'none',background:'rgba(37,211,102,0.15)',color:'#25D366',fontSize:'12px',cursor:'pointer',fontWeight:'700'}}>📲</button>
           )}
         </div>
+        {/* ✅ Ponto 5: Badge assinatura VIP */}
+        {assinatura?.assinaturaAtiva && (
+          <div style={{background:'linear-gradient(135deg,rgba(201,168,76,0.15),rgba(201,168,76,0.05))',border:'1px solid rgba(201,168,76,0.4)',borderRadius:'12px',padding:'12px 14px',marginBottom:'12px',display:'flex',alignItems:'center',gap:'12px'}}>
+            <div style={{fontSize:'28px',flexShrink:0}}>⭐</div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:'13px',fontWeight:'700',color:'#E8C96A'}}>Plano {assinatura.planoNome}</div>
+              <div style={{fontSize:'12px',color:'#F5EFE6',marginTop:'2px'}}>
+                <span style={{fontWeight:'700',fontSize:'18px',color:'#4CAF50'}}>{assinatura.cortesRestantes}</span>
+                <span style={{color:'#9A8880'}}> / {assinatura.cortesTotais} cortes restantes</span>
+              </div>
+            </div>
+            <button onClick={darBaixaCorte} disabled={assinatura.cortesRestantes===0}
+              style={{padding:'8px 12px',borderRadius:'10px',border:'none',background:assinatura.cortesRestantes>0?'rgba(76,175,80,0.2)':'rgba(100,100,100,0.2)',color:assinatura.cortesRestantes>0?'#4CAF50':'#555',fontSize:'11px',fontWeight:'700',cursor:assinatura.cortesRestantes>0?'pointer':'not-allowed',whiteSpace:'nowrap'}}>
+              {assinatura.cortesRestantes>0?'✂️ Dar baixa':'Esgotado'}
+            </button>
+          </div>
+        )}
+
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'16px'}}>
           {[{label:'Concluídos',value:conc,cor:'#2E7D7A'},{label:'Total gasto',value:`R$ ${totalGasto.toFixed(2).replace('.',',')}`,cor:'#E8C96A'}].map(item=>(
             <div key={item.label} style={{background:'#231410',borderRadius:'12px',padding:'12px',textAlign:'center',border:'1px solid #3A2018'}}>
@@ -696,6 +737,7 @@ export default function PainelRecepcao({ onBack, dark }) {
   const primeiraLeituraRef            = React.useRef(true);
 
   // ── Dashboard ──
+  const [agendamentosGlobais, setAgendamentosGlobais] = React.useState([]); // ✅ Stream global compartilhado
   const [statsHoje, setStats]         = React.useState({ confirmados:0, concluidos:0, receita:0, recebido:0 });
   const [proximo, setProximo]         = React.useState(null);
   const [contReg, setContReg]         = React.useState('');
@@ -944,7 +986,7 @@ export default function PainelRecepcao({ onBack, dark }) {
       </div>
 
       <div style={{padding:'16px'}}>
-        {aba==='agenda'   && <AbaAgenda onEncaixe={(b,d)=>{setEncaixe({b,d});setAba('encaixe');}}/>}
+        {aba==='agenda'   && <AbaAgenda onEncaixe={(b,d)=>{setEncaixe({b,d});setAba('encaixe');}} agendamentosGlobais={agendamentosGlobais}/>}
         {aba==='encaixe'  && <AbaEncaixe barbeiroInicial={encaixeParams?.b} dataInicial={encaixeParams?.d} onConcluir={()=>{setEncaixe(null);setAba('agenda');}}/>}
         {aba==='clientes' && <AbaClientes/>}
         {aba==='servicos' && <AbaServicos/>}

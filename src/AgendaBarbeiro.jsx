@@ -15,6 +15,18 @@ import {
 import { getStyles } from './getStyles';
 import CaptarClientes from './CaptarClientes';
 
+// ✅ Ponto 4: helper WhatsApp — desktop usa web.whatsapp.com, mobile usa wa.me
+function abrirWhatsApp(tel, texto) {
+  const encoded = encodeURIComponent(texto);
+  const num = tel.replace(/\D/g, '');
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+  const url = isDesktop
+    ? `https://web.whatsapp.com/send?phone=55${num}&text=${encoded}`
+    : `https://wa.me/55${num}?text=${encoded}`;
+  window.open(url, '_blank');
+}
+
+
 const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const DIAS_KEYS   = ['dom','seg','ter','qua','qui','sex','sab'];
 const MESES       = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -802,7 +814,7 @@ function AbaAvaliacoes({ usuario }) {
 }
 
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────
-export default function AgendaBarbeiro({ usuario, onBack, dark }) {
+export default function AgendaBarbeiro({ usuario, onBack, onPainelControle, dark }) {
   const s = getStyles(dark);
   const [aba, setAba]           = React.useState('agenda');
   const [dataSel, setDataSel]   = React.useState(hoje());
@@ -873,6 +885,12 @@ export default function AgendaBarbeiro({ usuario, onBack, dark }) {
           {onBack && (
             <button onClick={onBack} style={{ background:'rgba(0,0,0,0.25)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'10px', padding:'7px 12px', color:'#F5EFE6', cursor:'pointer', fontSize:'13px', fontWeight:'600', flexShrink:0 }}>
               ← Home
+            </button>
+          )}
+          {/* ✅ Ponto 3: botão Painel de Controle exclusivo do gerente */}
+          {onPainelControle && (
+            <button onClick={onPainelControle} style={{ background:'rgba(232,201,106,0.15)', border:'1px solid rgba(232,201,106,0.4)', borderRadius:'10px', padding:'7px 12px', color:'#E8C96A', cursor:'pointer', fontSize:'12px', fontWeight:'600', flexShrink:0, whiteSpace:'nowrap' }}>
+              ⚙️ Painel
             </button>
           )}
           <div style={{ flex:1, display:'flex', alignItems:'center', gap:'10px' }}>

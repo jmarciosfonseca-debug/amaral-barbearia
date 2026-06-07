@@ -6,6 +6,18 @@
 
 import React from 'react';
 
+// ✅ Ponto 4: helper WhatsApp — desktop usa web.whatsapp.com, mobile usa wa.me
+function abrirWhatsApp(tel, texto) {
+  const encoded = encodeURIComponent(texto);
+  const num = tel.replace(/\D/g, '');
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+  const url = isDesktop
+    ? `https://web.whatsapp.com/send?phone=55${num}&text=${encoded}`
+    : `https://wa.me/55${num}?text=${encoded}`;
+  window.open(url, '_blank');
+}
+
+
 const LINK_APP = 'https://flyguer-barbershop.vercel.app';
 
 const MENSAGEM_PADRAO =
