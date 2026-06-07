@@ -16,13 +16,13 @@ const CONFIG_PADRAO = {
   pixCidade:'Sao Paulo',
   endereco: 'Shopping Cidade das Artes — Piso 2, Nº 22',
   horarios: {
-    dom: { aberto: false, abertura: '09:00', fechamento: '18:00' },
-    seg: { aberto: true,  abertura: '09:00', fechamento: '20:00' },
-    ter: { aberto: true,  abertura: '09:00', fechamento: '20:00' },
-    qua: { aberto: true,  abertura: '09:00', fechamento: '20:00' },
-    qui: { aberto: true,  abertura: '09:00', fechamento: '20:00' },
-    sex: { aberto: true,  abertura: '09:00', fechamento: '20:00' },
-    sab: { aberto: true,  abertura: '09:00', fechamento: '18:00' },
+    dom: { aberto: false, abertura: '09:00', fechamento: '23:30' },
+    seg: { aberto: true,  abertura: '09:00', fechamento: '23:30' },
+    ter: { aberto: true,  abertura: '09:00', fechamento: '23:30' },
+    qua: { aberto: true,  abertura: '09:00', fechamento: '23:30' },
+    qui: { aberto: true,  abertura: '09:00', fechamento: '23:30' },
+    sex: { aberto: true,  abertura: '09:00', fechamento: '23:30' },
+    sab: { aberto: true,  abertura: '09:00', fechamento: '23:30' },
   },
   almoco: { ativo: true, inicio: '12:00', fim: '13:00' },
 };
@@ -218,7 +218,7 @@ export default function ConfigBarbearia({ onBack, dark, abaInicial = 'horarios' 
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #5C2218, #8B3A2A)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button onClick={onBack} style={{ background: 'rgba(0,0,0,0.2)', border: 'none', borderRadius: '8px', padding: '6px 10px', color: '#F5EFE6', cursor: 'pointer', fontSize: '14px' }}>←</button>
+          <button onClick={onBack} style={{ background: 'rgba(0,0,0,0.2)', border: 'none', borderRadius: '8px', padding: '6px 12px', color: '#F5EFE6', cursor: 'pointer', fontSize: '13px', fontWeight:'600', display:'flex', alignItems:'center', gap:'4px' }}>← Voltar</button>
           <div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '17px', fontWeight: '700', color: '#F5EFE6' }}>
               {abaAtiva === 'servicos' ? '💈 Serviços & Preços' : '⚙️ Configurações'}
